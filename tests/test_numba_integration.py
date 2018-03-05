@@ -26,8 +26,6 @@ def null_count(sa):
     (['foo', None, None], 2),
 ])
 def test_null_count(array, expected):
-    array = pa.array(array)
-
     assert null_count(NumbaStringArray.make(array)) == expected
 
 
@@ -40,8 +38,6 @@ def test_null_count(array, expected):
     (['föö', None], [False, True]),
 ])
 def test_is_null(array, expected):
-    array = pa.array(array)
-
     np.testing.assert_array_equal(
         is_null(NumbaStringArray.make(array)),
         np.asarray(expected, dtype=np.bool),
@@ -57,8 +53,6 @@ def test_is_null(array, expected):
     pytest.mark.xfail(reason='non ascii not yet supported')((['föö'], [3])),
 ])
 def test_str_length(array, expected):
-    array = pa.array(array)
-
     np.testing.assert_array_equal(
         str_length(NumbaStringArray.make(array)),
         np.asarray(expected, dtype=np.int32),
@@ -79,8 +73,6 @@ def test_str_concat():
 
 def test_decode_example():
     strings = ['foo', 'bar', 'baz']
-    array = pa.array(strings)
-
     expected = strings[1].encode('utf32')
     expected = memoryview(expected)
     expected = np.asarray(expected).view(np.uint32)
@@ -89,6 +81,6 @@ def test_decode_example():
     expected = expected.view(np.uint32)[1:]
 
     np.testing.assert_almost_equal(
-        NumbaStringArray.make(array).decode(1),
+        NumbaStringArray.make(strings).decode(1),
         expected,
     )
