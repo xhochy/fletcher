@@ -23,5 +23,5 @@ setup(
     packages=find_packages(),
     install_requires=[
         'pandas>=0.23.0.dev0',
-    ]
+    ],
 )

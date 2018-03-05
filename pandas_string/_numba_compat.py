@@ -49,12 +49,12 @@ class NumbaStringArray:
 
     def length(self, str_idx):
         result = 0
-        l = self.byte_length(str_idx)
-        j = 0
+        byte_length = self.byte_length(str_idx)
+        current = 0
 
-        while j < l:
-            _, inc = self.get(str_idx, j)
-            j += inc
+        while current < byte_length:
+            _, inc = self.get(str_idx, current)
+            current += inc
             result += 1
 
         return result

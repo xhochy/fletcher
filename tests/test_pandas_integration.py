@@ -51,13 +51,13 @@ def test_dataframe_from_series_no_dict():
     result = pd.DataFrame(s)
     expected = pd.DataFrame({0: s})
     tm.assert_frame_equal(result, expected)
- 
+
     s = pd.Series(pd_str.StringArray(TEST_ARRAY), name='A')
     result = pd.DataFrame(s)
     expected = pd.DataFrame({'A': s})
     tm.assert_frame_equal(result, expected)
- 
- 
+
+
 def test_dataframe_from_series():
     s = pd.Series(pd_str.StringArray(TEST_ARRAY))
     c = pd.Series(pd.Categorical(['a', 'b']))
