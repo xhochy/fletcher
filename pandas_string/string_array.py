@@ -1,6 +1,8 @@
 from pandas.core.arrays import ExtensionArray
 from pandas.core.dtypes.dtypes import ExtensionDtype
 
+import numpy as np
+import pandas as pd
 import pyarrow as pa
 
 
@@ -91,3 +93,17 @@ class StringArray(ExtensionArray):
             return StringArray(value)
         else:
             return value
+
+    def isna(self):
+        # type: () -> np.ndarray
+        """
+        Boolean NumPy array indicating if each value is missing.
+
+        This should return a 1-D array the same length as 'self'.
+        """
+        # TODO: We should be able to return the valid bitmap as bytemap here
+        result = np.zeros(len(self.data), dtype=bool)
+        for i in range(len(self.data)):
+            if self.data[i].as_py() is None:
+                result[i] = True
+        return result

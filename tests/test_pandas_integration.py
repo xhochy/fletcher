@@ -43,6 +43,8 @@ def test_dataframe_constructor():
     df = pd.DataFrame({"A": v})
     assert isinstance(df.dtypes['A'], pd_str.StringDtype)
     assert df.shape == (3, 1)
+
+    # Test some calls to typical DataFrame functions
     str(df)
 
 
