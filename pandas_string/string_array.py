@@ -2,7 +2,6 @@ from pandas.core.arrays import ExtensionArray
 from pandas.core.dtypes.dtypes import ExtensionDtype
 
 import numpy as np
-import pandas as pd
 import pyarrow as pa
 
 
