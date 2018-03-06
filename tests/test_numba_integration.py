@@ -4,7 +4,7 @@ import pyarrow as pa
 import pytest
 
 # TODO: remove internal import
-from pandas_string._numba_compat import NumbaStringArray
+from pandas_string._numba_compat import NumbaStringArray, NumbaStringArrayBuilder, buffers_as_arrays
 from pandas_string._algorithms import is_null, str_length, str_concat
 
 
@@ -95,3 +95,33 @@ def test_decode_example():
         NumbaStringArray.make(strings).decode(1),
         expected,
     )
+
+
+@pytest.mark.parametrize('data', [
+    ['foo'],
+    ['foo', None],
+    [None, None, None, None],
+    ['foo', 'bar'],
+    ['foo', 'bar', 'baz'],
+])
+def test_string_builder_simple(data):
+    builder = NumbaStringArrayBuilder(2, 6)
+
+    for s in data:
+        if s is None:
+            builder.finish_null()
+            continue
+
+        for c in s:
+            builder.put_byte(ord(c))
+
+        builder.finish_string()
+
+    builder.finish()
+
+    expected = pa.array(data, pa.string())
+    missing, offsets, data = buffers_as_arrays(expected)
+
+    np.testing.assert_array_equal(builder.missing, missing)
+    np.testing.assert_array_equal(builder.offsets, offsets)
+    np.testing.assert_array_equal(builder.data, data)

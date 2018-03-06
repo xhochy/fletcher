@@ -1,3 +1,5 @@
+import math
+
 import numba
 import numpy as np
 import pyarrow as pa
@@ -5,7 +7,7 @@ import pyarrow as pa
 _string_buffer_types = np.uint8, np.uint32, np.uint8
 
 
-def _buffers_as_arrays(sa):
+def buffers_as_arrays(sa):
     return tuple(
         np.asarray(b).view(t) if b is not None else None
         for b, t in zip(sa.buffers(), _string_buffer_types)
@@ -16,7 +18,6 @@ def _buffers_as_arrays(sa):
     ('missing', numba.uint8[:]),
     ('offsets', numba.uint32[:]),
     ('data', numba.optional(numba.uint8[:])),
-
 ])
 class NumbaStringArray:
     """Wrapper around arrow's StringArray for use in numba functions.
@@ -91,8 +92,90 @@ def _make(sa):
     if not isinstance(sa, pa.StringArray):
         sa = pa.array(sa, pa.string())
 
-    return NumbaStringArray(*_buffers_as_arrays(sa))
+    return NumbaStringArray(*buffers_as_arrays(sa))
 
 
 # @classmethod does not seem to be supported
 NumbaStringArray.make = _make
+
+
+@numba.jitclass([
+    ('missing', numba.uint8[:]),
+    ('offsets', numba.uint32[:]),
+    ('data', numba.optional(numba.uint8[:])),
+    ('string_position', numba.uint32),
+    ('byte_position', numba.uint32),
+    ('string_capacity', numba.uint32),
+    ('byte_capacity', numba.uint32),
+])
+class NumbaStringArrayBuilder:
+    def __init__(self, string_capacity, byte_capacity):
+        self.missing = np.ones(_missing_capactiy(string_capacity), np.uint8)
+        self.offsets = np.zeros(string_capacity + 1, np.uint32)
+        self.data = np.zeros(byte_capacity, np.uint8)
+        self.string_position = 0
+        self.byte_position = 0
+
+        self.string_capacity = string_capacity
+        self.byte_capacity = byte_capacity
+
+    def increase_string_capacity(self, string_capacity):
+        assert string_capacity > self.string_capacity
+
+        missing = np.zeros(_missing_capactiy(string_capacity), np.uint8)
+        missing[:_missing_capactiy(self.string_capacity)] = self.missing
+        self.missing = missing
+
+        offsets = np.zeros(string_capacity + 1, np.uint32)
+        offsets[:self.string_capacity + 1] = self.offsets
+        self.offsets = offsets
+
+        self.string_capacity = string_capacity
+
+    def increase_byte_capacity(self, byte_capacity):
+        assert byte_capacity > self.byte_capacity
+
+        data = np.zeros(byte_capacity, np.uint8)
+        data[:self.byte_capacity] = self.data
+        self.data = data
+
+        self.byte_capacity = byte_capacity
+
+    def put_byte(self, b):
+        if self.byte_position >= self.byte_capacity:
+            self.increase_byte_capacity(int(math.ceil(1.2 * self.byte_capacity)))
+
+        self.data[self.byte_position] = b
+        self.byte_position += 1
+
+    def finish_string(self):
+        if self.string_position >= self.string_capacity:
+            self.increase_string_capacity(int(math.ceil(1.2 * self.string_capacity)))
+
+        self.offsets[self.string_position + 1] = self.byte_position
+
+        byte_idx = self.string_position // 8
+        self.missing[byte_idx] |= 1 << (self.string_position % 8)
+
+        self.string_position += 1
+
+    def finish_null(self):
+        if self.string_position >= self.string_capacity:
+            self.increase_string_capacity(int(math.ceil(1.2 * self.string_capacity)))
+
+        self.offsets[self.string_position + 1] = self.byte_position
+
+        byte_idx = self.string_position // 8
+        self.missing[byte_idx] &= ~(1 << (self.string_position % 8))
+
+        self.string_position += 1
+
+    def finish(self):
+        self.missing = self.missing[:_missing_capactiy(self.string_position)]
+        self.offsets = self.offsets[:self.string_position + 1]
+        self.data = self.data[:self.byte_position]
+
+
+@numba.jit
+def _missing_capactiy(capacity):
+    return int(math.ceil(capacity / 8))
