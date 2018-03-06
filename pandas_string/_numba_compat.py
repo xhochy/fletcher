@@ -6,14 +6,17 @@ _string_buffer_types = np.uint8, np.uint32, np.uint8
 
 
 def _buffers_as_arrays(sa):
-    buffers = sa.buffers()
-    return tuple(np.asarray(b).view(t) for b, t in zip(buffers, _string_buffer_types))
+    return tuple(
+        np.asarray(b).view(t) if b is not None else None
+        for b, t in zip(sa.buffers(), _string_buffer_types)
+    )
 
 
 @numba.jitclass([
     ('missing', numba.uint8[:]),
     ('offsets', numba.uint32[:]),
-    ('data', numba.uint8[:]),
+    ('data', numba.optional(numba.uint8[:])),
+
 ])
 class NumbaStringArray:
     """Wrapper around arrow's StringArray for use in numba functions.
@@ -86,7 +89,7 @@ class NumbaStringArray:
 
 def _make(sa):
     if not isinstance(sa, pa.StringArray):
-        sa = pa.array(sa)
+        sa = pa.array(sa, pa.string())
 
     return NumbaStringArray(*_buffers_as_arrays(sa))
 

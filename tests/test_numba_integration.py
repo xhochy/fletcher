@@ -50,6 +50,7 @@ def test_is_null(array, expected):
     (['foo', None, 'baz'], [3, 0, 3]),
     ([None, 'bar', 'baz'], [0, 3, 3]),
     (['foo', None, None], [3, 0, 0]),
+    ([None, None, None], [0, 0, 0]),
     pytest.mark.xfail(reason='non ascii not yet supported')((['föö'], [3])),
 ])
 def test_str_length(array, expected):
