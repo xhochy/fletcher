@@ -37,10 +37,15 @@ def test_null_count(array, expected):
     (['foo', None, None], [False, True, True]),
     (['föö', None], [False, True]),
 ])
-def test_is_null(array, expected):
+@pytest.mark.parametrize('offset', [
+    0,
+    pytest.mark.xfail(reason='offsets not yet supported')(1),
+])
+def test_is_null(array, expected, offset):
+    array = pa.array(array, pa.string())[offset:]
     np.testing.assert_array_equal(
         is_null(NumbaStringArray.make(array)),
-        np.asarray(expected, dtype=np.bool),
+        np.asarray(expected[offset:], dtype=np.bool),
     )
 
 
@@ -53,10 +58,15 @@ def test_is_null(array, expected):
     ([None, None, None], [0, 0, 0]),
     pytest.mark.xfail(reason='non ascii not yet supported')((['föö'], [3])),
 ])
-def test_str_length(array, expected):
+@pytest.mark.parametrize('offset', [
+    0,
+    pytest.mark.xfail(reason='offsets not yet supported')(1),
+])
+def test_str_length(array, expected, offset):
+    array = pa.array(array, pa.string())[offset:]
     np.testing.assert_array_equal(
         str_length(NumbaStringArray.make(array)),
-        np.asarray(expected, dtype=np.int32),
+        np.asarray(expected[offset:], dtype=np.int32),
     )
 
 
