@@ -103,3 +103,11 @@ def test_set_index():
         'index': [3, 2, 1],
         "A": pd_str.StringArray(TEST_ARRAY)
     }).set_index('index')
+
+
+@pytest.mark.xfail
+def test_copy():
+    df = pd.DataFrame({
+        "A": pd_str.StringArray(TEST_ARRAY)
+    })
+    df['A'].copy()
