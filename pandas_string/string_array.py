@@ -4,6 +4,9 @@ from pandas.core.dtypes.dtypes import ExtensionDtype
 import numpy as np
 import pyarrow as pa
 
+from ._numba_compat import NumbaStringArray
+from ._algorithms import _isnull
+
 
 class StringDtypeType(object):
     """
@@ -102,7 +105,10 @@ class StringArray(ExtensionArray):
         """
         # TODO: We should be able to return the valid bitmap as bytemap here
         result = np.zeros(len(self.data), dtype=bool)
-        for i in range(len(self.data)):
-            if self.data[i].as_py() is None:
-                result[i] = True
+
+        offset = 0
+        for chunk in self.data.chunks:
+            _isnull(NumbaStringArray.make(chunk), offset, result)
+            offset += len(chunk)
+
         return result

@@ -86,3 +86,20 @@ def test_setitem_scalar():
     ser[1] = "other_string"
     expected = pd.Series(pd_str.StringArray(pa.array(["Test", "other_string", None])))
     tm.assert_series_equal(ser, expected)
+
+
+def test_isnull():
+    # TODO: test with index
+    df = pd.DataFrame({
+        "A": pd_str.StringArray(TEST_ARRAY)
+    })
+
+    tm.assert_series_equal(df['A'].isnull(), pd.Series([False, False, True], name='A'))
+
+
+@pytest.mark.xfail
+def test_set_index():
+    pd.DataFrame({
+        'index': [3, 2, 1],
+        "A": pd_str.StringArray(TEST_ARRAY)
+    }).set_index('index')
