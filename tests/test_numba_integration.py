@@ -5,7 +5,7 @@ import pytest
 
 # TODO: remove internal import
 from pandas_string._numba_compat import NumbaStringArray, NumbaStringArrayBuilder, buffers_as_arrays
-from pandas_string._algorithms import is_null, str_length, str_concat
+from pandas_string._algorithms import isnull, str_length, str_concat
 
 
 @numba.jit(nogil=True, nopython=True)
@@ -41,10 +41,10 @@ def test_null_count(array, expected):
     0,
     pytest.mark.xfail(reason='offsets not yet supported')(1),
 ])
-def test_is_null(array, expected, offset):
+def test_isnull(array, expected, offset):
     array = pa.array(array, pa.string())[offset:]
     np.testing.assert_array_equal(
-        is_null(NumbaStringArray.make(array)),
+        isnull(NumbaStringArray.make(array)),
         np.asarray(expected[offset:], dtype=np.bool),
     )
 

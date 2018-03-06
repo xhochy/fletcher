@@ -5,13 +5,16 @@ from ._numba_compat import NumbaStringArray
 
 
 @numba.jit(nogil=True, nopython=True)
-def is_null(sa):
+def isnull(sa):
     result = np.empty(sa.size, np.uint8)
-
-    for i in range(sa.size):
-        result[i] = sa.isnull(i)
-
+    _isnull(sa, 0, result)
     return result
+
+
+@numba.jit(nogil=True, nopython=True)
+def _isnull(sa, offset, out):
+    for i in range(sa.size):
+        out[offset + i] = sa.isnull(i)
 
 
 @numba.jit(nogil=True, nopython=True)
