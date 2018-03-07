@@ -112,3 +112,21 @@ class StringArray(ExtensionArray):
             offset += len(chunk)
 
         return result
+
+    def copy(self, deep=False):
+        # type: (bool) -> ExtensionArray
+        """
+        Return a copy of the array.
+
+        Parameters
+        ----------
+        deep : bool, default False
+            Also copy the underlying data backing this array.
+
+        Returns
+        -------
+        ExtensionArray
+        """
+        if deep:
+            raise NotImplementedError("Deep copy is not supported")
+        return StringArray(self.data)
