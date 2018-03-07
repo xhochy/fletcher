@@ -22,7 +22,7 @@ class TimeSuite:
     def time_isnull(self):
         for _ in range(10):
             self.df['str'].isnull()
-    
+
     def time_isnull_ext(self):
         for _ in range(10):
             self.df_ext['str'].isnull()
