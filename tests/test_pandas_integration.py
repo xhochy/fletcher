@@ -97,7 +97,6 @@ def test_isnull():
     tm.assert_series_equal(df['A'].isnull(), pd.Series([False, False, True], name='A'))
 
 
-@pytest.mark.xfail
 def test_set_index():
     pd.DataFrame({
         'index': [3, 2, 1],
