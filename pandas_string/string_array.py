@@ -130,3 +130,15 @@ class StringArray(ExtensionArray):
         if deep:
             raise NotImplementedError("Deep copy is not supported")
         return StringArray(self.data)
+
+    @property
+    def nbytes(self):
+        # type: () -> int
+        """
+        The number of bytes needed to store this object in memory.
+        """
+        size = 0
+        for chunk in self.data.chunks:
+            for buf in chunk.buffers():
+                size += buf.size
+        return size

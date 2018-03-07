@@ -46,6 +46,7 @@ def test_dataframe_constructor():
 
     # Test some calls to typical DataFrame functions
     str(df)
+    df.info()
 
 
 def test_dataframe_from_series_no_dict():
@@ -109,3 +110,12 @@ def test_copy():
         "A": pd_str.StringArray(TEST_ARRAY)
     })
     df['A'].copy()
+
+
+def test_nbytes():
+    array = pd_str.StringArray(pa.array(['A', None, 'CC']))
+    # Minimal storage usage:
+    # 1 byte for the valid bitmap
+    # 4 bytes for the offset array
+    # 3 bytes for the actual string content
+    assert array.nbytes >= 8
