@@ -1,0 +1,11 @@
+{
+    "version": 1,
+    "project": "pandas_string",
+    "project_url": "http://project-homepage.org/",
+    "repo": ".",
+    "environment_type": "conda",
+    // "show_commit_url": "http://github.com/owner/project/commit/",
+    "env_dir": ".asv/env",
+    "results_dir": ".asv/results",
+    "html_dir": ".asv/html",
+}
