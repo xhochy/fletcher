@@ -18,10 +18,10 @@ def _isnull(sa, offset, out):
 
 
 @numba.jit(nogil=True, nopython=True)
-def _startswith(sa, needle, offset, out):
+def _startswith(sa, needle, na, offset, out):
     for i in range(sa.size):
         if sa.isnull(i):
-            out[offset + i] = 2
+            out[offset + i] = na
             continue
 
         if sa.byte_length(i) < needle.length:
@@ -38,10 +38,10 @@ def _startswith(sa, needle, offset, out):
 
 
 @numba.jit(nogil=True, nopython=True)
-def _endswith(sa, needle, offset, out):
+def _endswith(sa, needle, na, offset, out):
     for i in range(sa.size):
         if sa.isnull(i):
-            out[offset + i] = 2
+            out[offset + i] = na
             continue
 
         string_length = sa.byte_length(i)

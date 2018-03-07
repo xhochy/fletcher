@@ -15,9 +15,21 @@ df = pd.DataFrame({
 })
 
 
+# syntactic sugar to make test cases easier to read
+class Case:
+    def __init__(self, label):
+        self._label = label
+
+    def __getattr__(self, name):
+        return lambda *args, **kwargs: dict(label=self._label, method=name, args=args, kwargs=kwargs)
+
+
 test_cases = [
-    dict(label='startswith', method='startswith', args=['ba']),
-    dict(label='endswith', method='endswith', args=['ar']),
+    Case('startswith').startswith('ba'),
+    Case('endswith').endswith('ar'),
+
+    Case('startswith with na').startswith('ba', na=False),
+    Case('endswith with na').endswith('ar', na=False),
 ]
 
 
