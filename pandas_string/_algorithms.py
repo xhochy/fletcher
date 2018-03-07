@@ -1,7 +1,7 @@
 import numba
 import numpy as np
 
-from ._numba_compat import NumbaStringArray, NumbaString
+from ._numba_compat import NumbaStringArray
 
 
 @numba.jit(nogil=True, nopython=True)
