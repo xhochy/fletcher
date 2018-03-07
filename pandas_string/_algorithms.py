@@ -1,7 +1,7 @@
 import numba
 import numpy as np
 
-from ._numba_compat import NumbaStringArray
+from ._numba_compat import NumbaStringArray, NumbaString
 
 
 @numba.jit(nogil=True, nopython=True)
@@ -15,6 +15,48 @@ def isnull(sa):
 def _isnull(sa, offset, out):
     for i in range(sa.size):
         out[offset + i] = sa.isnull(i)
+
+
+@numba.jit(nogil=True, nopython=True)
+def _startswith(sa, needle, offset, out):
+    for i in range(sa.size):
+        if sa.isnull(i):
+            out[offset + i] = 2
+            continue
+
+        if sa.byte_length(i) < needle.length:
+            out[offset + i] = 0
+            continue
+
+        for j in range(needle.length):
+            if sa.get_byte(i, j) != needle.get_byte(j):
+                out[offset + i] = 0
+                break
+
+        else:
+            out[offset + i] = 1
+
+
+@numba.jit(nogil=True, nopython=True)
+def _endswith(sa, needle, offset, out):
+    for i in range(sa.size):
+        if sa.isnull(i):
+            out[offset + i] = 2
+            continue
+
+        string_length = sa.byte_length(i)
+        needle_length = needle.length
+        if string_length < needle.length:
+            out[offset + i] = 0
+            continue
+
+        for j in range(needle_length):
+            if sa.get_byte(i, string_length - needle_length + j) != needle.get_byte(j):
+                out[offset + i] = 0
+                break
+
+        else:
+            out[offset + i] = 1
 
 
 @numba.jit(nogil=True, nopython=True)

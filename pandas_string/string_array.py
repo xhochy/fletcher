@@ -2,10 +2,11 @@ from pandas.core.arrays import ExtensionArray
 from pandas.core.dtypes.dtypes import ExtensionDtype
 
 import numpy as np
+import pandas as pd
 import pyarrow as pa
 
-from ._numba_compat import NumbaStringArray
-from ._algorithms import _isnull
+from ._numba_compat import NumbaStringArray, NumbaString
+from ._algorithms import _isnull, _startswith, _endswith
 
 
 class StringDtypeType(object):
@@ -34,7 +35,9 @@ class StringArray(ExtensionArray):
     _can_hold_na = True
 
     def __init__(self, array):
-        if isinstance(array, pa.StringArray):
+        if isinstance(array, list):
+            self.data = pa.chunked_array([pa.array(array, pa.string())])
+        elif isinstance(array, pa.StringArray):
             self.data = pa.chunked_array([array])
         elif isinstance(array, pa.ChunkedArray):
             self.data = array
@@ -142,3 +145,37 @@ class StringArray(ExtensionArray):
             for buf in chunk.buffers():
                 size += buf.size
         return size
+
+
+@pd.api.extensions.register_series_accessor("text")
+class TextAccessor:
+    def __init__(self, obj):
+        if not isinstance(obj.values, StringArray):
+            raise AttributeError('only StringArray has text accessor')
+        self.obj = obj
+        self.data = self.obj.values.data
+
+    # TODO: add mode to return uint8 array directly?
+    def startswith(self, needle):
+        needle = NumbaString.make(needle)
+        result = np.zeros(len(self.data), dtype=np.uint8)
+
+        offset = 0
+        for chunk in self.data.chunks:
+            _startswith(NumbaStringArray.make(chunk), needle, offset, result)
+            offset += len(chunk)
+
+        result = pd.Series(result, index=self.obj.index, name=self.obj.name)
+        return result.map({0: False, 1: True, 2: None})
+
+    def endswith(self, needle):
+        needle = NumbaString.make(needle)
+        result = np.zeros(len(self.data), dtype=np.uint8)
+
+        offset = 0
+        for chunk in self.data.chunks:
+            _endswith(NumbaStringArray.make(chunk), needle, offset, result)
+            offset += len(chunk)
+
+        result = pd.Series(result, index=self.obj.index, name=self.obj.name)
+        return result.map({0: False, 1: True, 2: None})
