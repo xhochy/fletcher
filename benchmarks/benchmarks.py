@@ -14,31 +14,26 @@ class TimeSuite:
             'str': pd_str.StringArray(pa.array(array))
         })
 
-        # make sure numba compilation is not included
-        self.df_ext['str'].isnull()
-        self.df_ext['str'].text.startswith('')
-        self.df_ext['str'].text.endswith('')
-
     def time_isnull(self):
-        for _ in range(10):
-            self.df['str'].isnull()
+        self.df['str'].isnull()
 
     def time_isnull_ext(self):
-        for _ in range(10):
-            self.df_ext['str'].isnull()
+        self.df_ext['str'].isnull()
 
     def time_startswith(self):
-        for _ in range(10):
-            self.df['str'].str.startswith('10')
+        self.df['str'].str.startswith('10')
 
     def time_startswith_ext(self):
-        for _ in range(10):
-            self.df_ext['str'].text.startswith('10')
+        self.df_ext['str'].text.startswith('10')
 
-    def time_endswith(self):
-        for _ in range(10):
-            self.df['str'].str.endswith('10')
+    def time_startswith_na(self):
+        self.df['str'].str.startswith('10', na=False)
 
-    def time_endswith_ext(self):
-        for _ in range(10):
-            self.df_ext['str'].text.endswith('10')
+    def time_startswith_na_ext(self):
+        self.df_ext['str'].text.startswith('10', na=False)
+
+    def time_endswith_na(self):
+        self.df['str'].str.endswith('10', na=False)
+
+    def time_endswith_na_ext(self):
+        self.df_ext['str'].text.endswith('10', na=False)
