@@ -18,6 +18,7 @@ def buffers_as_arrays(sa):
     ('missing', numba.uint8[:]),
     ('offsets', numba.uint32[:]),
     ('data', numba.optional(numba.uint8[:])),
+    ('offset', numba.int64)
 ])
 class NumbaStringArray:
     """Wrapper around arrow's StringArray for use in numba functions.
@@ -26,28 +27,33 @@ class NumbaStringArray:
 
         NumbaStringArray.make(array)
     """
-    def __init__(self, missing, offsets, data):
+    def __init__(self, missing, offsets, data, offset):
         self.missing = missing
         self.offsets = offsets
         self.data = data
+        self.offset = offset
 
     @property
     def byte_size(self):
+        # TODO: offset?
         return self.data.shape[0]
 
     @property
     def size(self):
-        return len(self.offsets) - 1
+        return len(self.offsets) - 1 - self.offset
 
     def isnull(self, str_idx):
+        str_idx += self.offset
         byte_idx = str_idx // 8
         bit_mask = 1 << (str_idx % 8)
         return (self.missing[byte_idx] & bit_mask) == 0
 
     def byte_length(self, str_idx):
+        str_idx += self.offset
         return self.offsets[str_idx + 1] - self.offsets[str_idx]
 
     def get_byte(self, str_idx, byte_idx):
+        str_idx += self.offset
         full_idx = self.offsets[str_idx] + byte_idx
         return self.data[full_idx]
 
@@ -72,7 +78,6 @@ class NumbaStringArray:
         return b, 1
 
     def decode(self, str_idx):
-
         byte_length = self.byte_length(str_idx)
         buffer = np.zeros(byte_length, np.int32)
 
@@ -92,7 +97,7 @@ def _make(sa):
     if not isinstance(sa, pa.StringArray):
         sa = pa.array(sa, pa.string())
 
-    return NumbaStringArray(*buffers_as_arrays(sa))
+    return NumbaStringArray(*buffers_as_arrays(sa), sa.offset)
 
 
 # @classmethod does not seem to be supported

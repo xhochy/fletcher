@@ -96,4 +96,4 @@ def str_concat(sa1, sa2):
 
     result_data = result_data[:offset]
 
-    return NumbaStringArray(result_missing, result_offsets, result_data)
+    return NumbaStringArray(result_missing, result_offsets, result_data, 0)
