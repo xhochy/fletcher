@@ -39,7 +39,7 @@ def test_null_count(array, expected):
 ])
 @pytest.mark.parametrize('offset', [
     0,
-    pytest.mark.xfail(reason='offsets not yet supported')(1),
+    1
 ])
 def test_isnull(array, expected, offset):
     array = pa.array(array, pa.string())[offset:]
@@ -60,7 +60,7 @@ def test_isnull(array, expected, offset):
 ])
 @pytest.mark.parametrize('offset', [
     0,
-    pytest.mark.xfail(reason='offsets not yet supported')(1),
+    1
 ])
 def test_str_length(array, expected, offset):
     array = pa.array(array, pa.string())[offset:]
