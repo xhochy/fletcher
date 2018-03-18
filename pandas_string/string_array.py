@@ -146,6 +146,20 @@ class StringArray(ExtensionArray):
                 size += buf.size
         return size
 
+    @property
+    def size(self):
+        """
+        return the number of elements in the underlying data
+        """
+        return len(self.data)
+
+    @property
+    def base(self):
+        """
+        the base object of the underlying data
+        """
+        return self.data
+
 
 @pd.api.extensions.register_series_accessor("text")
 class TextAccessor:

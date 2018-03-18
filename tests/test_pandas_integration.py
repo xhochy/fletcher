@@ -119,3 +119,19 @@ def test_nbytes():
     # 4 bytes for the offset array
     # 3 bytes for the actual string content
     assert array.nbytes >= 8
+
+
+def test_series_attributes():
+    s = pd.Series(pd_str.StringArray(TEST_ARRAY))
+    assert s.ndim == 1
+    assert s.size == 3
+    assert s.base is not None
+    assert (s.T == s).all()
+    assert s.memory_usage() > 8
+
+
+def test_isna():
+    s = pd.Series(pd_str.StringArray(TEST_ARRAY))
+    expected = pd.Series([False, False, True])
+    tm.assert_series_equal(s.isna(), expected)
+    tm.assert_series_equal(s.notna(), ~expected)
