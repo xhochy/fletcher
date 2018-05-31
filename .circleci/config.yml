@@ -1,0 +1,14 @@
+version: 2
+jobs:
+  build:
+    working_directory: ~/fletcher-circleci
+    docker:
+      - image: circleci/python:3.6.1
+    steps:
+      - checkout
+      - run: # install and activate virtual environment with pip
+          command: ./ci/circle_build_linux.sh
+      - store_test_results:
+          path: test-reports
+      - store_artifacts:
+          path: test-reports
