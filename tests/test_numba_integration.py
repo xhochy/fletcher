@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import numba
 import numpy as np
 import pyarrow as pa

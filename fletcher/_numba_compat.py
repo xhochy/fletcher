@@ -97,7 +97,7 @@ def _make(sa):
     if not isinstance(sa, pa.StringArray):
         sa = pa.array(sa, pa.string())
 
-    return NumbaStringArray(*buffers_as_arrays(sa), sa.offset)
+    return NumbaStringArray(*buffers_as_arrays(sa), offset=sa.offset)
 
 
 # @classmethod does not seem to be supported
