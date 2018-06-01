@@ -1,5 +1,5 @@
 import pandas as pd
-import pandas_string as pd_str
+import fletcher as fr
 import pyarrow as pa
 
 
@@ -11,7 +11,7 @@ class TimeSuite:
         ]
         self.df = pd.DataFrame({'str': array})
         self.df_ext = pd.DataFrame({
-            'str': pd_str.StringArray(pa.array(array))
+            'str': fr.StringArray(pa.array(array))
         })
 
     def time_isnull(self):

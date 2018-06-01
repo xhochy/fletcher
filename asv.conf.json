@@ -1,6 +1,6 @@
 {
     "version": 1,
-    "project": "pandas_string",
+    "project": "fletcher",
     "project_url": "http://project-homepage.org/",
     "repo": ".",
     "environment_type": "conda",
