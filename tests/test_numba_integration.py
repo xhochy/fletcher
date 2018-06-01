@@ -4,8 +4,8 @@ import pyarrow as pa
 import pytest
 
 # TODO: remove internal import
-from pandas_string._numba_compat import NumbaStringArray, NumbaStringArrayBuilder, buffers_as_arrays
-from pandas_string._algorithms import isnull, str_length, str_concat
+from fletcher._numba_compat import NumbaStringArray, NumbaStringArrayBuilder, buffers_as_arrays
+from fletcher._algorithms import isnull, str_length, str_concat
 
 
 @numba.jit(nogil=True, nopython=True)
