@@ -3,6 +3,7 @@ import math
 import numba
 import numpy as np
 import pyarrow as pa
+import types
 
 _string_buffer_types = np.uint8, np.uint32, np.uint8
 
@@ -93,15 +94,15 @@ class NumbaStringArray(object):
         return buffer[:j]
 
 
-def _make(sa):
+def _make(cls, sa):
     if not isinstance(sa, pa.StringArray):
         sa = pa.array(sa, pa.string())
 
-    return NumbaStringArray(*buffers_as_arrays(sa), offset=sa.offset)
+    return cls(*buffers_as_arrays(sa), offset=sa.offset)
 
 
 # @classmethod does not seem to be supported
-NumbaStringArray.make = _make
+NumbaStringArray.make = types.MethodType(_make, NumbaStringArray)
 
 
 @numba.jitclass([
@@ -126,17 +127,17 @@ class NumbaString(object):
         return self.data[self.start + i]
 
 
-def _make_string(obj):
+def _make_string(cls, obj):
     if isinstance(obj, str):
         data = obj.encode('utf8')
         data = np.asarray(memoryview(data))
 
-        return NumbaString(data, 0, len(data))
+        return cls(data, 0, len(data))
 
     raise TypeError()
 
 
-NumbaString.make = _make_string
+NumbaString.make = types.MethodType(_make_string, NumbaString)
 
 
 @numba.jitclass([
