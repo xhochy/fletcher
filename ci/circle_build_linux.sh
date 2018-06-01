@@ -21,8 +21,10 @@ conda create -y -q -n fletcher python=3.6 \
     flake8 \
     pip \
     numba \
+    codecov \
     -c conda-forge
 
 source activate fletcher
 pip install -e .
-py.test --junitxml=test-reports/junit.xml
+py.test --junitxml=test-reports/junit.xml --cov=./
+codecov
