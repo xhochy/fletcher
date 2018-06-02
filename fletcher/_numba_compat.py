@@ -1,8 +1,14 @@
+# -*- coding: utf-8 -*-
+
+from __future__ import absolute_import, division, print_function
+
 import math
 
 import numba
 import numpy as np
 import pyarrow as pa
+import types
+import six
 
 _string_buffer_types = np.uint8, np.uint32, np.uint8
 
@@ -20,7 +26,7 @@ def buffers_as_arrays(sa):
     ('data', numba.optional(numba.uint8[:])),
     ('offset', numba.int64)
 ])
-class NumbaStringArray:
+class NumbaStringArray(object):
     """Wrapper around arrow's StringArray for use in numba functions.
 
     Usage::
@@ -93,15 +99,15 @@ class NumbaStringArray:
         return buffer[:j]
 
 
-def _make(sa):
+def _make(cls, sa):
     if not isinstance(sa, pa.StringArray):
         sa = pa.array(sa, pa.string())
 
-    return NumbaStringArray(*buffers_as_arrays(sa), sa.offset)
+    return cls(*buffers_as_arrays(sa), offset=sa.offset)
 
 
 # @classmethod does not seem to be supported
-NumbaStringArray.make = _make
+NumbaStringArray.make = types.MethodType(_make, NumbaStringArray)
 
 
 @numba.jitclass([
@@ -109,7 +115,7 @@ NumbaStringArray.make = _make
     ('end', numba.uint32),
     ('data', numba.uint8[:]),
 ])
-class NumbaString:
+class NumbaString(object):
     def __init__(self, data, start=0, end=None):
         if end is None:
             end = data.shape[0]
@@ -126,17 +132,17 @@ class NumbaString:
         return self.data[self.start + i]
 
 
-def _make_string(obj):
-    if isinstance(obj, str):
+def _make_string(cls, obj):
+    if isinstance(obj, six.text_type):
         data = obj.encode('utf8')
         data = np.asarray(memoryview(data))
 
-        return NumbaString(data, 0, len(data))
+        return cls(data, 0, len(data))
 
     raise TypeError()
 
 
-NumbaString.make = _make_string
+NumbaString.make = types.MethodType(_make_string, NumbaString)
 
 
 @numba.jitclass([
@@ -148,7 +154,7 @@ NumbaString.make = _make_string
     ('string_capacity', numba.uint32),
     ('byte_capacity', numba.uint32),
 ])
-class NumbaStringArrayBuilder:
+class NumbaStringArrayBuilder(object):
     def __init__(self, string_capacity, byte_capacity):
         self.missing = np.ones(_missing_capactiy(string_capacity), np.uint8)
         self.offsets = np.zeros(string_capacity + 1, np.uint32)

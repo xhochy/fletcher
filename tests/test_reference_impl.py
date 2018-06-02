@@ -1,3 +1,6 @@
+# -*- coding: utf-8 -*-
+
+from __future__ import absolute_import, division, print_function, unicode_literals
 import operator as op
 
 import pandas as pd
@@ -35,7 +38,7 @@ test_cases = [
 
 @pytest.mark.parametrize('spec', test_cases, ids=op.itemgetter('label'))
 def test_reference_impl(spec):
-    expected = getattr(df['pd'].str, spec['method'])(*spec.get('args', []), *spec.get('kwargs', {}))
-    actual = getattr(df['fr'].text, spec['method'])(*spec.get('args', []), *spec.get('kwargs', {}))
+    expected = getattr(df['pd'].str, spec['method'])(*spec.get('args', []), **spec.get('kwargs', {}))
+    actual = getattr(df['fr'].text, spec['method'])(*spec.get('args', []), **spec.get('kwargs', {}))
 
     pdt.assert_series_equal(expected, actual, check_names=False)

@@ -24,5 +24,6 @@ setup(
     install_requires=[
         'pandas>=0.23.0',
         'pyarrow>=0.9.0',
+        'six',
     ],
 )
