@@ -1,3 +1,7 @@
+# -*- coding: utf-8 -*-
+
+from __future__ import absolute_import, division, print_function, unicode_literals
+
 # These unit tests are based upon the work done in Cyberpandas (see NOTICE):
 #   https://github.com/ContinuumIO/cyberpandas/blob/master/cyberpandas/test_ip_pandas.py
 
