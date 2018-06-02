@@ -7,9 +7,11 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 
 from pandas.core.internals import ExtensionBlock
 
+import fletcher as fr
+import numpy as np
+import numpy.testing as npt
 import pandas as pd
 import pandas.testing as tm
-import fletcher as fr
 import pyarrow as pa
 import pytest
 
@@ -138,3 +140,27 @@ def test_isna():
     expected = pd.Series([False, False, True])
     tm.assert_series_equal(s.isna(), expected)
     tm.assert_series_equal(s.notna(), ~expected)
+
+
+def test_np_asarray():
+    s = pd.Series(fr.StringArray(TEST_ARRAY))
+    expected = np.asarray(TEST_LIST)
+    npt.assert_array_equal(np.asarray(s), expected)
+
+
+def test_astype_object():
+    s = pd.Series(fr.StringArray(TEST_ARRAY))
+    expected = pd.Series(TEST_LIST)
+    tm.assert_series_equal(s.astype(object), expected)
+
+
+def test_factorize():
+    arr = fr.StringArray(TEST_ARRAY)
+    labels, uniques = arr.factorize()
+    expected_labels, expected_uniques = pd.factorize(arr.astype(object))
+
+    assert isinstance(uniques, fr.StringArray)
+
+    uniques = uniques.astype(object)
+    npt.assert_array_equal(labels, expected_labels)
+    npt.assert_array_equal(uniques, expected_uniques)

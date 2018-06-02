@@ -53,7 +53,10 @@ def extract_isnull_bytemap(chunked_array):
     for chunk in chunked_array.chunks:
         valid_bitmap = chunk.buffers()[0]
         if valid_bitmap:
-            _extract_isnull_bytemap(valid_bitmap, len(chunk), chunk.offset, offset, result)
+            # TODO(ARROW-2664): We only need to following line to support
+            #   executing the code in disabled-JIT mode.
+            buf = memoryview(valid_bitmap)
+            _extract_isnull_bytemap(buf, len(chunk), chunk.offset, offset, result)
         else:
             raise NotImplementedError()
             # _fill_bytemap(
