@@ -23,12 +23,17 @@ conda create -y -q -n fletcher python=${PYTHON_VERSION} \
     pip \
     numba \
     codecov \
+    six \
     -c conda-forge
 
 source activate fletcher
 pip install -e .
 py.test --junitxml=test-reports/junit.xml --cov=./
-# Do a second run with JIT disabled to produce coverage and check that the
-# code works also as expected in Python.
-NUMBA_DISABLE_JIT=1 py.test --junitxml=test-reports/junit.xml --cov=./
-codecov
+
+# Only run coverage on Python 3.6
+if [ "${PYTHON_VERSION}" = "3.6" ]; then
+  # Do a second run with JIT disabled to produce coverage and check that the
+  # code works also as expected in Python.
+  NUMBA_DISABLE_JIT=1 py.test --junitxml=test-reports/junit.xml --cov=./
+  codecov
+fi

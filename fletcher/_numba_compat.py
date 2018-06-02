@@ -4,6 +4,7 @@ import numba
 import numpy as np
 import pyarrow as pa
 import types
+import six
 
 _string_buffer_types = np.uint8, np.uint32, np.uint8
 
@@ -128,7 +129,7 @@ class NumbaString(object):
 
 
 def _make_string(cls, obj):
-    if isinstance(obj, str):
+    if isinstance(obj, six.text_type):
         data = obj.encode('utf8')
         data = np.asarray(memoryview(data))
 
