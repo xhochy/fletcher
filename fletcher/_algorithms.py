@@ -9,6 +9,60 @@ from ._numba_compat import NumbaStringArray
 
 
 @numba.jit(nogil=True, nopython=True)
+def _extract_isnull_bytemap(bitmap, bitmap_length, bitmap_offset, dst_offset, dst):
+    """
+    (internal) write the values of a valid bitmap as bytes to a pre-allocatored
+    isnull bytemap.
+
+    Parameters
+    ----------
+    bitmap: pyarrow.Buffer
+        bitmap where a set bit indicates that a value is valid
+    bitmap_length: int
+        Number of bits to read from the bitmap
+    bitmap_offset: int
+        Number of bits to skip from the beginning of the bitmap.
+    dst_offset: int
+        Number of bytes to skip from the beginning of the output
+    dst: numpy.array(dtype=bool)
+        Pre-allocated numpy array where a byte is set when a value is null
+    """
+    for i in range(bitmap_length):
+        idx = bitmap_offset + i
+        byte_idx = idx // 8
+        bit_mask = 1 << (idx % 8)
+        dst[dst_offset + i] = ((bitmap[byte_idx] & bit_mask) == 0)
+
+
+def extract_isnull_bytemap(chunked_array):
+    """
+    Extract the valid bitmaps of a chunked array into numpy isnull bytemaps.
+
+    Parameters
+    ----------
+    chunked_array: pyarrow.ChunkedArray
+
+    Returns
+    -------
+    valid_bytemap: numpy.array
+    """
+    # TODO: Can we use np.empty here to improve performance?
+    result = np.zeros(len(chunked_array), dtype=bool)
+
+    offset = 0
+    for chunk in chunked_array.chunks:
+        valid_bitmap = chunk.buffers()[0]
+        if valid_bitmap:
+            _extract_isnull_bytemap(valid_bitmap, len(chunk), chunk.offset, offset, result)
+        else:
+            raise NotImplementedError()
+            # _fill_bytemap(
+        offset += len(chunk)
+
+    return result
+
+
+@numba.jit(nogil=True, nopython=True)
 def isnull(sa):
     result = np.empty(sa.size, np.uint8)
     _isnull(sa, 0, result)

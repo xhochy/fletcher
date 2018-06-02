@@ -13,8 +13,8 @@ import fletcher as fr
 import pyarrow as pa
 import pytest
 
-
-TEST_ARRAY = pa.array(["Test", "string", None])
+TEST_LIST = ["Test", "string", None]
+TEST_ARRAY = pa.array(TEST_LIST)
 
 
 # ----------------------------------------------------------------------------
@@ -94,7 +94,6 @@ def test_setitem_scalar():
 
 
 def test_isnull():
-    # TODO: test with index
     df = pd.DataFrame({
         "A": fr.StringArray(TEST_ARRAY)
     })
