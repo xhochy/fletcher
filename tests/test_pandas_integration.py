@@ -170,3 +170,13 @@ def test_groupby():
 
     expected = pd.DataFrame({"int": [15, 24]}, index=pd.Index(["a", "b"], name="str"))
     tm.assert_frame_equal(result, expected)
+
+
+@pytest.mark.xfail
+@pytest.mark.parametrize("ascending", [True, False])
+@pytest.mark.parametrize("kind", ["quicksort", "mergesort", "heapsort"])
+def test_argsort(ascending, kind):
+    s = pd.Series(fr.StringArray(TEST_ARRAY))
+    result = s.argsort(ascending=ascending, kind=kind)
+    expected = s.astype(object).argsort(ascending=ascending, kind=kind)
+    tm.assert_frame_equal(result, expected)
