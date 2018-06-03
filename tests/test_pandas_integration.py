@@ -164,3 +164,17 @@ def test_factorize():
     uniques = uniques.astype(object)
     npt.assert_array_equal(labels, expected_labels)
     npt.assert_array_equal(uniques, expected_uniques)
+
+
+def test_groupby():
+    arr = fr.StringArray(['a', 'a', 'b', None])
+    df = pd.DataFrame({
+        'str': arr,
+        'int': [10, 5, 24, 6]
+    })
+    result = df.groupby('str').sum()
+
+    expected = pd.DataFrame({
+        'int': [15, 24],
+    }, index=pd.Index(['a', 'b'], name='str'))
+    tm.assert_frame_equal(result, expected)
