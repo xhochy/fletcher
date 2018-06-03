@@ -17,7 +17,7 @@ class FletcherArrayBase(ExtensionArray):
         """
         Correctly construct numpy arrays when passed to `np.asarray()`.
         """
-        return pa.column('dummy', self.data).to_pandas().values
+        return pa.column("dummy", self.data).to_pandas().values
 
     def __len__(self):
         """
@@ -44,7 +44,11 @@ class FletcherArrayBase(ExtensionArray):
         -------
         ExtensionArray
         """
-        return cls(pa.chunked_array([array for ea in to_concat for array in ea.data.iterchunks()]))
+        return cls(
+            pa.chunked_array(
+                [array for ea in to_concat for array in ea.data.iterchunks()]
+            )
+        )
 
     def __getitem__(self, item):
         # type (Any) -> Any
@@ -158,12 +162,12 @@ class FletcherArrayBase(ExtensionArray):
             # Dictionaryencode and do the same as above
             encoded = self.data.chunk(0).dictionary_encode()
             indices = encoded.indices.to_pandas()
-            if indices.dtype.kind == 'f':
+            if indices.dtype.kind == "f":
                 indices[np.isnan(indices)] = na_sentinel
                 indices = indices.astype(int)
             return indices, type(self)(encoded.dictionary)
         else:
-            np_array = pa.column('dummy', self.data).to_pandas().values
+            np_array = pa.column("dummy", self.data).to_pandas().values
             return pd.factorize(np_array, na_sentinel=na_sentinel)
 
     def astype(self, dtype, copy=True):
@@ -259,12 +263,12 @@ class FletcherArrayBase(ExtensionArray):
         pandas.api.extensions.take
         """
         from pandas.core.algorithms import take
+
         data = self.astype(object)
         if allow_fill and fill_value is None:
             fill_value = self.dtype.na_value
         # fill value should always be translated from the scalar
         # type for the array, to the physical storage type for
         # the data, before passing to take.
-        result = take(data, indices, fill_value=fill_value,
-                      allow_fill=allow_fill)
+        result = take(data, indices, fill_value=fill_value, allow_fill=allow_fill)
         return self._from_sequence(result)

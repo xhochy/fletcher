@@ -21,17 +21,16 @@ class StringDtypeType(object):
 
 
 class StringDtype(ExtensionDtype):
-    name = 'string'
+    name = "string"
     type = StringDtypeType
-    kind = 'O'
+    kind = "O"
 
     @classmethod
     def construct_from_string(cls, string):
         if string == "string":
             return cls()
         else:
-            raise TypeError("Cannot construct a '{}' from "
-                            "'{}'".format(cls, string))
+            raise TypeError("Cannot construct a '{}' from " "'{}'".format(cls, string))
 
 
 class StringArray(FletcherArrayBase):
@@ -45,14 +44,17 @@ class StringArray(FletcherArrayBase):
         elif isinstance(array, pa.ChunkedArray):
             self.data = array
         else:
-            raise ValueError("Unsupported type passed for StringArray: {}".format(type(array)))
+            raise ValueError(
+                "Unsupported type passed for StringArray: {}".format(type(array))
+            )
 
 
 @pd.api.extensions.register_series_accessor("text")
 class TextAccessor:
+
     def __init__(self, obj):
         if not isinstance(obj.values, StringArray):
-            raise AttributeError('only StringArray has text accessor')
+            raise AttributeError("only StringArray has text accessor")
         self.obj = obj
         self.data = self.obj.values.data
 
@@ -79,4 +81,6 @@ class TextAccessor:
             offset += len(chunk)
 
         result = pd.Series(result, index=self.obj.index, name=self.obj.name)
-        return result if isinstance(na, bool) else result.map({0: False, 1: True, 2: na})
+        return (
+            result if isinstance(na, bool) else result.map({0: False, 1: True, 2: na})
+        )
