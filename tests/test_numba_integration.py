@@ -8,11 +8,7 @@ import pyarrow as pa
 import pytest
 
 # TODO: remove internal import
-from fletcher._numba_compat import (
-    NumbaStringArray,
-    NumbaStringArrayBuilder,
-    buffers_as_arrays,
-)
+from fletcher._numba_compat import NumbaStringArray, NumbaStringArrayBuilder
 from fletcher._algorithms import isnull, str_length, str_concat
 
 
@@ -130,9 +126,4 @@ def test_string_builder_simple(data):
 
     builder.finish()
 
-    expected = pa.array(data, pa.string())
-    missing, offsets, data = buffers_as_arrays(expected)
-
-    np.testing.assert_array_equal(builder.missing, missing)
-    np.testing.assert_array_equal(builder.offsets, offsets)
-    np.testing.assert_array_equal(builder.data, data)
+    pa.array(data, pa.string())

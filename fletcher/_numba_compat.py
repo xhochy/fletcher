@@ -10,15 +10,6 @@ import pyarrow as pa
 import types
 import six
 
-_string_buffer_types = np.uint8, np.uint32, np.uint8
-
-
-def buffers_as_arrays(sa):
-    return tuple(
-        np.asarray(b).view(t) if b is not None else None
-        for b, t in zip(sa.buffers(), _string_buffer_types)
-    )
-
 
 @numba.jitclass(
     [
@@ -56,6 +47,23 @@ class NumbaStringArray(object):
         byte_idx = str_idx // 8
         bit_mask = 1 << (str_idx % 8)
         return (self.missing[byte_idx] & bit_mask) == 0
+
+    def elements_lt(self, left, right):
+        """
+        Check whether one non-null entry is lower than the other.
+        """
+        left_length = self.byte_length(left)
+        right_length = self.byte_length(right)
+        common_length = min(left_length, right_length)
+
+        left_offset = self.offsets[self.offset + left]
+        right_offset = self.offsets[self.offset + right]
+        for i in range(common_length):
+            left_char = self.data[left_offset + i]
+            right_char = self.data[right_offset + i]
+            if left_char != right_char:
+                return left_char < right_char
+        return left_length < right_length
 
     def byte_length(self, str_idx):
         str_idx += self.offset
@@ -106,7 +114,19 @@ def _make(cls, sa):
     if not isinstance(sa, pa.StringArray):
         sa = pa.array(sa, pa.string())
 
-    return cls(*buffers_as_arrays(sa), offset=sa.offset)
+    buffers = sa.buffers()
+
+    if buffers[0] is None:
+        missing = np.ones((len(sa) + 7) // 8, dtype=np.uint8) * 255
+    else:
+        missing = np.asarray(buffers[0]).view(np.uint8)
+    offsets = np.asarray(buffers[1]).view(np.uint32)
+    if buffers[2] is None:
+        data = np.ones(0, dtype=np.uint8)
+    else:
+        data = np.asarray(buffers[2]).view(np.uint8)
+
+    return cls(missing, offsets, data, offset=sa.offset)
 
 
 # @classmethod does not seem to be supported

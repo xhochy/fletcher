@@ -66,6 +66,155 @@ def extract_isnull_bytemap(chunked_array):
 
 
 @numba.jit(nogil=True, nopython=True)
+def _argquicksort_string_array(indices, sa, lo, hi):
+    """
+    Textbook implementation of quicksort.
+
+    This is modeled after https://en.wikipedia.org/wiki/Quicksort#Lomuto_partition_scheme,
+    thus this is probably not the most performant variant. If you're into
+    algorithms and want to get some performance, this might be a nice task.
+    """
+    if lo < hi:
+        p = _argquickpartition_string_array(indices, sa, lo, hi)
+        _argquicksort_string_array(indices, sa, lo, p - 1)
+        _argquicksort_string_array(indices, sa, p + 1, hi)
+
+
+@numba.jit(nogil=True, nopython=True)
+def _argquickpartition_string_array(indices, sa, lo, hi):
+    """
+    Partition part of quicksort.
+
+    "Randomly" chose a pivot element p; ensure that all elements smaller than
+    p are in a lower index than p and all greater or equal (in the case that
+    there is another element equal to p) in higher indices.
+    """
+    pivot = indices[hi]
+    i = lo - 1
+    for j in range(lo, hi):
+        if sa.elements_lt(indices[j], pivot):
+            i += 1
+            tmp = indices[i]
+            indices[i] = indices[j]
+            indices[j] = tmp
+    tmp = indices[i + 1]
+    indices[i + 1] = indices[hi]
+    indices[hi] = tmp
+    return i + 1
+
+
+@numba.jit(nogil=True, nopython=True)
+def _argsort_string_array_pandas(sa, indices, non_na_indices, result):
+    """
+    Run pandas-like argsort on a pyarrow.StringArray.
+
+    In contrast to NumPy, na-values will simply be skipped instead of being
+    included in the sorting process.
+
+    Parameters
+    ----------
+    sa: fletcher._numba_compat.NumbaStringArray
+    indices: numpy.ndarray[int64]
+    non_na_indices: numpy.ndarray[int64]
+        Temporay array that holds the indices as they will be returned for
+        Pandas, i.e. the index that would be retrieved by skipping the NA
+        entries.
+    """
+    # Step 1: Intially fill indices and non_na_indices
+    #   * indices will contain all indices for entries that are non-null, i.e.
+    #     it has as many entries as the array has valid values.
+    #   * non_na_indices will be will filled with the indices as if the null
+    #     entries were omitted in the array. Null entries are represented as -1
+    #     in this array.
+    non_na_index = 0
+    for i in range(sa.size):
+        if not sa.isnull(i):
+            non_na_indices[i] = -1
+        else:
+            indices[non_na_index] = i
+            non_na_indices[i] = non_na_index
+            non_na_index += 1
+
+    # Step 2: Recursively run quicksort, thereby sort indices but use
+    #   the array for comparison.
+    _argquicksort_string_array(indices, sa, 0, non_na_index - 1)
+
+    # Step 3: The indices are now sorted but we need to map them to their
+    #   non_na_indices and include the null entries again.
+    idx = 0
+    for i in range(sa.size):
+        if sa.isnull(i):
+            result[i] = -1
+        else:
+            tmp = indices[idx]
+            tmp2 = non_na_index[tmp]
+            result[i] = tmp2
+            idx += 1
+
+    return result
+
+
+@numba.jit(nogil=True, nopython=True)
+def _argsort_string_array_numpy(sa, indices, null_count):
+    """
+    Run numpy-like argsort on a pyarrow.StringArray.
+
+    In contrast to Pandas, na-values will be included but sorted to the
+    end.
+
+    Parameters
+    ----------
+    sa: fletcher._numba_compat.NumbaStringArray
+    indices: numpy.ndarray[int64]
+    non_na_indices: numpy.ndarray[int64]
+        Temporay array that holds the indices as they will be returned for
+        Pandas, i.e. the index that would be retrieved by skipping the NA
+        entries.
+    """
+    # Step 1: Intially fill indices and non_na_indices
+    #   * indices will contain all indices for entries that are non-null, i.e.
+    #     it has as many entries as the array has valid values.
+    #   * non_na_indices will be will filled with the indices as if the null
+    #     entries were omitted in the array. Null entries are represented as -1
+    #     in this array.
+    non_na_index = 0
+    na_index = sa.size - null_count
+    for i in range(sa.size):
+        if sa.isnull(i):
+            indices[na_index] = i
+            na_index += 1
+        else:
+            indices[non_na_index] = i
+            non_na_index += 1
+
+    # Step 2: Recursively run quicksort, thereby sort indices but use
+    #   the array for comparison.
+    # _argquicksort_string_array(indices, sa, 0, non_na_index - 1)
+    return indices
+
+
+def argsort_string_array(chunked_array):
+    """
+    Sort a chunked array of type String in descending order.
+
+    Parameters
+    ----------
+    chunked_array: pyarrow.ChunkedArray
+
+    Returns
+    -------
+    sortindices: numpy.ndarry
+    """
+    if chunked_array.num_chunks != 1:
+        raise NotImplementedError("Argsort only works on non-chunked data")
+    array = chunked_array.chunk(0)
+    sa = NumbaStringArray.make(array)
+    indices = np.ones(len(array), dtype=int)
+    return _argsort_string_array_numpy(sa, indices, array.null_count)
+    return indices
+
+
+@numba.jit(nogil=True, nopython=True)
 def isnull(sa):
     result = np.empty(sa.size, np.uint8)
     _isnull(sa, 0, result)

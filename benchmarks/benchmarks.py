@@ -1,16 +1,19 @@
-import pandas as pd
 import fletcher as fr
+import numpy as np
+import pandas as pd
 import pyarrow as pa
 
 
-class TimeSuite:
+class TimeStringSuite(object):
 
     def setup(self):
         array = [
-            str(x) + str(x) + str(x) if x % 7 == 0 else None for x in range(2 ** 15)
+            str(x) + str(x) + str(x) if x % 7 != 0 else None for x in range(2 ** 20)
         ]
-        self.df = pd.DataFrame({"str": array})
-        self.df_ext = pd.DataFrame({"str": fr.StringArray(pa.array(array))})
+        self.df = pd.DataFrame({"str": array, "int": np.arange(len(array))})
+        self.df_ext = pd.DataFrame(
+            {"str": fr.StringArray(pa.array(array)), "int": np.arange(len(array))}
+        )
 
     def time_isnull(self):
         self.df["str"].isnull()
@@ -35,3 +38,9 @@ class TimeSuite:
 
     def time_endswith_na_ext(self):
         self.df_ext["str"].text.endswith("10", na=False)
+
+    def time_groupby(self):
+        self.df.groupby("str").sum()
+
+    def time_groupby_ext(self):
+        self.df_ext.groupby("str").sum()

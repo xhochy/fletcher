@@ -2,6 +2,7 @@
 
 from __future__ import absolute_import, division, print_function
 
+from pandas.compat.numpy import function as nv
 from pandas.core.dtypes.dtypes import ExtensionDtype
 
 import numpy as np
@@ -9,7 +10,7 @@ import pandas as pd
 import pyarrow as pa
 
 from ._numba_compat import NumbaStringArray, NumbaString
-from ._algorithms import _startswith, _endswith
+from ._algorithms import _startswith, _endswith, argsort_string_array
 from .base import FletcherArrayBase
 
 
@@ -47,6 +48,39 @@ class StringArray(FletcherArrayBase):
             raise ValueError(
                 "Unsupported type passed for StringArray: {}".format(type(array))
             )
+
+    def argsort(self, ascending=True, kind="quicksort", *args, **kwargs):
+        """
+        Return the indices that would sort this array.
+
+        Parameters
+        ----------
+        ascending : bool, default True
+            Whether the indices should result in an ascending
+            or descending sort.
+        kind : {'quicksort', 'mergesort', 'heapsort'}, optional
+            Sorting algorithm.
+        *args, **kwargs:
+            passed through to :func:`numpy.argsort`.
+
+        Returns
+        -------
+        index_array : ndarray
+            Array of indices that sort ``self``.
+
+        See Also
+        --------
+        numpy.argsort : Sorting implementation used internally.
+        """
+        ascending = nv.validate_argsort_with_ascending(ascending, args, kwargs)
+        if kind != "quicksort":
+            raise NotImplementedError("only kind=quicksort is implemented")
+
+        result = argsort_string_array(self.data)
+
+        if not ascending:
+            result = result[::-1]
+        return result
 
 
 @pd.api.extensions.register_series_accessor("text")
