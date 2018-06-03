@@ -31,7 +31,7 @@ def _extract_isnull_bytemap(bitmap, bitmap_length, bitmap_offset, dst_offset, ds
         idx = bitmap_offset + i
         byte_idx = idx // 8
         bit_mask = 1 << (idx % 8)
-        dst[dst_offset + i] = ((bitmap[byte_idx] & bit_mask) == 0)
+        dst[dst_offset + i] = (bitmap[byte_idx] & bit_mask) == 0
 
 
 def extract_isnull_bytemap(chunked_array):

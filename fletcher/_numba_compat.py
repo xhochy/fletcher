@@ -20,12 +20,14 @@ def buffers_as_arrays(sa):
     )
 
 
-@numba.jitclass([
-    ('missing', numba.uint8[:]),
-    ('offsets', numba.uint32[:]),
-    ('data', numba.optional(numba.uint8[:])),
-    ('offset', numba.int64)
-])
+@numba.jitclass(
+    [
+        ("missing", numba.uint8[:]),
+        ("offsets", numba.uint32[:]),
+        ("data", numba.optional(numba.uint8[:])),
+        ("offset", numba.int64),
+    ]
+)
 class NumbaStringArray(object):
     """Wrapper around arrow's StringArray for use in numba functions.
 
@@ -33,6 +35,7 @@ class NumbaStringArray(object):
 
         NumbaStringArray.make(array)
     """
+
     def __init__(self, missing, offsets, data, offset):
         self.missing = missing
         self.offsets = offsets
@@ -110,12 +113,11 @@ def _make(cls, sa):
 NumbaStringArray.make = types.MethodType(_make, NumbaStringArray)
 
 
-@numba.jitclass([
-    ('start', numba.uint32),
-    ('end', numba.uint32),
-    ('data', numba.uint8[:]),
-])
+@numba.jitclass(
+    [("start", numba.uint32), ("end", numba.uint32), ("data", numba.uint8[:])]
+)
 class NumbaString(object):
+
     def __init__(self, data, start=0, end=None):
         if end is None:
             end = data.shape[0]
@@ -134,7 +136,7 @@ class NumbaString(object):
 
 def _make_string(cls, obj):
     if isinstance(obj, six.text_type):
-        data = obj.encode('utf8')
+        data = obj.encode("utf8")
         data = np.asarray(memoryview(data))
 
         return cls(data, 0, len(data))
@@ -145,16 +147,19 @@ def _make_string(cls, obj):
 NumbaString.make = types.MethodType(_make_string, NumbaString)
 
 
-@numba.jitclass([
-    ('missing', numba.uint8[:]),
-    ('offsets', numba.uint32[:]),
-    ('data', numba.optional(numba.uint8[:])),
-    ('string_position', numba.uint32),
-    ('byte_position', numba.uint32),
-    ('string_capacity', numba.uint32),
-    ('byte_capacity', numba.uint32),
-])
+@numba.jitclass(
+    [
+        ("missing", numba.uint8[:]),
+        ("offsets", numba.uint32[:]),
+        ("data", numba.optional(numba.uint8[:])),
+        ("string_position", numba.uint32),
+        ("byte_position", numba.uint32),
+        ("string_capacity", numba.uint32),
+        ("byte_capacity", numba.uint32),
+    ]
+)
 class NumbaStringArrayBuilder(object):
+
     def __init__(self, string_capacity, byte_capacity):
         self.missing = np.ones(_missing_capactiy(string_capacity), np.uint8)
         self.offsets = np.zeros(string_capacity + 1, np.uint32)
@@ -169,11 +174,11 @@ class NumbaStringArrayBuilder(object):
         assert string_capacity > self.string_capacity
 
         missing = np.zeros(_missing_capactiy(string_capacity), np.uint8)
-        missing[:_missing_capactiy(self.string_capacity)] = self.missing
+        missing[: _missing_capactiy(self.string_capacity)] = self.missing
         self.missing = missing
 
         offsets = np.zeros(string_capacity + 1, np.uint32)
-        offsets[:self.string_capacity + 1] = self.offsets
+        offsets[: self.string_capacity + 1] = self.offsets
         self.offsets = offsets
 
         self.string_capacity = string_capacity
@@ -182,7 +187,7 @@ class NumbaStringArrayBuilder(object):
         assert byte_capacity > self.byte_capacity
 
         data = np.zeros(byte_capacity, np.uint8)
-        data[:self.byte_capacity] = self.data
+        data[: self.byte_capacity] = self.data
         self.data = data
 
         self.byte_capacity = byte_capacity
@@ -217,9 +222,9 @@ class NumbaStringArrayBuilder(object):
         self.string_position += 1
 
     def finish(self):
-        self.missing = self.missing[:_missing_capactiy(self.string_position)]
-        self.offsets = self.offsets[:self.string_position + 1]
-        self.data = self.data[:self.byte_position]
+        self.missing = self.missing[: _missing_capactiy(self.string_position)]
+        self.offsets = self.offsets[: self.string_position + 1]
+        self.data = self.data[: self.byte_position]
 
 
 @numba.jit

@@ -28,9 +28,11 @@ def test_concatenate_blocks():
     v1 = fr.StringArray(TEST_ARRAY)
     s = pd.Series(v1, index=pd.RangeIndex(3), fastpath=True)
     result = pd.concat([s, s], ignore_index=True)
-    expected = pd.Series(fr.StringArray(pa.array(
-        ["Test", "string", None, "Test", "string", None])))
+    expected = pd.Series(
+        fr.StringArray(pa.array(["Test", "string", None, "Test", "string", None]))
+    )
     tm.assert_series_equal(result, expected)
+
 
 # ----------------------------------------------------------------------------
 # Public Constructors
@@ -47,7 +49,7 @@ def test_series_constructor():
 def test_dataframe_constructor():
     v = fr.StringArray(TEST_ARRAY)
     df = pd.DataFrame({"A": v})
-    assert isinstance(df.dtypes['A'], fr.StringDtype)
+    assert isinstance(df.dtypes["A"], fr.StringDtype)
     assert df.shape == (3, 1)
 
     # Test some calls to typical DataFrame functions
@@ -61,17 +63,17 @@ def test_dataframe_from_series_no_dict():
     expected = pd.DataFrame({0: s})
     tm.assert_frame_equal(result, expected)
 
-    s = pd.Series(fr.StringArray(TEST_ARRAY), name='A')
+    s = pd.Series(fr.StringArray(TEST_ARRAY), name="A")
     result = pd.DataFrame(s)
-    expected = pd.DataFrame({'A': s})
+    expected = pd.DataFrame({"A": s})
     tm.assert_frame_equal(result, expected)
 
 
 def test_dataframe_from_series():
     s = pd.Series(fr.StringArray(TEST_ARRAY))
-    c = pd.Series(pd.Categorical(['a', 'b']))
-    result = pd.DataFrame({"A": s, 'B': c})
-    assert isinstance(result.dtypes['A'], fr.StringDtype)
+    c = pd.Series(pd.Categorical(["a", "b"]))
+    result = pd.DataFrame({"A": s, "B": c})
+    assert isinstance(result.dtypes["A"], fr.StringDtype)
 
 
 def test_getitem_scalar():
@@ -96,29 +98,24 @@ def test_setitem_scalar():
 
 
 def test_isnull():
-    df = pd.DataFrame({
-        "A": fr.StringArray(TEST_ARRAY)
-    })
+    df = pd.DataFrame({"A": fr.StringArray(TEST_ARRAY)})
 
-    tm.assert_series_equal(df['A'].isnull(), pd.Series([False, False, True], name='A'))
+    tm.assert_series_equal(df["A"].isnull(), pd.Series([False, False, True], name="A"))
 
 
 def test_set_index():
-    pd.DataFrame({
-        'index': [3, 2, 1],
-        "A": fr.StringArray(TEST_ARRAY)
-    }).set_index('index')
+    pd.DataFrame({"index": [3, 2, 1], "A": fr.StringArray(TEST_ARRAY)}).set_index(
+        "index"
+    )
 
 
 def test_copy():
-    df = pd.DataFrame({
-        "A": fr.StringArray(TEST_ARRAY)
-    })
-    df['A'].copy()
+    df = pd.DataFrame({"A": fr.StringArray(TEST_ARRAY)})
+    df["A"].copy()
 
 
 def test_nbytes():
-    array = fr.StringArray(pa.array(['A', None, 'CC']))
+    array = fr.StringArray(pa.array(["A", None, "CC"]))
     # Minimal storage usage:
     # 1 byte for the valid bitmap
     # 4 bytes for the offset array
@@ -167,14 +164,9 @@ def test_factorize():
 
 
 def test_groupby():
-    arr = fr.StringArray(['a', 'a', 'b', None])
-    df = pd.DataFrame({
-        'str': arr,
-        'int': [10, 5, 24, 6]
-    })
-    result = df.groupby('str').sum()
+    arr = fr.StringArray(["a", "a", "b", None])
+    df = pd.DataFrame({"str": arr, "int": [10, 5, 24, 6]})
+    result = df.groupby("str").sum()
 
-    expected = pd.DataFrame({
-        'int': [15, 24],
-    }, index=pd.Index(['a', 'b'], name='str'))
+    expected = pd.DataFrame({"int": [15, 24]}, index=pd.Index(["a", "b"], name="str"))
     tm.assert_frame_equal(result, expected)

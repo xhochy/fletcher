@@ -25,6 +25,7 @@ conda create -y -q -n fletcher python=3.6 \
     pip \
     codecov \
     pip \
+    black=18.5b0 \
     -c conda-forge
 
 # Activate the newly created environment
@@ -36,3 +37,8 @@ pip install -e .
 # Run the unit tests (you should do this several times during development)
 py.test
 ```
+
+Code formatting is done using black. This should keep everything in a
+consistent styling and the formatting can be automatically adjusted using
+`black .`. Note that we have pinned the version of `black` to ensure that
+the formatting is reproducible.
