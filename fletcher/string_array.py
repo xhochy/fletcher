@@ -58,7 +58,7 @@ class StringArray(FletcherArrayBase):
         ascending : bool, default True
             Whether the indices should result in an ascending
             or descending sort.
-        kind : {'quicksort', 'mergesort', 'heapsort'}, optional
+        kind : {'quicksort', 'mergesort', 'heapsort', 'insertionsort'}, optional
             Sorting algorithm.
         *args, **kwargs:
             passed through to :func:`numpy.argsort`.
@@ -73,7 +73,7 @@ class StringArray(FletcherArrayBase):
         numpy.argsort : Sorting implementation used internally.
         """
         ascending = nv.validate_argsort_with_ascending(ascending, args, kwargs)
-        if kind != "quicksort":
+        if kind not in ["quicksort", "insertionsort"]:
             raise NotImplementedError("only kind=quicksort is implemented")
 
         result = argsort_string_array(self.data)

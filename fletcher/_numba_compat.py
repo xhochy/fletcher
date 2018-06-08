@@ -52,12 +52,14 @@ class NumbaStringArray(object):
         """
         Check whether one non-null entry is lower than the other.
         """
-        left_length = self.byte_length(left)
-        right_length = self.byte_length(right)
+        left_idx = left + self.offset
+        right_idx = right + self.offset
+        left_length = self.offsets[left_idx + 1] - self.offsets[left_idx]
+        right_length = self.offsets[right_idx + 1] - self.offsets[right_idx]
         common_length = min(left_length, right_length)
 
-        left_offset = self.offsets[self.offset + left]
-        right_offset = self.offsets[self.offset + right]
+        left_offset = self.offsets[left_idx]
+        right_offset = self.offsets[right_idx]
         for i in range(common_length):
             left_char = self.data[left_offset + i]
             right_char = self.data[right_offset + i]
