@@ -1,6 +1,7 @@
 # fletcher
 
 [![CircleCI](https://circleci.com/gh/xhochy/fletcher/tree/master.svg?style=svg)](https://circleci.com/gh/xhochy/fletcher/tree/master)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/ambv/black)
 
 A library that provides a generic set of Pandas ExtensionDType/Array
 implementations backed by Apache Arrow. They support a wider range of types
@@ -15,17 +16,18 @@ using a `conda` based development setup with packages from `conda-forge`.
 ```
 # Create the conda environment with all necessary dependencies
 conda create -y -q -n fletcher python=3.6 \
+    black=18.5b0 \
+    codecov \
+    flake8 \
     numba \
     pandas \
+    pip \
+    pip \
     pyarrow \
     pytest \
     pytest-cov \
+    pytest-flake8 \
     six \
-    flake8 \
-    pip \
-    codecov \
-    pip \
-    black=18.5b0 \
     -c conda-forge
 
 # Activate the newly created environment
