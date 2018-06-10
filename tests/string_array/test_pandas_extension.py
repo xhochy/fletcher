@@ -17,8 +17,6 @@ from pandas.tests.extension.base import (
 from fletcher import StringDtype, StringArray
 from random import choice
 
-pytestmark = pytest.mark.xfail()
-
 
 @pytest.fixture
 def dtype():
@@ -67,41 +65,51 @@ def data_missing_for_sorting():
     raise StringArray(["B", None, "A"])
 
 
+@pytest.mark.xfail()
 class TestBaseCasting(BaseCastingTests):
     pass
 
 
+@pytest.mark.xfail()
 class TestBaseConstructors(BaseConstructorsTests):
     pass
 
 
+@pytest.mark.xfail()
 class TestBaseDtype(BaseDtypeTests):
     pass
 
 
+@pytest.mark.xfail()
 class TestBaseGetitemTests(BaseGetitemTests):
     pass
 
 
+@pytest.mark.xfail()
 class TestBaseGroupbyTests(BaseGroupbyTests):
     pass
 
 
+@pytest.mark.xfail()
 class TestBaseInterfaceTests(BaseInterfaceTests):
     pass
 
 
+@pytest.mark.xfail()
 class TestBaseMethodsTests(BaseMethodsTests):
     pass
 
 
+@pytest.mark.xfail()
 class TestBaseMissingTests(BaseMissingTests):
     pass
 
 
+@pytest.mark.xfail()
 class TestBaseReshapingTests(BaseReshapingTests):
     pass
 
 
+@pytest.mark.xfail()
 class TestBaseSetitemTests(BaseSetitemTests):
     pass
