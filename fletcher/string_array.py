@@ -2,18 +2,19 @@
 
 from __future__ import absolute_import, division, print_function
 
-from pandas.core.dtypes.dtypes import ExtensionDtype
-
 import numpy as np
 import pandas as pd
+import six
+from pandas.core.dtypes.dtypes import ExtensionDtype
+
 import pyarrow as pa
 
-from ._numba_compat import NumbaStringArray, NumbaString
-from ._algorithms import _startswith, _endswith
+from ._algorithms import _endswith, _startswith
+from ._numba_compat import NumbaString, NumbaStringArray
 from .base import FletcherArrayBase
 
 
-class StringDtypeType(object):
+class StringDtypeType(six.text_type):
     """
     The type of StringDtype, this metaclass determines subclass ability
     """
@@ -41,7 +42,7 @@ class StringArray(FletcherArrayBase):
             self.data = pa.chunked_array([pa.array(array, pa.string())])
         elif isinstance(array, pa.StringArray):
             self.data = pa.chunked_array([array])
-        elif isinstance(array, pa.ChunkedArray):
+        elif isinstance(array, (pa.ChunkedArray, pa.NullArray)):
             self.data = array
         else:
             raise ValueError(

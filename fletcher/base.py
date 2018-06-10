@@ -2,12 +2,15 @@
 
 from __future__ import absolute_import, division, print_function
 
-from ._algorithms import extract_isnull_bytemap
-from pandas.core.arrays import ExtensionArray
+from collections import Iterable
 
 import numpy as np
 import pandas as pd
+from pandas.core.arrays import ExtensionArray
+
 import pyarrow as pa
+
+from ._algorithms import extract_isnull_bytemap
 
 
 class FletcherArrayBase(ExtensionArray):
@@ -78,12 +81,24 @@ class FletcherArrayBase(ExtensionArray):
             start = item.start or 0
             stop = item.stop if item.stop is not None else len(self.data)
             if stop - start == 0:
-                return type(self)(pa.column("dummy", pa.array([], type=self.data.type)))
+                return type(self)(pa.array([], type=self.data.type))
+
+        elif isinstance(item, Iterable):
+            # alternative: np.where(np.array(item))[0]
+            indices = np.array(item)
+            indices = np.argwhere(indices).flatten()
+            return self.take(indices)
+        elif item > len(self):
+            return None
         value = self.data[item]
         if isinstance(value, pa.ChunkedArray):
             return type(self)(value)
         else:
-            return value
+            if isinstance(value, pa.lib.NAType):
+                return None
+            else:
+                # `as_py` is necessary due to https://issues.apache.org/jira/browse/ARROW-2694
+                return self.dtype.type(value.as_py())
 
     def isna(self):
         # type: () -> np.ndarray
