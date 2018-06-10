@@ -72,6 +72,13 @@ class FletcherArrayBase(ExtensionArray):
         For a boolean mask, return an instance of ``ExtensionArray``, filtered
         to the values where ``item`` is True.
         """
+        # Workaround for Arrow bug that segfaults on empty slice.
+        # This is fixed in Arrow master, will be released in 0.10
+        if isinstance(item, slice):
+            start = item.start or 0
+            stop = item.stop if item.stop is not None else len(self.data)
+            if stop - start == 0:
+                return type(self)(pa.column("dummy", pa.array([], type=self.data.type)))
         value = self.data[item]
         if isinstance(value, pa.ChunkedArray):
             return type(self)(value)
