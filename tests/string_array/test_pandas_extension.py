@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import pytest
+import six
 from pandas.tests.extension.base import (
     BaseCastingTests,
     BaseConstructorsTests,
@@ -14,7 +15,7 @@ from pandas.tests.extension.base import (
     BaseSetitemTests,
 )
 
-from fletcher import StringDtype, StringArray
+from fletcher import StringArray, StringDtype
 
 
 @pytest.fixture
@@ -65,7 +66,10 @@ def data_missing_for_sorting():
 
 
 class TestBaseCasting(BaseCastingTests):
-    pass
+
+    @pytest.mark.xfail(six.PY2, reason="Cast of UTF8 to `str` fails in py2.")
+    def test_astype_str(self, data):
+        BaseCastingTests.test_astype_str(self, data)
 
 
 class TestBaseConstructors(BaseConstructorsTests):
