@@ -80,6 +80,7 @@ class FletcherArrayBase(ExtensionArray):
         if isinstance(item, slice):
             start = item.start or 0
             stop = item.stop if item.stop is not None else len(self.data)
+            stop = min(stop, len(self.data))
             if stop - start == 0:
                 return type(self)(pa.array([], type=self.data.type))
 
@@ -88,8 +89,10 @@ class FletcherArrayBase(ExtensionArray):
             indices = np.array(item)
             indices = np.argwhere(indices).flatten()
             return self.take(indices)
-        elif item > len(self):
+        elif item >= len(self):
             return None
+        elif item < 0:
+            item += len(self)
         value = self.data[item]
         if isinstance(value, pa.ChunkedArray):
             return type(self)(value)
