@@ -22,7 +22,6 @@ conda create -y -q -n fletcher python=3.6 \
     numba \
     pandas \
     pip \
-    pip \
     pyarrow \
     pytest \
     pytest-cov \
