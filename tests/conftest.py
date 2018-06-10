@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 
 import operator
 
@@ -22,12 +23,12 @@ def data_missing():
     raise NotImplementedError
 
 
-@pytest.fixture(params=['data', 'data_missing'])
+@pytest.fixture(params=["data", "data_missing"])
 def all_data(request, data, data_missing):
     """Parametrized fixture giving 'data' and 'data_missing'"""
-    if request.param == 'data':
+    if request.param == "data":
         return data
-    elif request.param == 'data_missing':
+    elif request.param == "data_missing":
         return data_missing
 
 
