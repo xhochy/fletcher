@@ -97,11 +97,7 @@ class FletcherArrayBase(ExtensionArray):
         if isinstance(value, pa.ChunkedArray):
             return type(self)(value)
         else:
-            if isinstance(value, pa.lib.NAType):
-                return None
-            else:
-                # `as_py` is necessary due to https://issues.apache.org/jira/browse/ARROW-2694
-                return self.dtype.type(value.as_py())
+            return value.as_py()
 
     def isna(self):
         # type: () -> np.ndarray
