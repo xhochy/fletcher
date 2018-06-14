@@ -11,6 +11,7 @@ from pandas.core.arrays import ExtensionArray
 import pyarrow as pa
 
 from ._algorithms import extract_isnull_bytemap
+from pandas.api.types import is_integer
 
 
 class FletcherArrayBase(ExtensionArray):
@@ -89,10 +90,11 @@ class FletcherArrayBase(ExtensionArray):
             indices = np.array(item)
             indices = np.argwhere(indices).flatten()
             return self.take(indices)
-        elif item >= len(self):
-            return None
-        elif item < 0:
-            item += len(self)
+        elif is_integer(item):
+            if item < 0:
+                item += len(self)
+            if item >= len(self):
+                return None
         value = self.data[item]
         if isinstance(value, pa.ChunkedArray):
             return type(self)(value)
