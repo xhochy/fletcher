@@ -2,12 +2,16 @@
 
 from __future__ import absolute_import, division, print_function
 
-from ._algorithms import extract_isnull_bytemap
-from pandas.core.arrays import ExtensionArray
+from collections import Iterable
 
 import numpy as np
 import pandas as pd
+from pandas.core.arrays import ExtensionArray
+
 import pyarrow as pa
+
+from ._algorithms import extract_isnull_bytemap
+from pandas.api.types import is_integer
 
 
 class FletcherArrayBase(ExtensionArray):
@@ -77,13 +81,25 @@ class FletcherArrayBase(ExtensionArray):
         if isinstance(item, slice):
             start = item.start or 0
             stop = item.stop if item.stop is not None else len(self.data)
+            stop = min(stop, len(self.data))
             if stop - start == 0:
-                return type(self)(pa.column("dummy", pa.array([], type=self.data.type)))
+                return type(self)(pa.array([], type=self.data.type))
+
+        elif isinstance(item, Iterable):
+            # alternative: np.where(np.array(item))[0]
+            indices = np.array(item)
+            indices = np.argwhere(indices).flatten()
+            return self.take(indices)
+        elif is_integer(item):
+            if item < 0:
+                item += len(self)
+            if item >= len(self):
+                return None
         value = self.data[item]
         if isinstance(value, pa.ChunkedArray):
             return type(self)(value)
         else:
-            return value
+            return value.as_py()
 
     def isna(self):
         # type: () -> np.ndarray

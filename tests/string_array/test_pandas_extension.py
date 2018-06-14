@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import pytest
+import six
 from pandas.tests.extension.base import (
     BaseCastingTests,
     BaseConstructorsTests,
@@ -14,8 +15,7 @@ from pandas.tests.extension.base import (
     BaseSetitemTests,
 )
 
-from fletcher import StringDtype, StringArray
-from random import choice
+from fletcher import StringArray, StringDtype
 
 
 @pytest.fixture
@@ -25,13 +25,13 @@ def dtype():
 
 @pytest.fixture
 def data():
-    candidates = ["a", "Ö", "Č", "🙈"]
-    return StringArray([choice(candidates) for x in range(100)])
+    candidates = [u"🙈", u"Ö", u"Č", u"a", u"B"]
+    return StringArray(candidates * 20)
 
 
 @pytest.fixture
 def data_missing():
-    return StringArray(["A", None])
+    return StringArray([None, "A"])
 
 
 @pytest.fixture
@@ -65,22 +65,21 @@ def data_missing_for_sorting():
     raise StringArray(["B", None, "A"])
 
 
-@pytest.mark.xfail()
 class TestBaseCasting(BaseCastingTests):
-    pass
+
+    @pytest.mark.xfail(six.PY2, reason="Cast of UTF8 to `str` fails in py2.")
+    def test_astype_str(self, data):
+        BaseCastingTests.test_astype_str(self, data)
 
 
-@pytest.mark.xfail()
 class TestBaseConstructors(BaseConstructorsTests):
     pass
 
 
-@pytest.mark.xfail()
 class TestBaseDtype(BaseDtypeTests):
     pass
 
 
-@pytest.mark.xfail()
 class TestBaseGetitemTests(BaseGetitemTests):
     pass
 
@@ -90,7 +89,6 @@ class TestBaseGroupbyTests(BaseGroupbyTests):
     pass
 
 
-@pytest.mark.xfail()
 class TestBaseInterfaceTests(BaseInterfaceTests):
     pass
 
