@@ -2,8 +2,6 @@
 
 from __future__ import absolute_import, division, print_function
 
-import abc
-
 import numpy as np
 import pandas as pd
 import pyarrow as pa
@@ -15,21 +13,9 @@ from ._numba_compat import NumbaString, NumbaStringArray
 from .base import FletcherArrayBase
 
 
-@six.add_metaclass(abc.ABCMeta)
-class StringDtypeType(object):
-    """
-    The type of StringDtype, this metaclass determines subclass ability
-    """
-    pass
-
-
-StringDtypeType.register(six.text_type)
-StringDtypeType.register(six.binary_type)
-
-
 class StringDtype(ExtensionDtype):
     name = "string"
-    type = StringDtypeType
+    type = six.text_type
     kind = "O"
 
     @classmethod
