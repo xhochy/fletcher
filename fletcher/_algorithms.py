@@ -58,8 +58,7 @@ def extract_isnull_bytemap(chunked_array):
             buf = memoryview(valid_bitmap)
             _extract_isnull_bytemap(buf, len(chunk), chunk.offset, offset, result)
         else:
-            raise NotImplementedError()
-            # _fill_bytemap(
+            return np.full(len(chunked_array), False)
         offset += len(chunk)
 
     return result
