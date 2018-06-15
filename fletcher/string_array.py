@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import pyarrow as pa
 import six
+from pandas.api.types import is_array_like
 from pandas.core.dtypes.dtypes import ExtensionDtype
 
 from ._algorithms import _endswith, _startswith
@@ -30,7 +31,7 @@ class StringArray(FletcherArrayBase):
     dtype = StringDtype()
 
     def __init__(self, array):
-        if isinstance(array, list):
+        if is_array_like(array) or isinstance(array, list):
             self.data = pa.chunked_array([pa.array(array, pa.string())])
         elif isinstance(array, pa.StringArray):
             self.data = pa.chunked_array([array])
