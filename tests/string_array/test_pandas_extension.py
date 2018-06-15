@@ -42,7 +42,7 @@ def data_for_grouping():
 
     Where A < B < C and NA is missing
     """
-    raise StringArray(["B", "B", None, None, "A", "A", "B", "C"])
+    return StringArray(["B", "B", None, None, "A", "A", "B", "C"])
 
 
 @pytest.fixture
@@ -52,7 +52,7 @@ def data_for_sorting():
     This should be three items [B, C, A] with
     A < B < C
     """
-    raise StringArray(["B", "C", "A"])
+    return StringArray(["B", "C", "A"])
 
 
 @pytest.fixture
@@ -62,7 +62,7 @@ def data_missing_for_sorting():
     This should be three items [B, NA, A] with
     A < B and NA missing.
     """
-    raise StringArray(["B", None, "A"])
+    return StringArray(["B", None, "A"])
 
 
 class TestBaseCasting(BaseCastingTests):
@@ -84,7 +84,6 @@ class TestBaseGetitemTests(BaseGetitemTests):
     pass
 
 
-@pytest.mark.xfail()
 class TestBaseGroupbyTests(BaseGroupbyTests):
     pass
 
@@ -93,7 +92,6 @@ class TestBaseInterfaceTests(BaseInterfaceTests):
     pass
 
 
-@pytest.mark.xfail()
 class TestBaseMethodsTests(BaseMethodsTests):
     pass
 
