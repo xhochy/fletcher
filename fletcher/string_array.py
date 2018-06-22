@@ -2,6 +2,7 @@
 
 from __future__ import absolute_import, division, print_function
 
+import datetime
 import numpy as np
 import pandas as pd
 import pyarrow as pa
@@ -40,6 +41,37 @@ class StringArray(FletcherArrayBase):
         else:
             raise ValueError(
                 "Unsupported type passed for StringArray: {}".format(type(array))
+            )
+
+
+class Date64Dtype(ExtensionDtype):
+    name = "date64"
+    type = datetime.date
+    kind = "O"
+
+    @classmethod
+    def construct_from_string(cls, string):
+        if string == "date64":
+            return cls()
+        else:
+            raise TypeError("Cannot construct a '{}' from " "'{}'".format(cls, string))
+
+
+class Date64Array(FletcherArrayBase):
+    dtype = Date64Dtype()
+
+    def __init__(self, array):
+        if is_array_like(array) or isinstance(array, list):
+            self.data = pa.chunked_array([pa.array(array, pa.date64())])
+        elif isinstance(array, pa.Date64Array):
+            self.data = pa.chunked_array([array])
+        elif isinstance(array, pa.Date32Array):
+            self.data = pa.chunked_array([array.cast(pa.date64())])
+        elif isinstance(array, (pa.ChunkedArray, pa.NullArray)):
+            self.data = array
+        else:
+            raise ValueError(
+                "Unsupported type passed for Date64Array: {}".format(type(array))
             )
 
 

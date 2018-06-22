@@ -20,6 +20,8 @@ class FletcherArrayBase(ExtensionArray):
         """
         Correctly construct numpy arrays when passed to `np.asarray()`.
         """
+        if pa.types.is_date(self.data.type):
+            return np.array(pa.column("dummy", self.data).to_pylist())
         return pa.column("dummy", self.data).to_pandas().values
 
     def __len__(self):
