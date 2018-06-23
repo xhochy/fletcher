@@ -20,6 +20,8 @@ class FletcherArrayBase(ExtensionArray):
         """
         Correctly construct numpy arrays when passed to `np.asarray()`.
         """
+        # TODO: Otherwise segfaults on reconstruction of date arrays.
+        #   Fixed in Arrow master post 0.9
         if pa.types.is_date(self.data.type):
             return np.array(pa.column("dummy", self.data).to_pylist())
         return pa.column("dummy", self.data).to_pandas().values

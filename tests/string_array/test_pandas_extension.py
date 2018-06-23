@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import datetime
+import pyarrow as pa
 import pytest
 import six
 from collections import namedtuple
@@ -17,7 +18,7 @@ from pandas.tests.extension.base import (
     BaseSetitemTests,
 )
 
-from fletcher import StringArray, StringDtype, Date64Dtype, Date64Array
+from fletcher import StringArray, FletcherDtype, Date64Array
 
 FletcherTestType = namedtuple(
     "FletcherTestType",
@@ -33,7 +34,7 @@ FletcherTestType = namedtuple(
 
 test_types = [
     FletcherTestType(
-        StringDtype(),
+        FletcherDtype(pa.string()),
         StringArray([u"🙈", u"Ö", u"Č", u"a", u"B"] * 20),
         StringArray([None, "A"]),
         StringArray(["B", "B", None, None, "A", "A", "B", "C"]),
@@ -41,7 +42,7 @@ test_types = [
         StringArray(["B", None, "A"]),
     ),
     FletcherTestType(
-        Date64Dtype(),
+        FletcherDtype(pa.date64()),
         Date64Array(
             [
                 datetime.date(2015, 1, 1),

@@ -1,4 +1,4 @@
-from .string_array import StringArray, StringDtype, Date64Dtype, Date64Array
+from .string_array import StringArray, FletcherDtype, Date64Array
 
 
-__all__ = ["StringArray", "StringDtype"]
+__all__ = ["StringArray", "FletcherDtype", "Date64Array"]

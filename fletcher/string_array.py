@@ -15,21 +15,83 @@ from ._numba_compat import NumbaString, NumbaStringArray
 from .base import FletcherArrayBase
 
 
-class StringDtype(ExtensionDtype):
-    name = "string"
-    type = six.text_type
-    kind = "O"
+_python_type_map = {pa.date64().id: datetime.date, pa.string().id: six.text_type}
+
+_string_type_map = {"date64[ms]": pa.date64(), "string": pa.string()}
+
+
+class FletcherDtype(ExtensionDtype):
+
+    def __init__(self, arrow_dtype):
+        self.arrow_dtype = arrow_dtype
+
+    def __str__(self):
+        return str(self.arrow_dtype)
+
+    @property
+    def type(self):
+        # type: () -> type
+        """The scalar type for the array, e.g. ``int``
+        It's expected ``ExtensionArray[item]`` returns an instance
+        of ``ExtensionDtype.type`` for scalar ``item``.
+        """
+        return _python_type_map[self.arrow_dtype.id]
+
+    @property
+    def kind(self):
+        # type () -> str
+        """A character code (one of 'biufcmMOSUV'), default 'O'
+        This should match the NumPy dtype used when the array is
+        converted to an ndarray, which is probably 'O' for object if
+        the extension type cannot be represented as a built-in NumPy
+        type.
+        See Also
+        --------
+        numpy.dtype.kind
+        """
+        return "O"
+
+    @property
+    def name(self):
+        # type: () -> str
+        """A string identifying the data type.
+        Will be used for display in, e.g. ``Series.dtype``
+        """
+        return str(self.arrow_dtype)
 
     @classmethod
     def construct_from_string(cls, string):
-        if string == "string":
-            return cls()
+        """Attempt to construct this type from a string.
+        Parameters
+        ----------
+        string : str
+        Returns
+        -------
+        self : instance of 'cls'
+        Raises
+        ------
+        TypeError
+            If a class cannot be constructed from this 'string'.
+        Examples
+        --------
+        If the extension dtype can be constructed without any arguments,
+        the following may be an adequate implementation.
+        >>> @classmethod
+        ... def construct_from_string(cls, string)
+        ...     if string == cls.name:
+        ...         return cls()
+        ...     else:
+        ...         raise TypeError("Cannot construct a '{}' from "
+        ...                         "'{}'".format(cls, string))
+        """
+        if string in _string_type_map:
+            return cls(_string_type_map[string])
         else:
             raise TypeError("Cannot construct a '{}' from " "'{}'".format(cls, string))
 
 
 class StringArray(FletcherArrayBase):
-    dtype = StringDtype()
+    dtype = FletcherDtype(pa.string())
 
     def __init__(self, array):
         if is_array_like(array) or isinstance(array, list):
@@ -44,21 +106,8 @@ class StringArray(FletcherArrayBase):
             )
 
 
-class Date64Dtype(ExtensionDtype):
-    name = "date64"
-    type = datetime.date
-    kind = "O"
-
-    @classmethod
-    def construct_from_string(cls, string):
-        if string == "date64":
-            return cls()
-        else:
-            raise TypeError("Cannot construct a '{}' from " "'{}'".format(cls, string))
-
-
 class Date64Array(FletcherArrayBase):
-    dtype = Date64Dtype()
+    dtype = FletcherDtype(pa.date64())
 
     def __init__(self, array):
         if is_array_like(array) or isinstance(array, list):

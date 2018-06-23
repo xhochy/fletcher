@@ -49,7 +49,7 @@ def test_series_constructor():
 def test_dataframe_constructor():
     v = fr.StringArray(TEST_ARRAY)
     df = pd.DataFrame({"A": v})
-    assert isinstance(df.dtypes["A"], fr.StringDtype)
+    assert isinstance(df.dtypes["A"], fr.FletcherDtype)
     assert df.shape == (3, 1)
 
     # Test some calls to typical DataFrame functions
@@ -73,7 +73,7 @@ def test_dataframe_from_series():
     s = pd.Series(fr.StringArray(TEST_ARRAY))
     c = pd.Series(pd.Categorical(["a", "b"]))
     result = pd.DataFrame({"A": s, "B": c})
-    assert isinstance(result.dtypes["A"], fr.StringDtype)
+    assert isinstance(result.dtypes["A"], fr.FletcherDtype)
 
 
 def test_getitem_scalar():
