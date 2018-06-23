@@ -18,6 +18,7 @@ class StringDtype(ExtensionDtype):
     name = "string"
     type = six.text_type
     kind = "O"
+    arrow_dtype = pa.string()
 
     @classmethod
     def construct_from_string(cls, string):
@@ -35,7 +36,7 @@ class StringArray(FletcherArrayBase):
             self.data = pa.chunked_array([pa.array(array, pa.string())])
         elif isinstance(array, pa.StringArray):
             self.data = pa.chunked_array([array])
-        elif isinstance(array, (pa.ChunkedArray, pa.NullArray)):
+        elif isinstance(array, pa.ChunkedArray):
             self.data = array
         else:
             raise ValueError(
