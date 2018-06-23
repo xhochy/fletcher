@@ -6,7 +6,6 @@ import numpy as np
 import pandas as pd
 import pyarrow as pa
 import six
-from pandas.api.types import is_array_like
 from pandas.core.dtypes.dtypes import ExtensionDtype
 
 from ._algorithms import _endswith, _startswith
@@ -18,6 +17,7 @@ class StringDtype(ExtensionDtype):
     name = "string"
     type = six.text_type
     kind = "O"
+    arrow_dtype = pa.string()
 
     @classmethod
     def construct_from_string(cls, string):
@@ -30,17 +30,7 @@ class StringDtype(ExtensionDtype):
 class StringArray(FletcherArrayBase):
     dtype = StringDtype()
 
-    def __init__(self, array):
-        if is_array_like(array) or isinstance(array, list):
-            self.data = pa.chunked_array([pa.array(array, pa.string())])
-        elif isinstance(array, pa.StringArray):
-            self.data = pa.chunked_array([array])
-        elif isinstance(array, (pa.ChunkedArray, pa.NullArray)):
-            self.data = array
-        else:
-            raise ValueError(
-                "Unsupported type passed for StringArray: {}".format(type(array))
-            )
+    arrow_array_type = pa.StringArray
 
 
 @pd.api.extensions.register_series_accessor("text")

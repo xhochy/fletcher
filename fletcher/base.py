@@ -16,6 +16,18 @@ from ._algorithms import extract_isnull_bytemap
 class FletcherArrayBase(ExtensionArray):
     _can_hold_na = True
 
+    def __init__(self, array):
+        if is_array_like(array) or isinstance(array, list):
+            self.data = pa.chunked_array([pa.array(array, self.dtype.arrow_dtype)])
+        elif isinstance(array, self.arrow_array_type):
+            self.data = pa.chunked_array([array])
+        elif isinstance(array, (pa.ChunkedArray, pa.NullArray)):
+            self.data = array
+        else:
+            raise ValueError(
+                "Unsupported type passed for {}: {}".format(self.__name__, type(array))
+            )
+
     def __array__(self):
         """
         Correctly construct numpy arrays when passed to `np.asarray()`.
