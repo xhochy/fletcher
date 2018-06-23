@@ -19,6 +19,14 @@ TEST_LIST = ["Test", "string", None]
 TEST_ARRAY = pa.array(TEST_LIST, type=pa.string())
 
 
+@pytest.fixture
+def test_array_chunked():
+    chunks = []
+    for _ in range(10):
+        chunks.append(pa.array(TEST_LIST))
+    return pa.chunked_array(chunks)
+
+
 # ----------------------------------------------------------------------------
 # Block Methods
 # ----------------------------------------------------------------------------
@@ -89,7 +97,6 @@ def test_getitem_slice():
     tm.assert_series_equal(result, expected)
 
 
-@pytest.mark.xfail(reason="Arrow arrays are not writable")
 def test_setitem_scalar():
     ser = pd.Series(fr.FletcherArray(TEST_ARRAY))
     ser[1] = "other_string"
@@ -180,3 +187,43 @@ def test_argsort(ascending, kind):
     result = s.argsort(ascending=ascending, kind=kind)
     expected = s.astype(object).argsort(ascending=ascending, kind=kind)
     tm.assert_frame_equal(result, expected)
+
+
+def test_fillna_chunked(test_array_chunked):
+    ser = pd.Series(fr.StringArray(test_array_chunked))
+    ser = ser.fillna("filled")
+
+    expected_list = TEST_LIST[:2] + ["filled"]
+    chunks = []
+    for _ in range(10):
+        chunks.append(pa.array(expected_list))
+    chunked_exp = pa.chunked_array(chunks)
+    expected = pd.Series(fr.StringArray(chunked_exp))
+
+    tm.assert_series_equal(ser, expected)
+
+
+def test_setitem_chunked(test_array_chunked):
+    ser = pd.Series(fr.StringArray(test_array_chunked))
+    new_val = "new_value"
+    old_val = ser[15]
+    assert new_val != old_val
+    ser[15] = new_val
+    assert new_val == ser[15]
+
+
+def test_setitem_chunked_bool_index(test_array_chunked):
+    ser = pd.Series(fr.StringArray(test_array_chunked))
+    bool_index = np.full(len(ser), False)
+    bool_index[15] = True
+    ser[bool_index] = "bool_value"
+    assert ser[15] == "bool_value"
+
+
+@pytest.mark.parametrize("indices", [[10, 15], [10, 11]])
+def test_setitem_chunked_int_index(indices, test_array_chunked):
+    ser = pd.Series(fr.StringArray(test_array_chunked))
+    integer_index = indices
+    ser[integer_index] = ["int", "index"]
+    assert ser[indices[0]] == "int"
+    assert ser[indices[1]] == "index"

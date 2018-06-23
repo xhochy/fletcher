@@ -197,6 +197,72 @@ class FletcherArray(ExtensionArray):
             )
         )
 
+    def _get_chunk_offsets(self):
+        """
+        Returns an array holding the indices pointing to the first element of each chunk
+        """
+        offset = 0
+        offsets = []
+        for chunk in self.data.iterchunks():
+            offsets.append(offset)
+            offset += len(chunk)
+        return np.array(offsets)
+
+    def _get_chunk_indexer(self, array):
+        """
+        Returns an array with the chunk number for each index
+        """
+        res = np.empty(len(array), dtype=np.intp)
+        for ix, offset in enumerate(self._get_chunk_offsets()):
+            res = np.where(array >= offset, ix, res)
+        return res
+
+    def __setitem__(self, key, value):
+        # type: (Union[int, np.ndarray], Any) -> None
+        """Set one or more values inplace.
+
+        Parameters
+        ----------
+        key : int, ndarray, or slice
+            When called from, e.g. ``Series.__setitem__``, ``key`` will be
+            one of
+
+            * scalar int
+            * ndarray of integers.
+            * boolean ndarray
+            * slice object
+
+        value : ExtensionDtype.type, Sequence[ExtensionDtype.type], or object
+            value or values to be set of ``key``.
+
+        Returns
+        -------
+        None
+        """
+        # Convert all possible input key types to an array of integers
+        if is_bool_dtype(key) or isinstance(key, slice):
+            key = np.array(range(len(self)))[key]
+        elif is_integer(key):
+            key = np.array([key])
+        if np.isscalar(value):
+            value = np.full(len(key), value)
+
+        affected_chunks = self._get_chunk_indexer(key)
+        chunks = []
+        offset = 0
+        for ix, chunk in enumerate(self.data.iterchunks()):
+            if ix in affected_chunks:
+                key_chunk_indices = np.argwhere(affected_chunks == ix).flatten()
+                array_chunk_indices = key[key_chunk_indices] - offset
+                arr = chunk.to_pandas()
+                arr[array_chunk_indices] = np.array(value)[key_chunk_indices]
+                chunks.append(pa.array(arr, self.dtype.arrow_dtype))
+            else:
+                chunks.append(chunk)
+            offset += len(chunk)
+
+        self.data = pa.chunked_array(chunks)
+
     def __getitem__(self, item):
         # type (Any) -> Any
         """Select a subset of self.
