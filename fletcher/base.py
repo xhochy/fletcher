@@ -254,9 +254,15 @@ class FletcherArray(ExtensionArray):
             if ix in affected_chunks:
                 key_chunk_indices = np.argwhere(affected_chunks == ix).flatten()
                 array_chunk_indices = key[key_chunk_indices] - offset
-                arr = chunk.to_pandas()
-                arr[array_chunk_indices] = np.array(value)[key_chunk_indices]
-                chunks.append(pa.array(arr, self.dtype.arrow_dtype))
+                if pa.types.is_date64(self.dtype.arrow_dtype):
+                    # ARROW-2741: pa.array from np.datetime[D] and type=pa.date64 produces invalid results
+                    arr = np.array(chunk.to_pylist())
+                    arr[array_chunk_indices] = np.array(value)[key_chunk_indices]
+                    chunks.append(pa.array(arr, self.dtype.arrow_dtype))
+                else:
+                    arr = chunk.to_pandas()
+                    arr[array_chunk_indices] = np.array(value)[key_chunk_indices]
+                    chunks.append(pa.array(arr, self.dtype.arrow_dtype))
             else:
                 chunks.append(chunk)
             offset += len(chunk)
