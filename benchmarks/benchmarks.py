@@ -6,7 +6,7 @@ class TimeSuite:
 
     def setup(self):
         array = [
-            str(x) + str(x) + str(x) if x % 7 == 0 else None for x in range(2 ** 15)
+            str(x) + str(x) + str(x) if x % 7 == 0 else None for x in range(2 ** 20)
         ]
         self.df = pd.DataFrame({"str": array})
         self.df_ext = pd.DataFrame({"str": fr.FletcherArray(array)})
@@ -34,3 +34,9 @@ class TimeSuite:
 
     def time_endswith_na_ext(self):
         self.df_ext["str"].text.endswith("10", na=False)
+
+    def time_concat(self):
+        pd.concat([self.df["str"]] * 2)
+
+    def time_concat_ext(self):
+        pd.concat([self.df_ext["str"]] * 2)
