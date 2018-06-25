@@ -225,9 +225,10 @@ class FletcherArray(ExtensionArray):
             start = item.start or 0
             stop = item.stop if item.stop is not None else len(self.data)
             stop = min(stop, len(self.data))
+            step = item.step if item.step is not None else 1
             # Arrow can't handle slices with steps other than 1
             # https://issues.apache.org/jira/browse/ARROW-2714
-            if item.step != 1:
+            if step != 1:
                 return type(self)(np.asarray(self)[item], dtype=self.data.type)
             if stop - start == 0:
                 return type(self)(pa.array([], type=self.data.type))
