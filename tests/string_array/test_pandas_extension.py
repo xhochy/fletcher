@@ -18,7 +18,7 @@ from pandas.tests.extension.base import (
     BaseSetitemTests,
 )
 
-from fletcher import StringArray, FletcherDtype, Date64Array
+from fletcher import FletcherArray, FletcherDtype
 
 FletcherTestType = namedtuple(
     "FletcherTestType",
@@ -34,46 +34,40 @@ FletcherTestType = namedtuple(
 
 test_types = [
     FletcherTestType(
-        FletcherDtype(pa.string()),
-        StringArray([u"🙈", u"Ö", u"Č", u"a", u"B"] * 20),
-        StringArray([None, "A"]),
-        StringArray(["B", "B", None, None, "A", "A", "B", "C"]),
-        StringArray(["B", "C", "A"]),
-        StringArray(["B", None, "A"]),
+        pa.string(),
+        [u"🙈", u"Ö", u"Č", u"a", u"B"] * 20,
+        [None, "A"],
+        ["B", "B", None, None, "A", "A", "B", "C"],
+        ["B", "C", "A"],
+        ["B", None, "A"],
     ),
     FletcherTestType(
-        FletcherDtype(pa.date64()),
-        Date64Array(
-            [
-                datetime.date(2015, 1, 1),
-                datetime.date(2010, 12, 31),
-                datetime.date(1970, 1, 1),
-                datetime.date(1900, 3, 31),
-                datetime.date(1999, 12, 31),
-            ]
-            * 20
-        ),
-        Date64Array([None, datetime.date(2015, 1, 1)]),
-        Date64Array(
-            [
-                datetime.date(2015, 2, 2),
-                datetime.date(2015, 2, 2),
-                None,
-                None,
-                datetime.date(2015, 1, 1),
-                datetime.date(2015, 1, 1),
-                datetime.date(2015, 2, 2),
-                datetime.date(2015, 3, 3),
-            ]
-        ),
-        Date64Array(
-            [
-                datetime.date(2015, 2, 2),
-                datetime.date(2015, 3, 3),
-                datetime.date(2015, 1, 1),
-            ]
-        ),
-        Date64Array([datetime.date(2015, 2, 2), None, datetime.date(2015, 1, 1)]),
+        pa.date64(),
+        [
+            datetime.date(2015, 1, 1),
+            datetime.date(2010, 12, 31),
+            datetime.date(1970, 1, 1),
+            datetime.date(1900, 3, 31),
+            datetime.date(1999, 12, 31),
+        ]
+        * 20,
+        [None, datetime.date(2015, 1, 1)],
+        [
+            datetime.date(2015, 2, 2),
+            datetime.date(2015, 2, 2),
+            None,
+            None,
+            datetime.date(2015, 1, 1),
+            datetime.date(2015, 1, 1),
+            datetime.date(2015, 2, 2),
+            datetime.date(2015, 3, 3),
+        ],
+        [
+            datetime.date(2015, 2, 2),
+            datetime.date(2015, 3, 3),
+            datetime.date(2015, 1, 1),
+        ],
+        [datetime.date(2015, 2, 2), None, datetime.date(2015, 1, 1)],
     ),
 ]
 
@@ -85,17 +79,17 @@ def fletcher_type(request):
 
 @pytest.fixture
 def dtype(fletcher_type):
-    return fletcher_type.dtype
+    return FletcherDtype(fletcher_type.dtype)
 
 
 @pytest.fixture
 def data(fletcher_type):
-    return fletcher_type.data
+    return FletcherArray(fletcher_type.data, dtype=fletcher_type.dtype)
 
 
 @pytest.fixture
 def data_missing(fletcher_type):
-    return fletcher_type.data_missing
+    return FletcherArray(fletcher_type.data_missing, dtype=fletcher_type.dtype)
 
 
 @pytest.fixture
@@ -106,7 +100,7 @@ def data_for_grouping(fletcher_type):
 
     Where A < B < C and NA is missing
     """
-    return fletcher_type.data_for_grouping
+    return FletcherArray(fletcher_type.data_for_grouping, dtype=fletcher_type.dtype)
 
 
 @pytest.fixture
@@ -116,7 +110,7 @@ def data_for_sorting(fletcher_type):
     This should be three items [B, C, A] with
     A < B < C
     """
-    return fletcher_type.data_for_sorting
+    return FletcherArray(fletcher_type.data_for_sorting, dtype=fletcher_type.dtype)
 
 
 @pytest.fixture
@@ -126,7 +120,9 @@ def data_missing_for_sorting(fletcher_type):
     This should be three items [B, NA, A] with
     A < B and NA missing.
     """
-    return fletcher_type.data_missing_for_sorting
+    return FletcherArray(
+        fletcher_type.data_missing_for_sorting, dtype=fletcher_type.dtype
+    )
 
 
 class TestBaseCasting(BaseCastingTests):
@@ -145,7 +141,12 @@ class TestBaseDtype(BaseDtypeTests):
 
 
 class TestBaseGetitemTests(BaseGetitemTests):
-    pass
+
+    @pytest.mark.skip
+    def test_reindex(self):
+        # No longer available in master and fails with pandas 0.23.1
+        # due to a dtype assumption that does not hold for Arrow
+        pass
 
 
 class TestBaseGroupbyTests(BaseGroupbyTests):
