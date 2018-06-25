@@ -28,6 +28,28 @@ class FletcherDtype(ExtensionDtype):
     def __str__(self):
         return str(self.arrow_dtype)
 
+    def __repr__(self):
+        return 'FletcherDType({})'.format(str(self))
+
+    def __eq__(self, other):
+        """Check whether 'other' is equal to self.
+        By default, 'other' is considered equal if
+        * it's a string matching 'self.name'.
+        * it's an instance of this type.
+        Parameters
+        ----------
+        other : Any
+        Returns
+        -------
+        bool
+        """
+        if isinstance(other, six.string_types):
+            return other == self.name
+        elif isinstance(other, type(self)):
+            return self.arrow_dtype == other.arrow_dtype
+        else:
+            return False
+
     @property
     def type(self):
         # type: () -> type
@@ -49,7 +71,7 @@ class FletcherDtype(ExtensionDtype):
         --------
         numpy.dtype.kind
         """
-        return "O"
+        return self.arrow_dtype.to_pandas_dtype().char
 
     @property
     def name(self):
