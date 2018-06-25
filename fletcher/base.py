@@ -31,7 +31,7 @@ _python_type_map = {
     pa.float64().id: float,
     pa.date32().id: datetime.date,
     pa.date64().id: datetime.date,
-    pa.timestamp('ms').id: datetime.datetime,
+    pa.timestamp("ms").id: datetime.datetime,
     pa.binary().id: six.binary_type,
     pa.string().id: six.text_type,
     # Use any list type here, only LIST is important
