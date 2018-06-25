@@ -5,6 +5,7 @@ import operator as op
 
 import pandas as pd
 import pandas.util.testing as pdt
+import pyarrow as pa
 import pytest
 
 import fletcher as fr
@@ -12,7 +13,9 @@ import fletcher as fr
 
 data = ["foo", None, "baz", "bar", None, "..bar"]
 
-df = pd.DataFrame({"pd": pd.Series(data), "fr": fr.StringArray(data)})
+df = pd.DataFrame(
+    {"pd": pd.Series(data), "fr": fr.FletcherArray(data, dtype=pa.string())}
+)
 
 
 # syntactic sugar to make test cases easier to read

@@ -2,24 +2,168 @@
 
 from __future__ import absolute_import, division, print_function
 
+from ._algorithms import extract_isnull_bytemap
 from collections import Iterable
+from pandas.api.types import is_array_like, is_bool_dtype, is_integer, is_integer_dtype
+from pandas.core.arrays import ExtensionArray
+from pandas.core.dtypes.dtypes import ExtensionDtype
 
+import datetime
 import numpy as np
 import pandas as pd
 import pyarrow as pa
-from pandas.api.types import is_array_like, is_bool_dtype, is_integer, is_integer_dtype
-from pandas.core.arrays import ExtensionArray
-
-from ._algorithms import extract_isnull_bytemap
+import six
 
 
-class FletcherArrayBase(ExtensionArray):
+_python_type_map = {
+    pa.null().id: six.text_type,
+    pa.bool_().id: bool,
+    pa.int8().id: int,
+    pa.uint8().id: int,
+    pa.int16().id: int,
+    pa.uint16().id: int,
+    pa.int32().id: int,
+    pa.uint32().id: int,
+    pa.int64().id: int,
+    pa.uint64().id: int,
+    pa.float16().id: float,
+    pa.float32().id: float,
+    pa.float64().id: float,
+    pa.date32().id: datetime.date,
+    pa.date64().id: datetime.date,
+    pa.timestamp("ms").id: datetime.datetime,
+    pa.binary().id: six.binary_type,
+    pa.string().id: six.text_type,
+    # Use any list type here, only LIST is important
+    pa.list_(pa.string()).id: list,
+}
+
+_string_type_map = {"date64[ms]": pa.date64(), "string": pa.string()}
+
+
+class FletcherDtype(ExtensionDtype):
+
+    def __init__(self, arrow_dtype):
+        self.arrow_dtype = arrow_dtype
+
+    def __str__(self):
+        return str(self.arrow_dtype)
+
+    def __repr__(self):
+        return "FletcherDType({})".format(str(self))
+
+    def __eq__(self, other):
+        """Check whether 'other' is equal to self.
+        By default, 'other' is considered equal if
+        * it's a string matching 'self.name'.
+        * it's an instance of this type.
+        Parameters
+        ----------
+        other : Any
+        Returns
+        -------
+        bool
+        """
+        if isinstance(other, six.string_types):
+            return other == self.name
+        elif isinstance(other, type(self)):
+            return self.arrow_dtype == other.arrow_dtype
+        else:
+            return False
+
+    @property
+    def type(self):
+        # type: () -> type
+        """The scalar type for the array, e.g. ``int``
+        It's expected ``ExtensionArray[item]`` returns an instance
+        of ``ExtensionDtype.type`` for scalar ``item``.
+        """
+        return _python_type_map[self.arrow_dtype.id]
+
+    @property
+    def kind(self):
+        # type () -> str
+        """A character code (one of 'biufcmMOSUV'), default 'O'
+        This should match the NumPy dtype used when the array is
+        converted to an ndarray, which is probably 'O' for object if
+        the extension type cannot be represented as a built-in NumPy
+        type.
+        See Also
+        --------
+        numpy.dtype.kind
+        """
+        if pa.types.is_date(self.arrow_dtype):
+            return "O"
+        else:
+            return np.dtype(self.arrow_dtype.to_pandas_dtype()).kind
+
+    @property
+    def name(self):
+        # type: () -> str
+        """A string identifying the data type.
+        Will be used for display in, e.g. ``Series.dtype``
+        """
+        return str(self.arrow_dtype)
+
+    @classmethod
+    def construct_from_string(cls, string):
+        """Attempt to construct this type from a string.
+        Parameters
+        ----------
+        string : str
+        Returns
+        -------
+        self : instance of 'cls'
+        Raises
+        ------
+        TypeError
+            If a class cannot be constructed from this 'string'.
+        Examples
+        --------
+        If the extension dtype can be constructed without any arguments,
+        the following may be an adequate implementation.
+        >>> @classmethod
+        ... def construct_from_string(cls, string)
+        ...     if string == cls.name:
+        ...         return cls()
+        ...     else:
+        ...         raise TypeError("Cannot construct a '{}' from "
+        ...                         "'{}'".format(cls, string))
+        """
+        return cls(pa.type_for_alias(string))
+
+
+class FletcherArray(ExtensionArray):
     _can_hold_na = True
+
+    def __init__(self, array, dtype=None):
+        if is_array_like(array) or isinstance(array, list):
+            self.data = pa.chunked_array([pa.array(array, type=dtype)])
+        elif isinstance(array, pa.Array):
+            # TODO: Assert dtype
+            self.data = pa.chunked_array([array])
+        elif isinstance(array, pa.ChunkedArray):
+            # TODO: Assert dtype
+            self.data = array
+        else:
+            raise ValueError(
+                "Unsupported type passed for {}: {}".format(self.__name__, type(array))
+            )
+        self._dtype = FletcherDtype(self.data.type)
+
+    @property
+    def dtype(self):
+        # type: () -> ExtensionDtype
+        return self._dtype
 
     def __array__(self):
         """
         Correctly construct numpy arrays when passed to `np.asarray()`.
         """
+        # TODO: Otherwise segfaults on reconstruction of date arrays.
+        #   Fixed in Arrow master post 0.9
+        if pa.types.is_date(self.data.type):
+            return np.array(pa.column("dummy", self.data).to_pylist())
         return pa.column("dummy", self.data).to_pandas().values
 
     def __len__(self):
@@ -84,7 +228,7 @@ class FletcherArrayBase(ExtensionArray):
             # Arrow can't handle slices with steps other than 1
             # https://issues.apache.org/jira/browse/ARROW-2714
             if item.step != 1:
-                return type(self)(np.asarray(self)[item])
+                return type(self)(np.asarray(self)[item], dtype=self.data.type)
             if stop - start == 0:
                 return type(self)(pa.array([], type=self.data.type))
         elif isinstance(item, Iterable):
@@ -228,7 +372,7 @@ class FletcherArrayBase(ExtensionArray):
             return np.asarray(self).astype(dtype)
 
     @classmethod
-    def _from_sequence(cls, scalars):
+    def _from_sequence(cls, scalars, dtype=None):
         """
         Construct a new ExtensionArray from a sequence of scalars.
 
@@ -242,7 +386,7 @@ class FletcherArrayBase(ExtensionArray):
         -------
         ExtensionArray
         """
-        return cls(pa.array(scalars))
+        return cls(pa.array(scalars, type=dtype))
 
     def take(self, indices, allow_fill=False, fill_value=None):
         # type: (Sequence[int], bool, Optional[Any]) -> ExtensionArray
@@ -304,4 +448,4 @@ class FletcherArrayBase(ExtensionArray):
         # type for the array, to the physical storage type for
         # the data, before passing to take.
         result = take(data, indices, fill_value=fill_value, allow_fill=allow_fill)
-        return self._from_sequence(result)
+        return self._from_sequence(result, dtype=self.data.type)

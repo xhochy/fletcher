@@ -4,51 +4,18 @@ from __future__ import absolute_import, division, print_function
 
 import numpy as np
 import pandas as pd
-import pyarrow as pa
-import six
-from pandas.api.types import is_array_like
-from pandas.core.dtypes.dtypes import ExtensionDtype
 
 from ._algorithms import _endswith, _startswith
 from ._numba_compat import NumbaString, NumbaStringArray
-from .base import FletcherArrayBase
-
-
-class StringDtype(ExtensionDtype):
-    name = "string"
-    type = six.text_type
-    kind = "O"
-
-    @classmethod
-    def construct_from_string(cls, string):
-        if string == "string":
-            return cls()
-        else:
-            raise TypeError("Cannot construct a '{}' from " "'{}'".format(cls, string))
-
-
-class StringArray(FletcherArrayBase):
-    dtype = StringDtype()
-
-    def __init__(self, array):
-        if is_array_like(array) or isinstance(array, list):
-            self.data = pa.chunked_array([pa.array(array, pa.string())])
-        elif isinstance(array, pa.StringArray):
-            self.data = pa.chunked_array([array])
-        elif isinstance(array, (pa.ChunkedArray, pa.NullArray)):
-            self.data = array
-        else:
-            raise ValueError(
-                "Unsupported type passed for StringArray: {}".format(type(array))
-            )
+from .base import FletcherArray
 
 
 @pd.api.extensions.register_series_accessor("text")
 class TextAccessor:
 
     def __init__(self, obj):
-        if not isinstance(obj.values, StringArray):
-            raise AttributeError("only StringArray has text accessor")
+        if not isinstance(obj.values, FletcherArray):
+            raise AttributeError("only FletcherArray[string] has text accessor")
         self.obj = obj
         self.data = self.obj.values.data
 

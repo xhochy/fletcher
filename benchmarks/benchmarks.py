@@ -1,6 +1,5 @@
 import pandas as pd
 import fletcher as fr
-import pyarrow as pa
 
 
 class TimeSuite:
@@ -10,7 +9,7 @@ class TimeSuite:
             str(x) + str(x) + str(x) if x % 7 == 0 else None for x in range(2 ** 15)
         ]
         self.df = pd.DataFrame({"str": array})
-        self.df_ext = pd.DataFrame({"str": fr.StringArray(pa.array(array))})
+        self.df_ext = pd.DataFrame({"str": fr.FletcherArray(array)})
 
     def time_isnull(self):
         self.df["str"].isnull()
