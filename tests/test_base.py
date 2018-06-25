@@ -15,7 +15,7 @@ def array_inhom_chunks():
     chunk2 = pa.array(list("12345"), pa.string())
     chunk3 = pa.array(list("Z"), pa.string())
     chunked_array = pa.chunked_array([chunk1, chunk2, chunk3])
-    return fl.StringArray(chunked_array)
+    return fl.FletcherArray(chunked_array)
 
 
 def test_get_chunk_offsets(array_inhom_chunks):

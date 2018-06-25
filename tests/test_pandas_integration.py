@@ -190,7 +190,7 @@ def test_argsort(ascending, kind):
 
 
 def test_fillna_chunked(test_array_chunked):
-    ser = pd.Series(fr.StringArray(test_array_chunked))
+    ser = pd.Series(fr.FletcherArray(test_array_chunked))
     ser = ser.fillna("filled")
 
     expected_list = TEST_LIST[:2] + ["filled"]
@@ -198,13 +198,13 @@ def test_fillna_chunked(test_array_chunked):
     for _ in range(10):
         chunks.append(pa.array(expected_list))
     chunked_exp = pa.chunked_array(chunks)
-    expected = pd.Series(fr.StringArray(chunked_exp))
+    expected = pd.Series(fr.FletcherArray(chunked_exp))
 
     tm.assert_series_equal(ser, expected)
 
 
 def test_setitem_chunked(test_array_chunked):
-    ser = pd.Series(fr.StringArray(test_array_chunked))
+    ser = pd.Series(fr.FletcherArray(test_array_chunked))
     new_val = "new_value"
     old_val = ser[15]
     assert new_val != old_val
@@ -213,7 +213,7 @@ def test_setitem_chunked(test_array_chunked):
 
 
 def test_setitem_chunked_bool_index(test_array_chunked):
-    ser = pd.Series(fr.StringArray(test_array_chunked))
+    ser = pd.Series(fr.FletcherArray(test_array_chunked))
     bool_index = np.full(len(ser), False)
     bool_index[15] = True
     ser[bool_index] = "bool_value"
@@ -222,7 +222,7 @@ def test_setitem_chunked_bool_index(test_array_chunked):
 
 @pytest.mark.parametrize("indices", [[10, 15], [10, 11]])
 def test_setitem_chunked_int_index(indices, test_array_chunked):
-    ser = pd.Series(fr.StringArray(test_array_chunked))
+    ser = pd.Series(fr.FletcherArray(test_array_chunked))
     integer_index = indices
     ser[integer_index] = ["int", "index"]
     assert ser[indices[0]] == "int"
