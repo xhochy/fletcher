@@ -16,9 +16,26 @@ import six
 
 
 _python_type_map = {
-    pa.date64().id: datetime.date,
-    pa.string().id: six.text_type,
     pa.null().id: six.text_type,
+    pa.bool_().id: bool,
+    pa.int8().id: int,
+    pa.uint8().id: int,
+    pa.int16().id: int,
+    pa.uint16().id: int,
+    pa.int32().id: int,
+    pa.uint32().id: int,
+    pa.int64().id: int,
+    pa.uint64().id: int,
+    pa.float16().id: float,
+    pa.float32().id: float,
+    pa.float64().id: float,
+    pa.date32().id: datetime.date,
+    pa.date64().id: datetime.date,
+    pa.timestamp('ms').id: datetime.datetime,
+    pa.binary().id: six.binary_type,
+    pa.string().id: six.text_type,
+    # Use any list type here, only LIST is important
+    pa.list_(pa.string()).id: list,
 }
 
 _string_type_map = {"date64[ms]": pa.date64(), "string": pa.string()}
@@ -78,11 +95,7 @@ class FletcherDtype(ExtensionDtype):
         if pa.types.is_date(self.arrow_dtype):
             return "O"
         else:
-            dtype = self.arrow_dtype.to_pandas_dtype()
-            if dtype == np.object_:
-                return "O"
-            else:
-                return dtype.char
+            return np.dtype(self.arrow_dtype.to_pandas_dtype()).kind
 
     @property
     def name(self):
@@ -117,10 +130,7 @@ class FletcherDtype(ExtensionDtype):
         ...         raise TypeError("Cannot construct a '{}' from "
         ...                         "'{}'".format(cls, string))
         """
-        if string in _string_type_map:
-            return cls(_string_type_map[string])
-        else:
-            raise TypeError("Cannot construct a '{}' from " "'{}'".format(cls, string))
+        return cls(pa.type_for_alias(string))
 
 
 class FletcherArray(ExtensionArray):
