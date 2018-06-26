@@ -182,16 +182,13 @@ class TestBaseMethodsTests(BaseMethodsTests):
     pass
 
 
-@pytest.mark.xfail()
 class TestBaseMissingTests(BaseMissingTests):
     pass
 
 
-@pytest.mark.xfail()
 class TestBaseReshapingTests(BaseReshapingTests):
     pass
 
 
-@pytest.mark.xfail()
 class TestBaseSetitemTests(BaseSetitemTests):
     pass
