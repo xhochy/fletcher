@@ -172,6 +172,12 @@ class FletcherArray(ExtensionArray):
                 "Unsupported type passed for {}: {}".format(self.__name__, type(array))
             )
         self._dtype = FletcherDtype(self.data.type)
+        offset = 0
+        offsets = np.empty(self.data.num_chunks, dtype=np.intp)
+        for ix, chunk in enumerate(self.data.iterchunks()):
+            offsets[ix] = offset
+            offset += len(chunk)
+        self.offsets = offsets
 
     @property
     def dtype(self):
@@ -219,25 +225,13 @@ class FletcherArray(ExtensionArray):
             )
         )
 
-    def _get_chunk_offsets(self):
-        """
-        Returns an array holding the indices pointing to the first element of each chunk
-        """
-        offset = 0
-        offsets = []
-        for chunk in self.data.iterchunks():
-            offsets.append(offset)
-            offset += len(chunk)
-        return np.array(offsets)
-
     def _get_chunk_indexer(self, array):
         """
         Returns an array with the chunk number for each index
         """
-        res = np.empty(len(array), dtype=np.intp)
-        for ix, offset in enumerate(self._get_chunk_offsets()):
-            res = np.where(array >= offset, ix, res)
-        return res
+        if self.data.num_chunks == 1:
+            return np.broadcast_to(0, len(array))
+        return np.digitize(array, self.offsets[1:])
 
     def __setitem__(self, key, value):
         # type: (Union[int, np.ndarray], Any) -> None
@@ -262,47 +256,57 @@ class FletcherArray(ExtensionArray):
         None
         """
         # Convert all possible input key types to an array of integers
-        if is_bool_dtype(key) or isinstance(key, slice):
-            key = np.array(range(len(self)))[key]
+        if is_bool_dtype(key):
+            key = np.argwhere(key).flatten()
+        elif isinstance(key, slice):
+            key = np.array(range(len(self))[key])
         elif is_integer(key):
             key = np.array([key])
+
         if pd.api.types.is_scalar(value):
-            value = np.full(len(key), value)
+            value = np.broadcast_to(value, len(key))
         else:
             value = np.asarray(value)
 
-        affected_chunks = self._get_chunk_indexer(key)
-        chunks = []
-        offset = 0
-        for ix, chunk in enumerate(self.data.iterchunks()):
-            if ix in affected_chunks:
-                key_chunk_indices = np.argwhere(affected_chunks == ix).flatten()
-                array_chunk_indices = key[key_chunk_indices] - offset
-                if pa.types.is_date64(self.dtype.arrow_dtype):
-                    # ARROW-2741: pa.array from np.datetime[D] and type=pa.date64 produces invalid results
-                    arr = np.array(chunk.to_pylist())
-                    arr[array_chunk_indices] = np.array(value)[key_chunk_indices]
-                    chunks.append(pa.array(arr, self.dtype.arrow_dtype))
-                else:
-                    arr = chunk.to_pandas()
-                    # In the case where we zero-copy Arrow to Pandas conversion, the
-                    # the resulting arrays are read-only.
-                    if not arr.flags.writeable:
-                        arr = arr.copy()
-                    arr[array_chunk_indices] = np.array(value)[key_chunk_indices]
-                    # ARROW-2806: Inconsistent handling of np.nan requires adding a mask
-                    if pa.types.is_integer(
-                        self.dtype.arrow_dtype
-                    ) or pa.types.is_floating(self.dtype.arrow_dtype):
-                        mask = pd.isna(arr)
-                    else:
-                        mask = None
-                    chunks.append(pa.array(arr, self.dtype.arrow_dtype, mask=mask))
-            else:
-                chunks.append(chunk)
-            offset += len(chunk)
+        affected_chunks_index = self._get_chunk_indexer(key)
+        affected_chunks_unique = np.unique(affected_chunks_index)
 
-        self.data = pa.chunked_array(chunks)
+        all_chunks = list(self.data.iterchunks())
+
+        for ix, offset in zip(
+            affected_chunks_unique, self.offsets[affected_chunks_unique]
+        ):
+            chunk = all_chunks[ix]
+
+            # Translate the array-wide indices to indices of the chunk
+            key_chunk_indices = np.argwhere(affected_chunks_index == ix).flatten()
+            array_chunk_indices = key[key_chunk_indices] - offset
+
+            if pa.types.is_date64(self.dtype.arrow_dtype):
+                # ARROW-2741: pa.array from np.datetime[D] and type=pa.date64 produces invalid results
+                arr = np.array(chunk.to_pylist())
+                arr[array_chunk_indices] = np.array(value)[key_chunk_indices]
+                pa_arr = pa.array(arr, self.dtype.arrow_dtype)
+            else:
+                arr = chunk.to_pandas()
+                # In the case where we zero-copy Arrow to Pandas conversion, the
+                # the resulting arrays are read-only.
+                if not arr.flags.writeable:
+                    arr = arr.copy()
+
+                arr[array_chunk_indices] = value[key_chunk_indices]
+
+                # ARROW-2806: Inconsistent handling of np.nan requires adding a mask
+                if pa.types.is_integer(self.dtype.arrow_dtype) or pa.types.is_floating(
+                    self.dtype.arrow_dtype
+                ):
+                    mask = pd.isna(arr)
+                else:
+                    mask = None
+                pa_arr = pa.array(arr, self.dtype.arrow_dtype, mask=mask)
+            all_chunks[ix] = pa_arr
+
+        self.data = pa.chunked_array(all_chunks)
 
     def __getitem__(self, item):
         # type (Any) -> Any

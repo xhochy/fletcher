@@ -18,12 +18,6 @@ def array_inhom_chunks():
     return fl.FletcherArray(chunked_array)
 
 
-def test_get_chunk_offsets(array_inhom_chunks):
-    actual = array_inhom_chunks._get_chunk_offsets()
-    expected = np.array([0, 3, 8])
-    npt.assert_array_equal(actual, expected)
-
-
 @pytest.mark.parametrize(
     "indices, expected",
     [
