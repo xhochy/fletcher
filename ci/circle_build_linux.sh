@@ -40,4 +40,9 @@ if [ "${PYTHON_VERSION}" = "3.6" ]; then
   # code works also as expected in Python.
   NUMBA_DISABLE_JIT=1 py.test --junitxml=test-reports/junit.xml --cov=./
   codecov
+
+  conda install -y -q sphinx
+  pushd docs
+  make html
+  popd
 fi
