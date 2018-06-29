@@ -47,10 +47,10 @@ class FletcherDtype(ExtensionDtype):
         self.arrow_dtype = arrow_dtype
 
     def __str__(self):
-        return str(self.arrow_dtype)
+        return "fletcher[{}]".format(self.arrow_dtype)
 
     def __repr__(self):
-        return "FletcherDType({})".format(str(self))
+        return "FletcherDType({})".format(str(self.arrow_dtype))
 
     def __eq__(self, other):
         """Check whether 'other' is equal to self.
@@ -103,7 +103,7 @@ class FletcherDtype(ExtensionDtype):
         """A string identifying the data type.
         Will be used for display in, e.g. ``Series.dtype``
         """
-        return str(self.arrow_dtype)
+        return str(self)
 
     @classmethod
     def construct_from_string(cls, string):
@@ -130,6 +130,10 @@ class FletcherDtype(ExtensionDtype):
         ...         raise TypeError("Cannot construct a '{}' from "
         ...                         "'{}'".format(cls, string))
         """
+        # Remove fletcher specific naming from the arrow type string.
+        if string.startswith("fletcher["):
+            string = string[9:-1]
+
         return cls(pa.type_for_alias(string))
 
 

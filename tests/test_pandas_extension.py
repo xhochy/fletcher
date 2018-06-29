@@ -1,9 +1,12 @@
 # -*- coding: utf-8 -*-
 
 import datetime
+import pandas as pd
 import pyarrow as pa
 import pytest
+import random
 import six
+import string
 from collections import namedtuple
 from pandas.tests.extension.base import (
     BaseCastingTests,
@@ -29,6 +32,7 @@ FletcherTestType = namedtuple(
         "data_for_grouping",
         "data_for_sorting",
         "data_missing_for_sorting",
+        "data_repeated",
     ],
 )
 
@@ -40,6 +44,7 @@ test_types = [
         ["B", "B", None, None, "A", "A", "B", "C"],
         ["B", "C", "A"],
         ["B", None, "A"],
+        lambda: random.choices(list(string.ascii_letters), k=10),
     ),
     # TODO: int has many optimizations in Pandas which makes it more fragile
     # FletcherTestType(
@@ -77,6 +82,7 @@ test_types = [
             datetime.date(2015, 1, 1),
         ],
         [datetime.date(2015, 2, 2), None, datetime.date(2015, 1, 1)],
+        lambda: random.choices(list(pd.date_range("2010-1-1", "2011-1-1").date), k=10),
     ),
 ]
 
@@ -99,6 +105,19 @@ def data(fletcher_type):
 @pytest.fixture
 def data_missing(fletcher_type):
     return FletcherArray(fletcher_type.data_missing, dtype=fletcher_type.dtype)
+
+
+@pytest.fixture
+def data_repeated(fletcher_type):
+    """Return different versions of data for count times"""
+
+    def gen(count):
+        for _ in range(count):
+            yield FletcherArray(
+                fletcher_type.data_repeated(), dtype=fletcher_type.dtype
+            )
+
+    yield gen
 
 
 @pytest.fixture
@@ -179,7 +198,36 @@ class TestBaseInterfaceTests(BaseInterfaceTests):
 
 
 class TestBaseMethodsTests(BaseMethodsTests):
-    pass
+
+    def test_combine_le(self, data_repeated):
+        # GH 20825
+        # Test that combine works when doing a <= (le) comparison
+        # Fletcher returns 'fletcher[bool]' instead of np.bool as dtype
+        orig_data1, orig_data2 = data_repeated(2)
+        s1 = pd.Series(orig_data1)
+        s2 = pd.Series(orig_data2)
+        result = s1.combine(s2, lambda x1, x2: x1 <= x2)
+        expected = pd.Series(
+            orig_data1._from_sequence(
+                [a <= b for (a, b) in zip(list(orig_data1), list(orig_data2))]
+            )
+        )
+        self.assert_series_equal(result, expected)
+
+        val = s1.iloc[0]
+        result = s1.combine(val, lambda x1, x2: x1 <= x2)
+        expected = pd.Series(
+            orig_data1._from_sequence([a <= val for a in list(orig_data1)])
+        )
+        self.assert_series_equal(result, expected)
+
+    def test_combine_add(self, data_repeated, dtype):
+        if dtype.name == "fletcher[date64[ms]]":
+            pytest.skip(
+                "unsupported operand type(s) for +: 'datetime.date' and 'datetime.date"
+            )
+        else:
+            BaseMethodsTests.test_combine_add(self, data_repeated)
 
 
 class TestBaseMissingTests(BaseMissingTests):
