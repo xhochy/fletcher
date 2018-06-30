@@ -134,6 +134,9 @@ class FletcherDtype(ExtensionDtype):
         if string.startswith("fletcher["):
             string = string[9:-1]
 
+        if string == "list<item: string>":
+            return cls(pa.list_(pa.string()))
+
         return cls(pa.type_for_alias(string))
 
 
@@ -250,6 +253,8 @@ class FletcherArray(ExtensionArray):
             key = np.array([key])
         if pd.api.types.is_scalar(value):
             value = np.full(len(key), value)
+        else:
+            value = np.asarray(value)
 
         affected_chunks = self._get_chunk_indexer(key)
         chunks = []
@@ -265,8 +270,18 @@ class FletcherArray(ExtensionArray):
                     chunks.append(pa.array(arr, self.dtype.arrow_dtype))
                 else:
                     arr = chunk.to_pandas()
+                    # In the case where we zero-copy Arrow to Pandas conversion, the
+                    # the resulting arrays are read-only.
+                    if not arr.flags.writeable:
+                        arr = arr.copy()
                     arr[array_chunk_indices] = np.array(value)[key_chunk_indices]
-                    chunks.append(pa.array(arr, self.dtype.arrow_dtype))
+                    if pa.types.is_integer(
+                        self.dtype.arrow_dtype
+                    ) or pa.types.is_floating(self.dtype.arrow_dtype):
+                        mask = pd.isna(arr)
+                    else:
+                        mask = None
+                    chunks.append(pa.array(arr, self.dtype.arrow_dtype, mask=mask))
             else:
                 chunks.append(chunk)
             offset += len(chunk)
@@ -305,7 +320,14 @@ class FletcherArray(ExtensionArray):
             # Arrow can't handle slices with steps other than 1
             # https://issues.apache.org/jira/browse/ARROW-2714
             if step != 1:
-                return type(self)(np.asarray(self)[item], dtype=self.data.type)
+                arr = np.asarray(self)[item]
+                if pa.types.is_integer(self.dtype.arrow_dtype) or pa.types.is_floating(
+                    self.dtype.arrow_dtype
+                ):
+                    mask = pd.isna(arr)
+                else:
+                    mask = None
+                return type(self)(pa.array(arr, type=self.dtype.arrow_dtype, mask=mask))
             if stop - start == 0:
                 return type(self)(pa.array([], type=self.data.type))
         elif isinstance(item, Iterable):
@@ -446,6 +468,8 @@ class FletcherArray(ExtensionArray):
             raise NotImplementedError("Cast propagation in astype not yet implemented")
         else:
             dtype = np.dtype(dtype)
+            if pa.types.is_list(self.dtype.arrow_dtype) and dtype.kind == "U":
+                return np.vectorize(six.text_type)(np.asarray(self))
             return np.asarray(self).astype(dtype)
 
     @classmethod

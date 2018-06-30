@@ -46,15 +46,38 @@ test_types = [
         ["B", None, "A"],
         lambda: random.choices(list(string.ascii_letters), k=10),
     ),
-    # TODO: int has many optimizations in Pandas which makes it more fragile
-    # FletcherTestType(
-    #     pa.int64(),
-    #     [2, 1, -1, 0, 66] * 20,
-    #     [None, 1],
-    #     [2, 2, None, None, -100, -100, 2, 100],
-    #     [2, 100, -10],
-    #     [2, None, -10],
-    # ),
+    FletcherTestType(
+        pa.int64(),
+        [2, 1, -1, 0, 66] * 20,
+        [None, 1],
+        [2, 2, None, None, -100, -100, 2, 100],
+        [2, 100, -10],
+        [2, None, -10],
+        lambda: random.choices(list(range(100)), k=10),
+    ),
+    FletcherTestType(
+        pa.float64(),
+        [2.5, 1.0, -1.0, 0, 66.6] * 20,
+        [None, 1.1],
+        [2.5, 2.5, None, None, -100.1, -100.1, 2.5, 100.1],
+        [2.5, 100.99, -10.1],
+        [2.5, None, -10.1],
+        lambda: random.choices([2.5, 1.0, -1.0, 0, 66.6], k=10),
+    ),
+    # Most of the tests fail as assert_extension_array_equal casts to numpy object
+    # arrays and on them equality is not defined.
+    pytest.param(
+        FletcherTestType(
+            pa.list_(pa.string()),
+            [["B", "C"], ["A"], [None], ["A", "A"], []],
+            [None, ["A"]],
+            [["B"], ["B"], None, None, ["A"], ["A"], ["B"], ["C"]],
+            [["B"], ["C"], ["A"]],
+            [["B"], None, ["A"]],
+            lambda: random.choices([["B", "C"], ["A"], [None], ["A", "A"]], k=10),
+        ),
+        marks=pytest.mark.xfail,
+    ),
     FletcherTestType(
         pa.date64(),
         [
@@ -188,6 +211,36 @@ class TestBaseGetitemTests(BaseGetitemTests):
         # due to a dtype assumption that does not hold for Arrow
         pass
 
+    def test_get(self, data, dtype):
+        if pa.types.is_list(dtype.arrow_dtype):
+            pytest.skip("assert_extension_array_equal casts to numpy object arrays")
+        else:
+            BaseGetitemTests.test_get(self, data)
+
+    def test_loc_series(self, data, dtype):
+        if pa.types.is_list(dtype.arrow_dtype):
+            pytest.skip("assert_extension_array_equal casts to numpy object arrays")
+        else:
+            BaseGetitemTests.test_loc_series(self, data)
+
+    def test_loc_frame(self, data, dtype):
+        if pa.types.is_list(dtype.arrow_dtype):
+            pytest.skip("assert_extension_array_equal casts to numpy object arrays")
+        else:
+            BaseGetitemTests.test_loc_frame(self, data)
+
+    def test_iloc_series(self, data, dtype):
+        if pa.types.is_list(dtype.arrow_dtype):
+            pytest.skip("assert_extension_array_equal casts to numpy object arrays")
+        else:
+            BaseGetitemTests.test_iloc_series(self, data)
+
+    def test_iloc_frame(self, data, dtype):
+        if pa.types.is_list(dtype.arrow_dtype):
+            pytest.skip("assert_extension_array_equal casts to numpy object arrays")
+        else:
+            BaseGetitemTests.test_iloc_frame(self, data)
+
 
 class TestBaseGroupbyTests(BaseGroupbyTests):
     pass
@@ -198,6 +251,15 @@ class TestBaseInterfaceTests(BaseInterfaceTests):
 
 
 class TestBaseMethodsTests(BaseMethodsTests):
+
+    @pytest.mark.parametrize("dropna", [True, False])
+    def test_value_counts(self, all_data, dropna, dtype):
+        # Skip integer tests while there is no support for ExtensionIndex.
+        # The dropna=True variant will produce a mix of IntIndex and FloatIndex.
+        if dtype.name == "fletcher[int64]":
+            pytest.skip("ExtensionIndex is no yet implemented")
+        else:
+            BaseMethodsTests.test_value_counts(self, all_data, dropna)
 
     def test_combine_le(self, data_repeated):
         # GH 20825
@@ -235,7 +297,13 @@ class TestBaseMissingTests(BaseMissingTests):
 
 
 class TestBaseReshapingTests(BaseReshapingTests):
-    pass
+
+    def test_concat_mixed_dtypes(self, data, dtype):
+        if dtype.name in ["fletcher[int64]", "fletcher[double]"]:
+            # TODO: Raise issue if this is expected.
+            pytest.skip("pd.concat(int64, fletcher[int64] yields int64")
+        else:
+            BaseReshapingTests.test_concat_mixed_dtypes(self, data)
 
 
 class TestBaseSetitemTests(BaseSetitemTests):
