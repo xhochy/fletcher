@@ -8,6 +8,7 @@ import six
 import string
 import sys
 from collections import namedtuple
+from distutils.version import LooseVersion
 from pandas.tests.extension.base import (
     BaseCastingTests,
     BaseConstructorsTests,
@@ -279,6 +280,9 @@ class TestBaseMethodsTests(BaseMethodsTests):
             BaseMethodsTests.test_value_counts(self, all_data, dropna)
 
     def test_combine_le(self, data_repeated):
+        if LooseVersion(pd.__version__) <= "0.24.0dev0":
+            pytest.skip("Test only exists on master")
+            return
         # GH 20825
         # Test that combine works when doing a <= (le) comparison
         # Fletcher returns 'fletcher[bool]' instead of np.bool as dtype
@@ -301,6 +305,9 @@ class TestBaseMethodsTests(BaseMethodsTests):
         self.assert_series_equal(result, expected)
 
     def test_combine_add(self, data_repeated, dtype):
+        if LooseVersion(pd.__version__) <= "0.24.0dev0":
+            pytest.skip("Test only exists on master")
+            return
         if dtype.name == "fletcher[date64[ms]]":
             pytest.skip(
                 "unsupported operand type(s) for +: 'datetime.date' and 'datetime.date"
