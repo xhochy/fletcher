@@ -3,6 +3,7 @@
 set -eo pipefail
 
 export PYTHON_VERSION=$1
+export USE_DEV_WHEELS=$2
 export CONDA_PKGS_DIRS=$HOME/.conda_packages
 export MINICONDA=$HOME/miniconda
 export MINICONDA_URL="https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh"
@@ -26,6 +27,13 @@ conda create -y -q -n fletcher python=${PYTHON_VERSION} \
     codecov \
     six \
     -c conda-forge
+
+if [[ ${USE_DEV_WHEELS} ]]; then
+    echo "Installing NumPy and Pandas dev"
+    conda uninstall -y --force numpy pandas
+    PRE_WHEELS="https://7933911d6844c6c53a7d-47bd50c35cd79bd838daf386af554a83.ssl.cf2.rackcdn.com"
+    pip install --pre --no-deps --upgrade --timeout=60 -f $PRE_WHEELS numpy pandas
+fi
 
 source activate fletcher
 pip install -e .
