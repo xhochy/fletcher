@@ -4,9 +4,9 @@ import datetime
 import pandas as pd
 import pyarrow as pa
 import pytest
-import random
 import six
 import string
+import sys
 from collections import namedtuple
 from pandas.tests.extension.base import (
     BaseCastingTests,
@@ -36,6 +36,15 @@ FletcherTestType = namedtuple(
     ],
 )
 
+if sys.version_info >= (3, 6):
+    from random import choices
+else:
+    from random import choice
+
+    def choices(seq, k):
+        return [choice(seq) for i in range(k)]
+
+
 test_types = [
     FletcherTestType(
         pa.string(),
@@ -44,25 +53,33 @@ test_types = [
         ["B", "B", None, None, "A", "A", "B", "C"],
         ["B", "C", "A"],
         ["B", None, "A"],
-        lambda: random.choices(list(string.ascii_letters), k=10),
+        lambda: choices(list(string.ascii_letters), k=10),
     ),
-    FletcherTestType(
-        pa.int64(),
-        [2, 1, -1, 0, 66] * 20,
-        [None, 1],
-        [2, 2, None, None, -100, -100, 2, 100],
-        [2, 100, -10],
-        [2, None, -10],
-        lambda: random.choices(list(range(100)), k=10),
+    # Float and int types require the support of constant memoryviews, this
+    # depends on https://github.com/pandas-dev/pandas/pull/21688
+    pytest.param(
+        FletcherTestType(
+            pa.int64(),
+            [2, 1, -1, 0, 66] * 20,
+            [None, 1],
+            [2, 2, None, None, -100, -100, 2, 100],
+            [2, 100, -10],
+            [2, None, -10],
+            lambda: choices(list(range(100)), k=10),
+        ),
+        marks=pytest.mark.xfail,
     ),
-    FletcherTestType(
-        pa.float64(),
-        [2.5, 1.0, -1.0, 0, 66.6] * 20,
-        [None, 1.1],
-        [2.5, 2.5, None, None, -100.1, -100.1, 2.5, 100.1],
-        [2.5, 100.99, -10.1],
-        [2.5, None, -10.1],
-        lambda: random.choices([2.5, 1.0, -1.0, 0, 66.6], k=10),
+    pytest.param(
+        FletcherTestType(
+            pa.float64(),
+            [2.5, 1.0, -1.0, 0, 66.6] * 20,
+            [None, 1.1],
+            [2.5, 2.5, None, None, -100.1, -100.1, 2.5, 100.1],
+            [2.5, 100.99, -10.1],
+            [2.5, None, -10.1],
+            lambda: choices([2.5, 1.0, -1.0, 0, 66.6], k=10),
+        ),
+        marks=pytest.mark.xfail,
     ),
     # Most of the tests fail as assert_extension_array_equal casts to numpy object
     # arrays and on them equality is not defined.
@@ -74,7 +91,7 @@ test_types = [
             [["B"], ["B"], None, None, ["A"], ["A"], ["B"], ["C"]],
             [["B"], ["C"], ["A"]],
             [["B"], None, ["A"]],
-            lambda: random.choices([["B", "C"], ["A"], [None], ["A", "A"]], k=10),
+            lambda: choices([["B", "C"], ["A"], [None], ["A", "A"]], k=10),
         ),
         marks=pytest.mark.xfail,
     ),
@@ -105,7 +122,7 @@ test_types = [
             datetime.date(2015, 1, 1),
         ],
         [datetime.date(2015, 2, 2), None, datetime.date(2015, 1, 1)],
-        lambda: random.choices(list(pd.date_range("2010-1-1", "2011-1-1").date), k=10),
+        lambda: choices(list(pd.date_range("2010-1-1", "2011-1-1").date), k=10),
     ),
 ]
 
