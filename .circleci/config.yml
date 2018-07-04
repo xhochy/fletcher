@@ -26,7 +26,7 @@ jobs:
           path: test-reports
       - store_artifacts:
           path: test-reports
-  "python-3.6-dev-versions":
+  "upstream-dev":
     working_directory: ~/fletcher-circleci
     docker:
       # We use our own Python, so the version here is not relevant
@@ -46,3 +46,4 @@ workflows:
     jobs:
       - "python-2.7"
       - "python-3.6"
+      - "upstream-dev"
