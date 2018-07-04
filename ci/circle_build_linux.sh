@@ -1,5 +1,6 @@
 #!/bin/bash
 
+set +x
 set -eo pipefail
 
 export PYTHON_VERSION=$1
@@ -28,6 +29,7 @@ conda create -y -q -n fletcher python=${PYTHON_VERSION} \
     six \
     sphinx \
     -c conda-forge
+source activate fletcher
 
 if [ "${PYTHON_VERSION}" = "3.6" ]; then
   conda install -y -q black=18.5b0 -c conda-forge
@@ -41,13 +43,15 @@ if [[ ${USE_DEV_WHEELS} ]]; then
     pip install --pre --no-deps --upgrade --timeout=60 -f $PRE_WHEELS numpy pandas
 fi
 
-source activate fletcher
 pip install -e .
 py.test --junitxml=test-reports/junit.xml --cov=./
 
 # Do a second run with JIT disabled to produce coverage and check that the
 # code works also as expected in Python.
-NUMBA_DISABLE_JIT=1 py.test --junitxml=test-reports/junit.xml --cov=./
+if [ "${PYTHON_VERSION}" = "3.6" ]; then
+  # These don't work with Python 2.7 as it supports less operators than 3.6
+  NUMBA_DISABLE_JIT=1 py.test --junitxml=test-reports/junit.xml --cov=./
+fi
 # Upload coverage in each build, codecov.io merges the reports
 codecov
 
