@@ -139,11 +139,24 @@ class FletcherDtype(ExtensionDtype):
 
         return cls(pa.type_for_alias(string))
 
+    @classmethod
+    def construct_array_type(cls):
+        """
+        Return the array type associated with this dtype
+
+        Returns
+        -------
+        type
+        """
+        return FletcherArray
+
 
 class FletcherArray(ExtensionArray):
     _can_hold_na = True
 
-    def __init__(self, array, dtype=None):
+    def __init__(self, array, dtype=None, copy=None):
+        # Copy is not used at the moment. It's only affect will be when we
+        # allow array to be a FletcherArray
         if is_array_like(array) or isinstance(array, list):
             self.data = pa.chunked_array([pa.array(array, type=dtype)])
         elif isinstance(array, pa.Array):
