@@ -140,7 +140,7 @@ class FletcherDtype(ExtensionDtype):
         return cls(pa.type_for_alias(string))
 
     @classmethod
-    def construct_array_type(cls):
+    def construct_array_type(cls, *args):
         """
         Return the array type associated with this dtype
 
@@ -148,6 +148,8 @@ class FletcherDtype(ExtensionDtype):
         -------
         type
         """
+        if len(args) > 0:
+            raise NotImplementedError("construct_array_type does not support arguments")
         return FletcherArray
 
 

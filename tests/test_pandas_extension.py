@@ -202,7 +202,14 @@ class TestBaseCasting(BaseCastingTests):
 
 
 class TestBaseConstructors(BaseConstructorsTests):
-    pass
+
+    @pytest.mark.xfail(reason="Tries to construct dtypes with np.dtype")
+    def test_from_dtype(self, data):
+        if pa.types.is_string(data.dtype.arrow_dtype):
+            pytest.xfail(
+                "String construction is failing as Pandas wants to pass the FletcherDtype to NumPy"
+            )
+        BaseConstructorsTests.test_from_dtype(self, data)
 
 
 class TestBaseDtype(BaseDtypeTests):
@@ -272,6 +279,9 @@ class TestBaseMethodsTests(BaseMethodsTests):
 
     @pytest.mark.parametrize("dropna", [True, False])
     def test_value_counts(self, all_data, dropna, dtype):
+        if LooseVersion(pd.__version__) >= "0.24.0dev0":
+            pytest.skip("Master requires value_counts but not part of the interface")
+            return
         # Skip integer tests while there is no support for ExtensionIndex.
         # The dropna=True variant will produce a mix of IntIndex and FloatIndex.
         if dtype.name == "fletcher[int64]":
