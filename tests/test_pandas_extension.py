@@ -236,36 +236,6 @@ class TestBaseGetitemTests(BaseGetitemTests):
         # due to a dtype assumption that does not hold for Arrow
         pass
 
-    def test_get(self, data, dtype):
-        if pa.types.is_list(dtype.arrow_dtype):
-            pytest.skip("assert_extension_array_equal casts to numpy object arrays")
-        else:
-            BaseGetitemTests.test_get(self, data)
-
-    def test_loc_series(self, data, dtype):
-        if pa.types.is_list(dtype.arrow_dtype):
-            pytest.skip("assert_extension_array_equal casts to numpy object arrays")
-        else:
-            BaseGetitemTests.test_loc_series(self, data)
-
-    def test_loc_frame(self, data, dtype):
-        if pa.types.is_list(dtype.arrow_dtype):
-            pytest.skip("assert_extension_array_equal casts to numpy object arrays")
-        else:
-            BaseGetitemTests.test_loc_frame(self, data)
-
-    def test_iloc_series(self, data, dtype):
-        if pa.types.is_list(dtype.arrow_dtype):
-            pytest.skip("assert_extension_array_equal casts to numpy object arrays")
-        else:
-            BaseGetitemTests.test_iloc_series(self, data)
-
-    def test_iloc_frame(self, data, dtype):
-        if pa.types.is_list(dtype.arrow_dtype):
-            pytest.skip("assert_extension_array_equal casts to numpy object arrays")
-        else:
-            BaseGetitemTests.test_iloc_frame(self, data)
-
 
 class TestBaseGroupbyTests(BaseGroupbyTests):
     pass
