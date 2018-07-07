@@ -251,7 +251,6 @@ class TestBaseMethodsTests(BaseMethodsTests):
     def test_value_counts(self, all_data, dropna, dtype):
         if LooseVersion(pd.__version__) >= "0.24.0dev0":
             pytest.skip("Master requires value_counts but not part of the interface")
-            return
         # Skip integer tests while there is no support for ExtensionIndex.
         # The dropna=True variant will produce a mix of IntIndex and FloatIndex.
         if dtype.name == "fletcher[int64]":
@@ -262,7 +261,6 @@ class TestBaseMethodsTests(BaseMethodsTests):
     def test_combine_le(self, data_repeated):
         if LooseVersion(pd.__version__) <= "0.24.0dev0":
             pytest.skip("Test only exists on master")
-            return
         # GH 20825
         # Test that combine works when doing a <= (le) comparison
         # Fletcher returns 'fletcher[bool]' instead of np.bool as dtype
@@ -287,7 +285,6 @@ class TestBaseMethodsTests(BaseMethodsTests):
     def test_combine_add(self, data_repeated, dtype):
         if LooseVersion(pd.__version__) <= "0.24.0dev0":
             pytest.skip("Test only exists on master")
-            return
         if dtype.name == "fletcher[date64[ms]]":
             pytest.skip(
                 "unsupported operand type(s) for +: 'datetime.date' and 'datetime.date"
