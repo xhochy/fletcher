@@ -290,6 +290,7 @@ class FletcherArray(ExtensionArray):
                     if not arr.flags.writeable:
                         arr = arr.copy()
                     arr[array_chunk_indices] = np.array(value)[key_chunk_indices]
+                    # ARROW-2806: Inconsistent handling of np.nan requires adding a mask
                     if pa.types.is_integer(
                         self.dtype.arrow_dtype
                     ) or pa.types.is_floating(self.dtype.arrow_dtype):
@@ -336,6 +337,7 @@ class FletcherArray(ExtensionArray):
             # https://issues.apache.org/jira/browse/ARROW-2714
             if step != 1:
                 arr = np.asarray(self)[item]
+                # ARROW-2806: Inconsistent handling of np.nan requires adding a mask
                 if pa.types.is_integer(self.dtype.arrow_dtype) or pa.types.is_floating(
                     self.dtype.arrow_dtype
                 ):
