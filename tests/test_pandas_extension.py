@@ -304,7 +304,7 @@ class TestBaseReshapingTests(BaseReshapingTests):
 
     def test_concat_mixed_dtypes(self, data, dtype):
         if dtype.name in ["fletcher[int64]", "fletcher[double]"]:
-            # TODO: Raise issue if this is expected.
+            # https://github.com/pandas-dev/pandas/issues/21792
             pytest.skip("pd.concat(int64, fletcher[int64] yields int64")
         else:
             BaseReshapingTests.test_concat_mixed_dtypes(self, data)
