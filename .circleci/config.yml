@@ -26,6 +26,19 @@ jobs:
           path: test-reports
       - store_artifacts:
           path: test-reports
+  "upstream-dev":
+    working_directory: ~/fletcher-circleci
+    docker:
+      # We use our own Python, so the version here is not relevant
+      - image: circleci/python:3.6.1
+    steps:
+      - checkout
+      - run: # install and activate virtual environment with pip
+          command: ./ci/circle_build_linux.sh 3.6 1
+      - store_test_results:
+          path: test-reports
+      - store_artifacts:
+          path: test-reports
 
 workflows:
   version: 2
@@ -33,3 +46,4 @@ workflows:
     jobs:
       - "python-2.7"
       - "python-3.6"
+      - "upstream-dev"
