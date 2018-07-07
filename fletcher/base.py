@@ -485,6 +485,8 @@ class FletcherArray(ExtensionArray):
             raise NotImplementedError("Cast propagation in astype not yet implemented")
         else:
             dtype = np.dtype(dtype)
+            # NumPy's conversion of list->unicode is differently from Python's
+            # default. We want to have the default Python output, so force it here.
             if pa.types.is_list(self.dtype.arrow_dtype) and dtype.kind == "U":
                 return np.vectorize(six.text_type)(np.asarray(self))
             return np.asarray(self).astype(dtype)
