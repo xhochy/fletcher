@@ -2,18 +2,19 @@
 
 from __future__ import absolute_import, division, print_function
 
-from ._algorithms import extract_isnull_bytemap
-from collections import Iterable
-from pandas.api.types import is_array_like, is_bool_dtype, is_integer, is_integer_dtype
-from pandas.core.arrays import ExtensionArray
-from pandas.core.dtypes.dtypes import ExtensionDtype
-
 import datetime
+from collections import Iterable
+from distutils.version import LooseVersion
+
 import numpy as np
 import pandas as pd
 import pyarrow as pa
 import six
+from pandas.api.types import is_array_like, is_bool_dtype, is_integer, is_integer_dtype
+from pandas.core.arrays import ExtensionArray
+from pandas.core.dtypes.dtypes import ExtensionDtype
 
+from ._algorithms import extract_isnull_bytemap
 
 _python_type_map = {
     pa.null().id: six.text_type,
@@ -131,10 +132,10 @@ class FletcherDtype(ExtensionDtype):
         ...                         "'{}'".format(cls, string))
         """
         # Remove fletcher specific naming from the arrow type string.
-        if string.startswith("fletcher["):
+        if string.lower().startswith("fletcher["):
             string = string[9:-1]
 
-        if string == "list<item: string>":
+        if string.lower() == "list<item: string>":
             return cls(pa.list_(pa.string()))
 
         return cls(pa.type_for_alias(string))
@@ -151,6 +152,12 @@ class FletcherDtype(ExtensionDtype):
         if len(args) > 0:
             raise NotImplementedError("construct_array_type does not support arguments")
         return FletcherArray
+
+
+if LooseVersion(pd.__version__) >= "0.24.0dev0":
+    from pandas.core.dtypes.dtypes import registry
+
+    registry.register(FletcherDtype)
 
 
 class FletcherArray(ExtensionArray):

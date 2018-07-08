@@ -2,11 +2,15 @@
 
 from __future__ import absolute_import, division, print_function, unicode_literals
 
+from distutils.version import LooseVersion
+
 import numpy as np
 import numpy.testing as npt
-import fletcher as fl
+import pandas as pd
 import pyarrow as pa
 import pytest
+
+import fletcher as fl
 
 
 @pytest.fixture
@@ -38,3 +42,16 @@ def test_get_chunk_indexer(array_inhom_chunks, indices, expected):
 
     actual = array_inhom_chunks._get_chunk_indexer(indices)
     npt.assert_array_equal(actual, expected)
+
+
+@pytest.mark.skipif(
+    LooseVersion(pd.__version__) < "0.24.0dev0", reason="Pandas version is too old."
+)
+def test_from_pandas_registry():
+    ser = pd.Series([1, 2, 3], dtype="fletcher[int64]")
+    assert ser.dtype == fl.FletcherDtype("int64")
+    assert isinstance(ser.values, fl.FletcherArray)
+
+    ser = pd.Series([1, 2, 3], dtype="Fletcher[int64]")
+    assert ser.dtype == fl.FletcherDtype("int64")
+    assert isinstance(ser.values, fl.FletcherArray)

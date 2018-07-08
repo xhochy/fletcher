@@ -1,6 +1,12 @@
 Changelog
 =========
 
+Unreleased
+----------
+
+* Enable pandas dtype registry if available
+
+
 0.1.2
 -----
 
