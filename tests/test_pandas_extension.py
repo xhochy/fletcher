@@ -128,7 +128,22 @@ test_types = [
 ]
 
 
-@pytest.fixture(params=test_types)
+def get_parameter_ids(test_types):
+    res = []
+    for fletcher_type in test_types:
+        if isinstance(fletcher_type, FletcherTestType):
+            dtype = fletcher_type.dtype
+        else:
+            # This case is the pytest ParameterSet
+            dtype = fletcher_type.values[0].dtype
+        res.append(repr(dtype))
+    return res
+
+
+param_ids = get_parameter_ids(test_types)
+
+
+@pytest.fixture(params=test_types, ids=param_ids)
 def fletcher_type(request):
     return request.param
 
