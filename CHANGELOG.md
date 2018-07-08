@@ -1,6 +1,11 @@
 Changelog
 =========
 
+0.1.2
+-----
+
+Rerelease with the sole purpose of rendering MarkDown on PyPI.
+
 0.1.1
 -----
 
