@@ -1,6 +1,11 @@
 Changelog
 =========
 
+0.1.1
+-----
+
+Load the README in setup.py to have a description on PyPI.
+
 0.1.0
 -----
 
