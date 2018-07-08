@@ -19,22 +19,19 @@ or otherwise provide an implementation by itself using Numba.
 
 Usage of fletcher columns is straightforward using Pandas' default constructor:
 
-.. code::
+.. ipython::
 
-    import fletcher as fr
-    import pandas as pd
+    In [2]: import fletcher as fr
 
-    df = pd.DataFrame({
-        'str_column': fr.FletcherArray(['Test', None, 'Strings'])
-    })
-    df.info()
+    In [3]: import pandas as pd
 
-    # <class 'pandas.core.frame.DataFrame'>
-    # RangeIndex: 3 entries, 0 to 2
-    # Data columns (total 1 columns):
-    # str_column    2 non-null string
-    # dtypes: string(1)
-    # memory usage: 108.0 bytes
+    In [4]: df = pd.DataFrame({
+       ...:          'str_column': fr.FletcherArray(
+       ...:              ['Test', None, 'Strings']
+       ...:          )
+       ...:      })
+
+    In [5]: df.info()
 
 
 * :ref:`genindex`
