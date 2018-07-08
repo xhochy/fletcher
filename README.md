@@ -8,6 +8,30 @@ implementations backed by Apache Arrow. They support a wider range of types
 than Pandas natively supports and also bring a different set of constraints and
 behaviours that are beneficial in many situations.
 
+## Usage
+
+To use `fletcher` in Pandas DataFrames, all you need to do is to wrap your data
+in a `FletcherArray` object. Your data can be of either `pyarrow.Array`,
+`pyarrow.ChunkedArray` or a type that can be passed to `pyarrow.array(…)`.
+
+
+```
+import fletcher as fr
+import pandas as pd
+
+df = pd.DataFrame({
+    'str': fr.FletcherArray(['a', 'b', 'c'])
+})
+
+df.info()
+
+# RangeIndex: 3 entries, 0 to 2
+# Data columns (total 1 columns):
+# str    3 non-null fletcher[string]
+# dtypes: fletcher[string](1)
+# memory usage: 100.0 bytes
+```
+
 ## Development
 
 While you can use `fletcher` in pip-based environments, we strongly recommend
