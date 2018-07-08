@@ -3,11 +3,16 @@ from os import path
 
 here = path.abspath(path.dirname(__file__))
 
+with open("README.md") as f:
+    long_description = f.read()
+
 setup(
     name="fletcher",
     use_scm_version=True,
     setup_requires=["setuptools_scm"],
     description="Pandas ExtensionDType/Array backed by Apache Arrow",
+    long_description=long_description,
+    long_description_content_type="text/markdown",
     url="https://github.com/xhochy/fletcher",
     author="Uwe L. Korn",
     author_email="fletcher@uwekorn.com",
