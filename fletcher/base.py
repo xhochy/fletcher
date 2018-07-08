@@ -176,7 +176,9 @@ class FletcherArray(ExtensionArray):
             self.data = array
         else:
             raise ValueError(
-                "Unsupported type passed for {}: {}".format(self.__name__, type(array))
+                "Unsupported type passed for {}: {}".format(
+                    type(self).__name__, type(array)
+                )
             )
         self._dtype = FletcherDtype(self.data.type)
 
