@@ -1,11 +1,16 @@
-import pandas as pd
-import fletcher as fr
-import pyarrow as pa
 import numpy as np
+import pandas as pd
+import pyarrow as pa
+import six
+
+import fletcher as fr
 
 
 def generate_test_array(n):
-    return [str(x) + str(x) + str(x) if x % 7 == 0 else None for x in range(n)]
+    return [
+        six.text_type(x) + six.text_type(x) + six.text_type(x) if x % 7 == 0 else None
+        for x in range(n)
+    ]
 
 
 class TimeSuite:
