@@ -172,12 +172,7 @@ class FletcherArray(ExtensionArray):
                 "Unsupported type passed for {}: {}".format(self.__name__, type(array))
             )
         self._dtype = FletcherDtype(self.data.type)
-        offset = 0
-        offsets = np.empty(self.data.num_chunks, dtype=np.intp)
-        for ix, chunk in enumerate(self.data.iterchunks()):
-            offsets[ix] = offset
-            offset += len(chunk)
-        self.offsets = offsets
+        self.offsets = self._calculate_chunk_offsets()
 
     @property
     def dtype(self):
@@ -224,6 +219,17 @@ class FletcherArray(ExtensionArray):
                 [array for ea in to_concat for array in ea.data.iterchunks()]
             )
         )
+
+    def _calculate_chunk_offsets(self):
+        """
+        Returns an array holding the indices pointing to the first element of each chunk
+        """
+        offset = 0
+        offsets = []
+        for chunk in self.data.iterchunks():
+            offsets.append(offset)
+            offset += len(chunk)
+        return np.array(offsets)
 
     def _get_chunk_indexer(self, array):
         """
