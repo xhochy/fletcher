@@ -32,3 +32,8 @@ def test_get_chunk_indexer(array_inhom_chunks, indices, expected):
 
     actual = array_inhom_chunks._get_chunk_indexer(indices)
     npt.assert_array_equal(actual, expected)
+
+
+def test_fletcherarray_constructor():
+    with pytest.raises(ValueError):
+        fl.FletcherArray(None)
