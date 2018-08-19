@@ -518,6 +518,8 @@ class FletcherArray(ExtensionArray):
         -------
         ExtensionArray
         """
+        if dtype and isinstance(dtype, FletcherDtype):
+            dtype = dtype.arrow_dtype
         return cls(pa.array(scalars, type=dtype))
 
     def fillna(self, value=None, method=None, limit=None):

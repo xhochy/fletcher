@@ -302,6 +302,22 @@ class TestBaseMethodsTests(BaseMethodsTests):
         else:
             BaseMethodsTests.test_combine_add(self, data_repeated)
 
+    @fail_on_missing_dtype_in_from_sequence
+    @pytest.mark.parametrize("na_sentinel", [-1, -2])
+    def test_factorize(self, data_for_grouping, na_sentinel):
+        if LooseVersion(pd.__version__) <= "0.24.0dev0":
+            pytest.skip("Test only exists on master")
+        BaseMethodsTests.test_factorize(self, data_for_grouping, na_sentinel)
+
+    @pytest.mark.parametrize("na_sentinel", [-1, -2])
+    @fail_on_missing_dtype_in_from_sequence
+    def test_factorize_equivalence(self, data_for_grouping, na_sentinel):
+        if LooseVersion(pd.__version__) <= "0.24.0dev0":
+            pytest.skip("Test only exists on master")
+        BaseMethodsTests.test_factorize_equivalence(
+            self, data_for_grouping, na_sentinel
+        )
+
 
 class TestBaseMissingTests(BaseMissingTests):
 
