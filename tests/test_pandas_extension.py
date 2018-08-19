@@ -46,6 +46,12 @@ else:
         return [choice(seq) for i in range(k)]
 
 
+fail_on_missing_dtype_in_from_sequence = pytest.mark.xfail(
+    LooseVersion(pa.__version__) >= "0.10.1dev0",
+    reason="Default return type of pa.array([datetime.date]) changed, Pandas tests don't pass the dtype to from_sequence",
+)
+
+
 test_types = [
     FletcherTestType(
         pa.string(),
@@ -230,6 +236,10 @@ class TestBaseGetitemTests(BaseGetitemTests):
         else:
             BaseGetitemTests.test_reindex_non_na_fill_value(self, data_missing)
 
+    @fail_on_missing_dtype_in_from_sequence
+    def test_take_series(self, data):
+        BaseGetitemTests.test_take_series(self, data)
+
     @pytest.mark.skip
     def test_reindex(self):
         # No longer available in master and fails with pandas 0.23.1
@@ -294,7 +304,19 @@ class TestBaseMethodsTests(BaseMethodsTests):
 
 
 class TestBaseMissingTests(BaseMissingTests):
-    pass
+
+    @fail_on_missing_dtype_in_from_sequence
+    def test_fillna_series(self, data_missing):
+        BaseMissingTests.test_fillna_series(self, data_missing)
+
+    @fail_on_missing_dtype_in_from_sequence
+    @pytest.mark.parametrize("method", ["ffill", "bfill"])
+    def test_fillna_series_method(self, data_missing, method):
+        BaseMissingTests.test_fillna_series_method(self, data_missing, method)
+
+    @fail_on_missing_dtype_in_from_sequence
+    def test_fillna_frame(self, data_missing):
+        BaseMissingTests.test_fillna_frame(self, data_missing)
 
 
 class TestBaseReshapingTests(BaseReshapingTests):
@@ -305,6 +327,26 @@ class TestBaseReshapingTests(BaseReshapingTests):
             pytest.skip("pd.concat(int64, fletcher[int64] yields int64")
         else:
             BaseReshapingTests.test_concat_mixed_dtypes(self, data)
+
+    @fail_on_missing_dtype_in_from_sequence
+    def test_concat_columns(self, data, na_value):
+        BaseReshapingTests.test_concat_columns(self, data, na_value)
+
+    @fail_on_missing_dtype_in_from_sequence
+    def test_align(self, data, na_value):
+        BaseReshapingTests.test_align(self, data, na_value)
+
+    @fail_on_missing_dtype_in_from_sequence
+    def test_align_frame(self, data, na_value):
+        BaseReshapingTests.test_align_frame(self, data, na_value)
+
+    @fail_on_missing_dtype_in_from_sequence
+    def test_align_series_frame(self, data, na_value):
+        BaseReshapingTests.test_align_series_frame(self, data, na_value)
+
+    @fail_on_missing_dtype_in_from_sequence
+    def test_merge(self, data, na_value):
+        BaseReshapingTests.test_merge(self, data, na_value)
 
 
 class TestBaseSetitemTests(BaseSetitemTests):
