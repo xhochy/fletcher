@@ -520,7 +520,7 @@ class FletcherArray(ExtensionArray):
         """
         if dtype and isinstance(dtype, FletcherDtype):
             dtype = dtype.arrow_dtype
-        return cls(pa.array(scalars, type=dtype))
+        return cls(pa.array(scalars, type=dtype, from_pandas=True))
 
     def fillna(self, value=None, method=None, limit=None):
         """ Fill NA/NaN values using the specified method.

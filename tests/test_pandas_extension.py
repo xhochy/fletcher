@@ -52,6 +52,18 @@ fail_on_missing_dtype_in_from_sequence = pytest.mark.xfail(
 )
 
 
+def type_fails_on_stable_pandas(test_type):
+    """
+    Mark parameters as failing on the latest Pandas release.
+
+    These types should succeed with the Pandas master
+    """
+    if LooseVersion(pd.__version__) >= "0.24.0dev0":
+        return test_type
+    else:
+        return pytest.param(test_type, marks=pytest.mark.xfail)
+
+
 test_types = [
     FletcherTestType(
         pa.string(),
@@ -64,7 +76,7 @@ test_types = [
     ),
     # Float and int types require the support of constant memoryviews, this
     # depends on https://github.com/pandas-dev/pandas/pull/21688
-    pytest.param(
+    type_fails_on_stable_pandas(
         FletcherTestType(
             pa.int64(),
             [2, 1, -1, 0, 66] * 20,
@@ -73,10 +85,9 @@ test_types = [
             [2, 100, -10],
             [2, None, -10],
             lambda: choices(list(range(100)), k=10),
-        ),
-        marks=pytest.mark.xfail,
+        )
     ),
-    pytest.param(
+    type_fails_on_stable_pandas(
         FletcherTestType(
             pa.float64(),
             [2.5, 1.0, -1.0, 0, 66.6] * 20,
@@ -85,8 +96,7 @@ test_types = [
             [2.5, 100.99, -10.1],
             [2.5, None, -10.1],
             lambda: choices([2.5, 1.0, -1.0, 0, 66.6], k=10),
-        ),
-        marks=pytest.mark.xfail,
+        )
     ),
     # Most of the tests fail as assert_extension_array_equal casts to numpy object
     # arrays and on them equality is not defined.
@@ -248,7 +258,25 @@ class TestBaseGetitemTests(BaseGetitemTests):
 
 
 class TestBaseGroupbyTests(BaseGroupbyTests):
-    pass
+
+    @pytest.mark.parametrize("as_index", [True, False])
+    def test_groupby_extension_agg(self, as_index, data_for_grouping):
+        if pa.types.is_integer(
+            data_for_grouping.dtype.arrow_dtype
+        ) or pa.types.is_floating(data_for_grouping.dtype.arrow_dtype):
+            pytest.mark.xfail(reasion="ExtensionIndex is not yet implemented")
+        else:
+            BaseGroupbyTests.test_groupby_extension_agg(
+                self, as_index, data_for_grouping
+            )
+
+    def test_groupby_extension_no_sort(self, data_for_grouping):
+        if pa.types.is_integer(
+            data_for_grouping.dtype.arrow_dtype
+        ) or pa.types.is_floating(data_for_grouping.dtype.arrow_dtype):
+            pytest.mark.xfail(reasion="ExtensionIndex is not yet implemented")
+        else:
+            BaseGroupbyTests.test_groupby_extension_no_sort(self, data_for_grouping)
 
 
 class TestBaseInterfaceTests(BaseInterfaceTests):
