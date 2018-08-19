@@ -169,8 +169,9 @@ class FletcherArray(ExtensionArray):
             self.data = array
         else:
             raise ValueError(
-                "Unsupported type passed for {}: {}".format(self.__class__.__name__,
-                                                            type(array))
+                "Unsupported type passed for {}: {}".format(
+                    self.__class__.__name__, type(array)
+                )
             )
         self._dtype = FletcherDtype(self.data.type)
         self.offsets = self._calculate_chunk_offsets()
