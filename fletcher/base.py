@@ -46,6 +46,9 @@ class FletcherDtype(ExtensionDtype):
     def __init__(self, arrow_dtype):
         self.arrow_dtype = arrow_dtype
 
+    def __hash__(self):
+        return hash(self.arrow_dtype)
+
     def __str__(self):
         return "fletcher[{}]".format(self.arrow_dtype)
 
