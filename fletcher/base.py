@@ -3,7 +3,7 @@
 from __future__ import absolute_import, division, print_function
 
 from ._algorithms import extract_isnull_bytemap
-from collections import Iterable
+from collections import Iterable, OrderedDict
 from pandas.api.types import is_array_like, is_bool_dtype, is_integer, is_integer_dtype
 from pandas.core.arrays import ExtensionArray
 from pandas.core.dtypes.dtypes import ExtensionDtype
@@ -638,3 +638,31 @@ class FletcherArray(ExtensionArray):
         # the data, before passing to take.
         result = take(data, indices, fill_value=fill_value, allow_fill=allow_fill)
         return self._from_sequence(result, dtype=self.data.type)
+
+
+def pandas_from_arrow(arrow_object):
+    """
+    Converts Arrow object instance to their Pandas equivalent by using Fletcher.
+
+    The conversion rules are:
+      * {RecordBatch, Table} -> DataFrame
+      * {Array, ChunkedArray, Column} -> Series
+    """
+    if isinstance(arrow_object, pa.RecordBatch):
+        data = OrderedDict()
+        for name, col in zip(arrow_object.schema.names, arrow_object.columns):
+            data[name] = FletcherArray(col)
+        return pd.DataFrame(data)
+    elif isinstance(arrow_object, pa.Table):
+        data = OrderedDict()
+        for col in arrow_object.columns:
+            data[col.name] = FletcherArray(col.data)
+        return pd.DataFrame(data)
+    elif isinstance(arrow_object, (pa.ChunkedArray, pa.Array)):
+        return pd.Series(FletcherArray(arrow_object))
+    elif isinstance(arrow_object, pa.Column):
+        return pd.Series(FletcherArray(arrow_object.data), name=arrow_object.name)
+    else:
+        raise NotImplementedError(
+            "Objects of type {} are not supported".format(type(arrow_object))
+        )
