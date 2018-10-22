@@ -4,7 +4,9 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 
 import numpy as np
 import numpy.testing as npt
-import fletcher as fl
+import fletcher as fr
+import pandas as pd
+import pandas.testing as pdt
 import pyarrow as pa
 import pytest
 
@@ -15,7 +17,7 @@ def array_inhom_chunks():
     chunk2 = pa.array(list("12345"), pa.string())
     chunk3 = pa.array(list("Z"), pa.string())
     chunked_array = pa.chunked_array([chunk1, chunk2, chunk3])
-    return fl.FletcherArray(chunked_array)
+    return fr.FletcherArray(chunked_array)
 
 
 @pytest.mark.parametrize(
@@ -36,4 +38,21 @@ def test_get_chunk_indexer(array_inhom_chunks, indices, expected):
 
 def test_fletcherarray_constructor():
     with pytest.raises(ValueError):
-        fl.FletcherArray(None)
+        fr.FletcherArray(None)
+
+
+def test_pandas_from_arrow():
+    arr = pa.array(["a", "b", "c"], pa.string())
+    col = pa.Column.from_array("column", arr)
+
+    expected_series = pd.Series(fr.FletcherArray(arr))
+    pdt.assert_series_equal(expected_series, fr.pandas_from_arrow(arr))
+    pdt.assert_series_equal(expected_series, fr.pandas_from_arrow(col.data))
+    pdt.assert_series_equal(expected_series, fr.pandas_from_arrow(col))
+
+    rb = pa.RecordBatch.from_arrays([arr], ["column"])
+    expected_df = pd.DataFrame({"column": fr.FletcherArray(arr)})
+    pdt.assert_frame_equal(expected_df, fr.pandas_from_arrow(rb))
+
+    table = pa.Table.from_arrays([arr], ["column"])
+    pdt.assert_frame_equal(expected_df, fr.pandas_from_arrow(table))
