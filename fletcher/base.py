@@ -650,12 +650,13 @@ def pandas_from_arrow(arrow_object):
     """
     if isinstance(arrow_object, pa.RecordBatch):
         data = OrderedDict()
-        for name, col in zip(arrow_object.schema.names, arrow_object.columns):
-            data[name] = FletcherArray(col)
+        for ix, arr in enumerate(arrow_object):
+            col_name = arrow_object.schema.names[ix]
+            data[col_name] = FletcherArray(arr)
         return pd.DataFrame(data)
     elif isinstance(arrow_object, pa.Table):
         data = OrderedDict()
-        for col in arrow_object.columns:
+        for col in arrow_object.itercolumns():
             data[col.name] = FletcherArray(col.data)
         return pd.DataFrame(data)
     elif isinstance(arrow_object, (pa.ChunkedArray, pa.Array)):
