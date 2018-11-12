@@ -144,6 +144,12 @@ test_types = [
 ]
 
 
+@pytest.fixture(params=[True, False])
+def box_in_series(request):
+    """Whether to box the data in a Series"""
+    return request.param
+
+
 @pytest.fixture(params=test_types)
 def fletcher_type(request):
     return request.param

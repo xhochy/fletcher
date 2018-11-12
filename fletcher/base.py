@@ -273,6 +273,8 @@ class FletcherArray(ExtensionArray):
             key = np.array(range(len(self))[key])
         elif is_integer(key):
             key = np.array([key])
+        else:
+            key = np.asanyarray(key)
 
         if pd.api.types.is_scalar(value):
             value = np.broadcast_to(value, len(key))
