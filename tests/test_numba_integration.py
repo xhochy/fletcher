@@ -27,7 +27,7 @@ def null_count(sa):
 
 
 @pytest.mark.parametrize(
-    "array, expected",
+    ("array", "expected"),
     [
         (["foo", "bar", "baz"], 0),
         (["foo", "bar", None], 1),
@@ -41,7 +41,7 @@ def test_null_count(array, expected):
 
 
 @pytest.mark.parametrize(
-    "array, expected",
+    ("array", "expected"),
     [
         (["foo", "bar", "baz"], [False, False, False]),
         (["foo", "bar", None], [False, False, True]),
@@ -61,7 +61,7 @@ def test_isnull(array, expected, offset):
 
 
 @pytest.mark.parametrize(
-    "array, expected",
+    ("array", "expected"),
     [
         (["f", "fo", "foo"], [1, 2, 3]),
         (["foo", "bar", None], [3, 3, 0]),
@@ -69,7 +69,7 @@ def test_isnull(array, expected, offset):
         ([None, "bar", "baz"], [0, 3, 3]),
         (["foo", None, None], [3, 0, 0]),
         ([None, None, None], [0, 0, 0]),
-        pytest.mark.xfail(reason="non ascii not yet supported")((["föö"], [3])),
+        pytest.param(["föö"], [3], marks=pytest.mark.xfail),
     ],
 )
 @pytest.mark.parametrize("offset", [0, 1])
