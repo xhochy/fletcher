@@ -252,7 +252,6 @@ class TestBaseGetitemTests(BaseGetitemTests):
         else:
             BaseGetitemTests.test_reindex_non_na_fill_value(self, data_missing)
 
-    @fail_on_missing_dtype_in_from_sequence
     def test_take_series(self, data):
         BaseGetitemTests.test_take_series(self, data)
 
@@ -336,7 +335,6 @@ class TestBaseMethodsTests(BaseMethodsTests):
         else:
             BaseMethodsTests.test_combine_add(self, data_repeated)
 
-    @fail_on_missing_dtype_in_from_sequence
     @pytest.mark.parametrize("na_sentinel", [-1, -2])
     def test_factorize(self, data_for_grouping, na_sentinel):
         if LooseVersion(pd.__version__) <= "0.24.0dev0":
@@ -344,7 +342,6 @@ class TestBaseMethodsTests(BaseMethodsTests):
         BaseMethodsTests.test_factorize(self, data_for_grouping, na_sentinel)
 
     @pytest.mark.parametrize("na_sentinel", [-1, -2])
-    @fail_on_missing_dtype_in_from_sequence
     def test_factorize_equivalence(self, data_for_grouping, na_sentinel):
         if LooseVersion(pd.__version__) <= "0.24.0dev0":
             pytest.skip("Test only exists on master")
@@ -364,7 +361,6 @@ class TestBaseMissingTests(BaseMissingTests):
     def test_fillna_series_method(self, data_missing, method):
         BaseMissingTests.test_fillna_series_method(self, data_missing, method)
 
-    @fail_on_missing_dtype_in_from_sequence
     def test_fillna_frame(self, data_missing):
         BaseMissingTests.test_fillna_frame(self, data_missing)
 
@@ -378,23 +374,18 @@ class TestBaseReshapingTests(BaseReshapingTests):
         else:
             BaseReshapingTests.test_concat_mixed_dtypes(self, data)
 
-    @fail_on_missing_dtype_in_from_sequence
     def test_concat_columns(self, data, na_value):
         BaseReshapingTests.test_concat_columns(self, data, na_value)
 
-    @fail_on_missing_dtype_in_from_sequence
     def test_align(self, data, na_value):
         BaseReshapingTests.test_align(self, data, na_value)
 
-    @fail_on_missing_dtype_in_from_sequence
     def test_align_frame(self, data, na_value):
         BaseReshapingTests.test_align_frame(self, data, na_value)
 
-    @fail_on_missing_dtype_in_from_sequence
     def test_align_series_frame(self, data, na_value):
         BaseReshapingTests.test_align_series_frame(self, data, na_value)
 
-    @fail_on_missing_dtype_in_from_sequence
     def test_merge(self, data, na_value):
         BaseReshapingTests.test_merge(self, data, na_value)
 
