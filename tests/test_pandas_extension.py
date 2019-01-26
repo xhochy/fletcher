@@ -290,20 +290,13 @@ class TestBaseInterfaceTests(BaseInterfaceTests):
 
 class TestBaseMethodsTests(BaseMethodsTests):
 
+    # https://github.com/pandas-dev/pandas/issues/22843
+    @pytest.mark.skip(reason="Incorrect expected")
     @pytest.mark.parametrize("dropna", [True, False])
     def test_value_counts(self, all_data, dropna, dtype):
-        if LooseVersion(pd.__version__) >= "0.24.0dev0":
-            pytest.skip("Master requires value_counts but not part of the interface")
-        # Skip integer tests while there is no support for ExtensionIndex.
-        # The dropna=True variant will produce a mix of IntIndex and FloatIndex.
-        if dtype.name == "fletcher[int64]":
-            pytest.skip("ExtensionIndex is no yet implemented")
-        else:
-            BaseMethodsTests.test_value_counts(self, all_data, dropna)
+        pass
 
     def test_combine_le(self, data_repeated):
-        if LooseVersion(pd.__version__) <= "0.24.0dev0":
-            pytest.skip("Test only exists on master")
         # GH 20825
         # Test that combine works when doing a <= (le) comparison
         # Fletcher returns 'fletcher[bool]' instead of np.bool as dtype
@@ -326,8 +319,6 @@ class TestBaseMethodsTests(BaseMethodsTests):
         self.assert_series_equal(result, expected)
 
     def test_combine_add(self, data_repeated, dtype):
-        if LooseVersion(pd.__version__) <= "0.24.0dev0":
-            pytest.skip("Test only exists on master")
         if dtype.name == "fletcher[date64[ms]]":
             pytest.skip(
                 "unsupported operand type(s) for +: 'datetime.date' and 'datetime.date"
@@ -337,14 +328,10 @@ class TestBaseMethodsTests(BaseMethodsTests):
 
     @pytest.mark.parametrize("na_sentinel", [-1, -2])
     def test_factorize(self, data_for_grouping, na_sentinel):
-        if LooseVersion(pd.__version__) <= "0.24.0dev0":
-            pytest.skip("Test only exists on master")
         BaseMethodsTests.test_factorize(self, data_for_grouping, na_sentinel)
 
     @pytest.mark.parametrize("na_sentinel", [-1, -2])
     def test_factorize_equivalence(self, data_for_grouping, na_sentinel):
-        if LooseVersion(pd.__version__) <= "0.24.0dev0":
-            pytest.skip("Test only exists on master")
         BaseMethodsTests.test_factorize_equivalence(
             self, data_for_grouping, na_sentinel
         )
