@@ -4,7 +4,13 @@ from __future__ import absolute_import, division, print_function
 
 from ._algorithms import extract_isnull_bytemap
 from collections import Iterable, OrderedDict
-from pandas.api.types import is_array_like, is_bool_dtype, is_integer, is_integer_dtype
+from pandas.api.types import (
+    is_array_like,
+    is_bool_dtype,
+    is_integer,
+    is_integer_dtype,
+    is_int64_dtype,
+)
 from pandas.core.arrays import ExtensionArray
 from pandas.core.dtypes.dtypes import ExtensionDtype
 
@@ -184,14 +190,10 @@ class FletcherArray(ExtensionArray):
         # type: () -> ExtensionDtype
         return self._dtype
 
-    def __array__(self):
+    def __array__(self, copy=None):
         """
         Correctly construct numpy arrays when passed to `np.asarray()`.
         """
-        # TODO: Otherwise segfaults on reconstruction of date arrays.
-        #   Fixed in Arrow master post 0.9
-        if pa.types.is_date(self.data.type):
-            return np.array(pa.column("dummy", self.data).to_pylist())
         return pa.column("dummy", self.data).to_pandas().values
 
     def __len__(self):
@@ -281,6 +283,9 @@ class FletcherArray(ExtensionArray):
         else:
             value = np.asarray(value)
 
+        if len(key) != len(value):
+            raise ValueError("Length mismatch between index and value.")
+
         affected_chunks_index = self._get_chunk_indexer(key)
         affected_chunks_unique = np.unique(affected_chunks_index)
 
@@ -306,16 +311,18 @@ class FletcherArray(ExtensionArray):
                 # the resulting arrays are read-only.
                 if not arr.flags.writeable:
                     arr = arr.copy()
-
                 arr[array_chunk_indices] = value[key_chunk_indices]
 
+                mask = None
                 # ARROW-2806: Inconsistent handling of np.nan requires adding a mask
                 if pa.types.is_integer(self.dtype.arrow_dtype) or pa.types.is_floating(
                     self.dtype.arrow_dtype
                 ):
-                    mask = pd.isna(arr)
-                else:
-                    mask = None
+                    nan_values = pd.isna(value[key_chunk_indices])
+                    if any(nan_values):
+                        nan_index = key_chunk_indices & nan_values
+                        mask = np.ones_like(arr, dtype=bool)
+                        mask[nan_index] = False
                 pa_arr = pa.array(arr, self.dtype.arrow_dtype, mask=mask)
             all_chunks[ix] = pa_arr
 
@@ -475,6 +482,8 @@ class FletcherArray(ExtensionArray):
             if indices.dtype.kind == "f":
                 indices[np.isnan(indices)] = na_sentinel
                 indices = indices.astype(int)
+            if not is_int64_dtype(indices):
+                indices = indices.astype(np.int64)
             return indices, type(self)(encoded.dictionary)
         else:
             np_array = pa.column("dummy", self.data).to_pandas().values
@@ -498,18 +507,29 @@ class FletcherArray(ExtensionArray):
         array : ndarray
             NumPy ndarray with 'dtype' for its dtype.
         """
-        if isinstance(dtype, pa.DataType):
-            raise NotImplementedError("Cast propagation in astype not yet implemented")
+        if self.dtype == dtype:
+            return self
+
+        if isinstance(dtype, FletcherDtype):
+            dtype = dtype.arrow_dtype.to_pandas_dtype()
+            arrow_type = dtype.arrow_dtype
+        elif isinstance(dtype, pa.DataType):
+            dtype = dtype.to_pandas_dtype()
+            arrow_type = dtype
         else:
             dtype = np.dtype(dtype)
-            # NumPy's conversion of list->unicode is differently from Python's
-            # default. We want to have the default Python output, so force it here.
-            if pa.types.is_list(self.dtype.arrow_dtype) and dtype.kind == "U":
-                return np.vectorize(six.text_type)(np.asarray(self))
+            arrow_type = None
+        # NumPy's conversion of list->unicode is differently from Python's
+        # default. We want to have the default Python output, so force it here.
+        if pa.types.is_list(self.dtype.arrow_dtype) and dtype.kind == "U":
+            return np.vectorize(six.text_type)(np.asarray(self))
+        if arrow_type is not None:
+            return FletcherArray(np.asarray(self).astype(dtype), dtype=arrow_type)
+        else:
             return np.asarray(self).astype(dtype)
 
     @classmethod
-    def _from_sequence(cls, scalars, dtype=None):
+    def _from_sequence(cls, scalars, dtype=None, copy=None):
         """
         Construct a new ExtensionArray from a sequence of scalars.
 
@@ -523,6 +543,8 @@ class FletcherArray(ExtensionArray):
         -------
         ExtensionArray
         """
+        if isinstance(scalars, FletcherArray):
+            return scalars
         if dtype and isinstance(dtype, FletcherDtype):
             dtype = dtype.arrow_dtype
         return cls(pa.array(scalars, type=dtype, from_pandas=True))
