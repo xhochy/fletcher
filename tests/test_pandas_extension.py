@@ -52,18 +52,6 @@ fail_on_missing_dtype_in_from_sequence = pytest.mark.xfail(
 )
 
 
-def type_fails_on_stable_pandas(test_type):
-    """
-    Mark parameters as failing on the latest Pandas release.
-
-    These types should succeed with the Pandas master
-    """
-    if LooseVersion(pd.__version__) >= "0.24.0dev0":
-        return test_type
-    else:
-        return pytest.param(test_type, marks=pytest.mark.xfail)
-
-
 test_types = [
     FletcherTestType(
         pa.string(),
@@ -74,29 +62,23 @@ test_types = [
         ["B", None, "A"],
         lambda: choices(list(string.ascii_letters), k=10),
     ),
-    # Float and int types require the support of constant memoryviews, this
-    # depends on https://github.com/pandas-dev/pandas/pull/21688
-    type_fails_on_stable_pandas(
-        FletcherTestType(
-            pa.int64(),
-            [2, 1, -1, 0, 66] * 20,
-            [None, 1],
-            [2, 2, None, None, -100, -100, 2, 100],
-            [2, 100, -10],
-            [2, None, -10],
-            lambda: choices(list(range(100)), k=10),
-        )
+    FletcherTestType(
+        pa.int64(),
+        [2, 1, -1, 0, 66] * 20,
+        [None, 1],
+        [2, 2, None, None, -100, -100, 2, 100],
+        [2, 100, -10],
+        [2, None, -10],
+        lambda: choices(list(range(100)), k=10),
     ),
-    type_fails_on_stable_pandas(
-        FletcherTestType(
-            pa.float64(),
-            [2.5, 1.0, -1.0, 0, 66.6] * 20,
-            [None, 1.1],
-            [2.5, 2.5, None, None, -100.1, -100.1, 2.5, 100.1],
-            [2.5, 100.99, -10.1],
-            [2.5, None, -10.1],
-            lambda: choices([2.5, 1.0, -1.0, 0, 66.6], k=10),
-        )
+    FletcherTestType(
+        pa.float64(),
+        [2.5, 1.0, -1.0, 0, 66.6] * 20,
+        [None, 1.1],
+        [2.5, 2.5, None, None, -100.1, -100.1, 2.5, 100.1],
+        [2.5, 100.99, -10.1],
+        [2.5, None, -10.1],
+        lambda: choices([2.5, 1.0, -1.0, 0, 66.6], k=10),
     ),
     # Most of the tests fail as assert_extension_array_equal casts to numpy object
     # arrays and on them equality is not defined.
