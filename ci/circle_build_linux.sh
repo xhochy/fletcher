@@ -43,7 +43,7 @@ if [[ ${USE_DEV_WHEELS} ]]; then
     pip install --pre --no-deps --upgrade --timeout=60 -f $PRE_WHEELS numpy pandas
 fi
 
-pip install -e .
+pip install --no-deps -e .
 py.test --junitxml=test-reports/junit.xml --cov=./
 
 # Do a second run with JIT disabled to produce coverage and check that the
