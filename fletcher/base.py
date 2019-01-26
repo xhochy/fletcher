@@ -194,11 +194,7 @@ class FletcherArray(ExtensionArray):
         """
         Correctly construct numpy arrays when passed to `np.asarray()`.
         """
-        if copy:
-            data = self.data.copy()
-        else:
-            data = self.data
-        return pa.column("dummy", data).to_pandas().values
+        return pa.column("dummy", self.data).to_pandas().values
 
     def __len__(self):
         """
