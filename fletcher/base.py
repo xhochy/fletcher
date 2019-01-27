@@ -52,6 +52,18 @@ class FletcherDtype(ExtensionDtype):
     def __init__(self, arrow_dtype):
         self.arrow_dtype = arrow_dtype
 
+    @property
+    def _is_boolean(self):
+        return pa.types.is_boolean(self.arrow_dtype)
+
+    @property
+    def _is_numeric(self):
+        return (
+            pa.types.is_integer(self.arrow_dtype)
+            or pa.types.is_floating(self.arrow_dtype)
+            or pa.types.is_decimal(self.arrow_dtype)
+        )
+
     def __hash__(self):
         return hash(self.arrow_dtype)
 
@@ -189,6 +201,21 @@ class FletcherArray(ExtensionArray):
     def dtype(self):
         # type: () -> ExtensionDtype
         return self._dtype
+
+    # reduction ops #
+    def _reduce(
+        self, name, axis=0, skipna=True, numeric_only=None, min_count=None, **kwargs
+    ):
+        func = getattr(self, name, None)
+        if func is None:
+            arr = np.array(self)
+            func = getattr(arr, name, None)
+            if func is None:
+                msg = "FletcherArray doesn't support operation {op}"
+                raise TypeError(msg.format(op=name))
+            else:
+                return func(**kwargs)
+        return func(**kwargs)
 
     def __array__(self, copy=None):
         """
