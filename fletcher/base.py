@@ -19,6 +19,7 @@ import numpy as np
 import pandas as pd
 import pyarrow as pa
 import six
+from typing import Any, Optional, Sequence, Tuple, Union
 
 
 _python_type_map = {
@@ -449,7 +450,7 @@ class FletcherArray(ExtensionArray):
         return self.data
 
     def factorize(self, na_sentinel=-1):
-        # type: (int) -> Tuple[ndarray, ExtensionArray]
+        # type: (int) -> Tuple[np.ndarray, ExtensionArray]
         """Encode the extension array as an enumerated type.
         Parameters
         ----------
