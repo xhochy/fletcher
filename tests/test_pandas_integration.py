@@ -135,7 +135,7 @@ def test_series_attributes():
     s = pd.Series(fr.FletcherArray(TEST_ARRAY))
     assert s.ndim == 1
     assert s.size == 3
-    assert s.base is not None
+    assert s.values is not None
     # This line currently fails with pandas master: https://github.com/pandas-dev/pandas/issues/22414
     assert (s.T == s).all()
     assert s.memory_usage() > 8
