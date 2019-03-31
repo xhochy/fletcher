@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from fletcher import FletcherArray, FletcherDtype
 
 import datetime
 import pandas as pd
@@ -22,7 +23,16 @@ from pandas.tests.extension.base import (
     BaseSetitemTests,
 )
 
-from fletcher import FletcherArray, FletcherDtype
+if LooseVersion(pd.__version__) >= "0.25.0":
+    # imports of pytest fixtures needed for derived unittest classes
+    from pandas.tests.extension.conftest import (  # noqa: F401
+        as_array,  # noqa: F401
+        use_numpy,  # noqa: F401
+        groupby_apply_op,  # noqa: F401
+        as_frame,  # noqa: F401
+        as_series,  # noqa: F401
+    )
+
 
 FletcherTestType = namedtuple(
     "FletcherTestType",
