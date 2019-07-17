@@ -3,6 +3,8 @@
 set +x
 set -eo pipefail
 
+export LC_ALL=C.UTF-8
+export LANG=C.UTF-8
 export PYTHON_VERSION=$1
 export USE_DEV_WHEELS=$2
 export CONDA_PKGS_DIRS=$HOME/.conda_packages
