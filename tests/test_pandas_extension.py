@@ -9,7 +9,10 @@ import pandas as pd
 import pyarrow as pa
 import pytest
 import six
-from pandas.tests.extension.base import (
+
+from fletcher import FletcherArray, FletcherDtype
+
+from pandas.tests.extension.base import (  # BaseArithmeticOpsTests,; BaseBooleanReduceTests,; BaseComparisonOpsTests,; BaseNumericReduceTests,
     BaseCastingTests,
     BaseConstructorsTests,
     BaseDtypeTests,
@@ -18,11 +21,13 @@ from pandas.tests.extension.base import (
     BaseInterfaceTests,
     BaseMethodsTests,
     BaseMissingTests,
+    BaseNoReduceTests,
+    BaseParsingTests,
+    BasePrintingTests,
     BaseReshapingTests,
     BaseSetitemTests,
 )
 
-from fletcher import FletcherArray, FletcherDtype
 
 if LooseVersion(pd.__version__) >= "0.25.0":
     # imports of pytest fixtures needed for derived unittest classes
@@ -374,3 +379,38 @@ class TestBaseReshapingTests(BaseReshapingTests):
 
 class TestBaseSetitemTests(BaseSetitemTests):
     pass
+
+
+class TestBaseParsingTests(BaseParsingTests):
+    @pytest.mark.parametrize("engine", ["c", "python"])
+    def test_EA_types(self, engine, data):
+        pytest.mark.xfail(
+            "pandas doesn't yet support registering ExtentionDtypes via a pattern"
+        )
+
+
+class TestBasePrintingTests(BasePrintingTests):
+    pass
+
+
+# TODO: Add a boolean type for testing
+# class TestBaseBooleanReduceTests(BaseBooleanReduceTests):
+#     pass
+
+
+class TestBaseNoReduceTests(BaseNoReduceTests):
+    pass
+
+
+# TODO: Implement
+# class TestBaseNumericReduceTests(BaseNumericReduceTests):
+#    pass
+
+
+# TODO: Implement
+# class TestBaseComparisonOpsTests(BaseComparisonOpsTests):
+#     pass
+
+# TODO: Implement
+# class TestBaseArithmeticOpsTests(BaseArithmeticOpsTests):
+#     pass
