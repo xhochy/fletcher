@@ -34,7 +34,7 @@ conda create -y -q -n fletcher python=${PYTHON_VERSION} \
 source activate fletcher
 
 if [ "${PYTHON_VERSION}" = "3.6" ]; then
-  conda install -y -q black=18.5b0 -c conda-forge
+  conda install -y -q black=19.3b0 -c conda-forge
   black --check .
 fi
 
