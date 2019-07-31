@@ -1,15 +1,14 @@
 # -*- coding: utf-8 -*-
-from fletcher import FletcherArray, FletcherDtype
-
 import datetime
-import pandas as pd
-import pyarrow as pa
-import pytest
-import six
 import string
 import sys
 from collections import namedtuple
 from distutils.version import LooseVersion
+
+import pandas as pd
+import pyarrow as pa
+import pytest
+import six
 from pandas.tests.extension.base import (
     BaseCastingTests,
     BaseConstructorsTests,
@@ -22,6 +21,8 @@ from pandas.tests.extension.base import (
     BaseReshapingTests,
     BaseSetitemTests,
 )
+
+from fletcher import FletcherArray, FletcherDtype
 
 if LooseVersion(pd.__version__) >= "0.25.0":
     # imports of pytest fixtures needed for derived unittest classes
@@ -65,7 +66,7 @@ fail_on_missing_dtype_in_from_sequence = pytest.mark.xfail(
 test_types = [
     FletcherTestType(
         pa.string(),
-        [u"🙈", u"Ö", u"Č", u"a", u"B"] * 20,
+        ["🙈", "Ö", "Č", "a", "B"] * 20,
         [None, "A"],
         ["B", "B", None, None, "A", "A", "B", "C"],
         ["B", "C", "A"],
@@ -209,14 +210,12 @@ def data_missing_for_sorting(fletcher_type):
 
 
 class TestBaseCasting(BaseCastingTests):
-
     @pytest.mark.xfail(six.PY2, reason="Cast of UTF8 to `str` fails in py2.")
     def test_astype_str(self, data):
         BaseCastingTests.test_astype_str(self, data)
 
 
 class TestBaseConstructors(BaseConstructorsTests):
-
     @pytest.mark.xfail(reason="Tries to construct dtypes with np.dtype")
     def test_from_dtype(self, data):
         if pa.types.is_string(data.dtype.arrow_dtype):
@@ -231,7 +230,6 @@ class TestBaseDtype(BaseDtypeTests):
 
 
 class TestBaseGetitemTests(BaseGetitemTests):
-
     def test_take_non_na_fill_value(self, data_missing):
         if pa.types.is_integer(data_missing.dtype.arrow_dtype):
             pytest.mark.xfail(reasion="Take is not yet correctly implemented for ints")
@@ -247,6 +245,14 @@ class TestBaseGetitemTests(BaseGetitemTests):
     def test_take_series(self, data):
         BaseGetitemTests.test_take_series(self, data)
 
+    def test_loc_iloc_frame_single_dtype(self, data):
+        if pa.types.is_string(data.dtype.arrow_dtype):
+            pytest.mark.xfail(
+                reason="https://github.com/pandas-dev/pandas/issues/27673"
+            )
+        else:
+            BaseGetitemTests.test_loc_iloc_frame_single_dtype(self, data)
+
     @pytest.mark.skip
     def test_reindex(self):
         # No longer available in master and fails with pandas 0.23.1
@@ -255,7 +261,6 @@ class TestBaseGetitemTests(BaseGetitemTests):
 
 
 class TestBaseGroupbyTests(BaseGroupbyTests):
-
     @pytest.mark.parametrize("as_index", [True, False])
     def test_groupby_extension_agg(self, as_index, data_for_grouping):
         if pa.types.is_integer(
@@ -330,7 +335,6 @@ class TestBaseMethodsTests(BaseMethodsTests):
 
 
 class TestBaseMissingTests(BaseMissingTests):
-
     @fail_on_missing_dtype_in_from_sequence
     def test_fillna_series(self, data_missing):
         BaseMissingTests.test_fillna_series(self, data_missing)
@@ -345,7 +349,6 @@ class TestBaseMissingTests(BaseMissingTests):
 
 
 class TestBaseReshapingTests(BaseReshapingTests):
-
     def test_concat_mixed_dtypes(self, data, dtype):
         if dtype.name in ["fletcher[int64]", "fletcher[double]"]:
             # https://github.com/pandas-dev/pandas/issues/21792

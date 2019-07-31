@@ -2,25 +2,25 @@
 
 from __future__ import absolute_import, division, print_function
 
-from ._algorithms import extract_isnull_bytemap
-from collections import Iterable, OrderedDict
-from pandas.api.types import (
-    is_array_like,
-    is_bool_dtype,
-    is_integer,
-    is_integer_dtype,
-    is_int64_dtype,
-)
-from pandas.core.arrays import ExtensionArray
-from pandas.core.dtypes.dtypes import ExtensionDtype
-
 import datetime
+from collections import Iterable, OrderedDict
+from typing import Any, Optional, Sequence, Tuple, Union
+
 import numpy as np
 import pandas as pd
 import pyarrow as pa
 import six
-from typing import Any, Optional, Sequence, Tuple, Union
+from pandas.api.types import (
+    is_array_like,
+    is_bool_dtype,
+    is_int64_dtype,
+    is_integer,
+    is_integer_dtype,
+)
+from pandas.core.arrays import ExtensionArray
+from pandas.core.dtypes.dtypes import ExtensionDtype
 
+from ._algorithms import extract_isnull_bytemap
 
 _python_type_map = {
     pa.null().id: six.text_type,
@@ -49,7 +49,6 @@ _string_type_map = {"date64[ms]": pa.date64(), "string": pa.string()}
 
 
 class FletcherDtype(ExtensionDtype):
-
     def __init__(self, arrow_dtype):
         self.arrow_dtype = arrow_dtype
 
@@ -147,7 +146,13 @@ class FletcherDtype(ExtensionDtype):
         if string == "list<item: string>":
             return cls(pa.list_(pa.string()))
 
-        return cls(pa.type_for_alias(string))
+        try:
+            type_for_alias = pa.type_for_alias(string)
+        except (ValueError, KeyError):
+            # pandas API expects a TypeError
+            raise TypeError(string)
+
+        return cls(type_for_alias)
 
     @classmethod
     def construct_array_type(cls, *args):

@@ -4,7 +4,6 @@ import operator
 
 import pytest
 
-
 # More information about the pandas extension interface tests can be found here
 # https://github.com/pandas-dev/pandas/blob/master/pandas/tests/extension/base/__init__.py
 
