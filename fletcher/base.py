@@ -50,6 +50,8 @@ _string_type_map = {"date64[ms]": pa.date64(), "string": pa.string()}
 
 
 class FletcherDtype(ExtensionDtype):
+    # na_value = pa.Null()
+
     def __init__(self, arrow_dtype):
         self.arrow_dtype = arrow_dtype
 
@@ -322,8 +324,10 @@ class FletcherArray(ExtensionArray):
 
                 mask = None
                 # ARROW-2806: Inconsistent handling of np.nan requires adding a mask
-                if pa.types.is_integer(self.dtype.arrow_dtype) or pa.types.is_floating(
-                    self.dtype.arrow_dtype
+                if (
+                    pa.types.is_integer(self.dtype.arrow_dtype)
+                    or pa.types.is_floating(self.dtype.arrow_dtype)
+                    or pa.types.is_boolean(self.dtype.arrow_dtype)
                 ):
                     nan_values = pd.isna(value[key_chunk_indices])
                     if any(nan_values):

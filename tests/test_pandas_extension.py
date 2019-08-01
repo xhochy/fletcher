@@ -13,8 +13,10 @@ import six
 from fletcher import FletcherArray, FletcherDtype
 
 from pandas.tests.extension.base import (  # BaseArithmeticOpsTests,; BaseBooleanReduceTests,; BaseComparisonOpsTests,; BaseNumericReduceTests,
+    # BaseBooleanReduceTests,
     BaseCastingTests,
     BaseConstructorsTests,
+    # BaseComparisonOpsTests,
     BaseDtypeTests,
     BaseGetitemTests,
     BaseGroupbyTests,
@@ -77,6 +79,15 @@ test_types = [
         ["B", "C", "A"],
         ["B", None, "A"],
         lambda: choices(list(string.ascii_letters), k=10),
+    ),
+    FletcherTestType(
+        pa.bool_(),
+        [True, False, True, True, False] * 20,
+        [None, False],
+        [True, True, None, None, False, False, True, False],
+        [True, False, False],
+        [True, None, False],
+        lambda: choices([True, False], k=10),
     ),
     FletcherTestType(
         pa.int64(),
@@ -268,9 +279,11 @@ class TestBaseGetitemTests(BaseGetitemTests):
 class TestBaseGroupbyTests(BaseGroupbyTests):
     @pytest.mark.parametrize("as_index", [True, False])
     def test_groupby_extension_agg(self, as_index, data_for_grouping):
-        if pa.types.is_integer(
-            data_for_grouping.dtype.arrow_dtype
-        ) or pa.types.is_floating(data_for_grouping.dtype.arrow_dtype):
+        if (
+            pa.types.is_integer(data_for_grouping.dtype.arrow_dtype)
+            or pa.types.is_floating(data_for_grouping.dtype.arrow_dtype)
+            or pa.types.is_boolean(data_for_grouping.dtype.arrow_dtype)
+        ):
             pytest.mark.xfail(reasion="ExtensionIndex is not yet implemented")
         else:
             BaseGroupbyTests.test_groupby_extension_agg(
@@ -278,12 +291,27 @@ class TestBaseGroupbyTests(BaseGroupbyTests):
             )
 
     def test_groupby_extension_no_sort(self, data_for_grouping):
-        if pa.types.is_integer(
-            data_for_grouping.dtype.arrow_dtype
-        ) or pa.types.is_floating(data_for_grouping.dtype.arrow_dtype):
+        if (
+            pa.types.is_integer(data_for_grouping.dtype.arrow_dtype)
+            or pa.types.is_floating(data_for_grouping.dtype.arrow_dtype)
+            or pa.types.is_boolean(data_for_grouping.dtype.arrow_dtype)
+        ):
             pytest.mark.xfail(reasion="ExtensionIndex is not yet implemented")
         else:
             BaseGroupbyTests.test_groupby_extension_no_sort(self, data_for_grouping)
+
+    def test_groupby_extension_transform(self, data_for_grouping):
+        if pa.types.is_boolean(data_for_grouping.dtype.arrow_dtype):
+            valid = data_for_grouping[~data_for_grouping.isna()]
+            df = pd.DataFrame({"A": [1, 1, 3, 3, 1, 4], "B": valid})
+
+            result = df.groupby("B").A.transform(len)
+            # Expected grouping is different as we only have two non-null values
+            expected = pd.Series([3, 3, 3, 3, 3, 3], name="A")
+
+            self.assert_series_equal(result, expected)
+        else:
+            BaseGroupbyTests.test_groupby_extension_transform(self, data_for_grouping)
 
 
 class TestBaseInterfaceTests(BaseInterfaceTests):
@@ -328,15 +356,44 @@ class TestBaseMethodsTests(BaseMethodsTests):
         else:
             BaseMethodsTests.test_combine_add(self, data_repeated)
 
+    # @pytest.mark.parametrize("na_sentinel", [-1, -2])
+    # def test_factorize(self, data_for_grouping, na_sentinel):
+    #    BaseMethodsTests.test_factorize(self, data_for_grouping, na_sentinel)
+
+    def test_argsort(self, data_for_sorting):
+        if pa.types.is_boolean(data_for_sorting.dtype.arrow_dtype):
+            pytest.skip("Boolean has too few values for this test")
+        else:
+            BaseMethodsTests.test_argsort(self, data_for_sorting)
+
+    @pytest.mark.parametrize("ascending", [True, False])
+    def test_sort_values(self, data_for_sorting, ascending):
+        if pa.types.is_boolean(data_for_sorting.dtype.arrow_dtype):
+            pytest.skip("Boolean has too few values for this test")
+        else:
+            BaseMethodsTests.test_sort_values(self, data_for_sorting, ascending)
+
     @pytest.mark.parametrize("na_sentinel", [-1, -2])
     def test_factorize(self, data_for_grouping, na_sentinel):
-        BaseMethodsTests.test_factorize(self, data_for_grouping, na_sentinel)
+        if pa.types.is_boolean(data_for_grouping.dtype.arrow_dtype):
+            pytest.skip("Boolean has too few values for this test")
+        else:
+            BaseMethodsTests.test_factorize(self, data_for_grouping, na_sentinel)
 
     @pytest.mark.parametrize("na_sentinel", [-1, -2])
     def test_factorize_equivalence(self, data_for_grouping, na_sentinel):
-        BaseMethodsTests.test_factorize_equivalence(
-            self, data_for_grouping, na_sentinel
-        )
+        if pa.types.is_boolean(data_for_grouping.dtype.arrow_dtype):
+            pytest.skip("Boolean has too few values for this test")
+        else:
+            BaseMethodsTests.test_factorize_equivalence(
+                self, data_for_grouping, na_sentinel
+            )
+
+    def test_searchsorted(self, data_for_sorting, as_series):  # noqa: F811
+        if pa.types.is_boolean(data_for_sorting.dtype.arrow_dtype):
+            pytest.skip("Boolean has too few values for this test")
+        else:
+            BaseMethodsTests.test_searchsorted(self, data_for_sorting, as_series)
 
 
 class TestBaseMissingTests(BaseMissingTests):
@@ -355,7 +412,7 @@ class TestBaseMissingTests(BaseMissingTests):
 
 class TestBaseReshapingTests(BaseReshapingTests):
     def test_concat_mixed_dtypes(self, data, dtype):
-        if dtype.name in ["fletcher[int64]", "fletcher[double]"]:
+        if dtype.name in ["fletcher[int64]", "fletcher[double]", "fletcher[bool]"]:
             # https://github.com/pandas-dev/pandas/issues/21792
             pytest.skip("pd.concat(int64, fletcher[int64] yields int64")
         else:
@@ -409,7 +466,7 @@ class TestBaseNoReduceTests(BaseNoReduceTests):
 
 # TODO: Implement
 # class TestBaseComparisonOpsTests(BaseComparisonOpsTests):
-#     pass
+#    pass
 
 # TODO: Implement
 # class TestBaseArithmeticOpsTests(BaseArithmeticOpsTests):
