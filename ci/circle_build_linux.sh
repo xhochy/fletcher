@@ -23,6 +23,7 @@ conda config --add channels conda-forge
 
 conda create -y -q -n fletcher python=${PYTHON_VERSION} \
     pandas pyarrow pytest pytest-cov pytest-flake8 \
+    hypothesis \
     flake8 \
     setuptools_scm \
     pip \
@@ -34,7 +35,7 @@ conda create -y -q -n fletcher python=${PYTHON_VERSION} \
 source activate fletcher
 
 if [ "${PYTHON_VERSION}" = "3.6" ]; then
-  conda install -y -q black=18.5b0 -c conda-forge
+  conda install -y -q black=19.3b0 -c conda-forge
   black --check .
 fi
 

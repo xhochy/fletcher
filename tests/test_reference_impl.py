@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from __future__ import absolute_import, division, print_function, unicode_literals
+
 import operator as op
 
 import pandas as pd
@@ -9,7 +10,6 @@ import pyarrow as pa
 import pytest
 
 import fletcher as fr
-
 
 data = ["foo", None, "baz", "bar", None, "..bar"]
 
@@ -20,7 +20,6 @@ df = pd.DataFrame(
 
 # syntactic sugar to make test cases easier to read
 class Case:
-
     def __init__(self, label):
         self._label = label
 

@@ -14,7 +14,6 @@ def generate_test_array(n):
 
 
 class TimeSuite:
-
     def setup(self):
         array = generate_test_array(2 ** 15)
         self.df = pd.DataFrame({"str": array})

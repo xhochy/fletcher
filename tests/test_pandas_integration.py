@@ -2,18 +2,19 @@
 
 from __future__ import absolute_import, division, print_function, unicode_literals
 
-# These unit tests are based upon the work done in Cyberpandas (see NOTICE):
-#   https://github.com/ContinuumIO/cyberpandas/blob/master/cyberpandas/test_ip_pandas.py
-
-from pandas.core.internals import ExtensionBlock
-
-import fletcher as fr
 import numpy as np
 import numpy.testing as npt
 import pandas as pd
 import pandas.testing as tm
 import pyarrow as pa
 import pytest
+from pandas.core.internals import ExtensionBlock
+
+import fletcher as fr
+
+# These unit tests are based upon the work done in Cyberpandas (see NOTICE):
+#   https://github.com/ContinuumIO/cyberpandas/blob/master/cyberpandas/test_ip_pandas.py
+
 
 TEST_LIST = ["Test", "string", None]
 TEST_ARRAY = pa.array(TEST_LIST, type=pa.string())

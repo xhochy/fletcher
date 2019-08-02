@@ -3,11 +3,11 @@
 from __future__ import absolute_import, division, print_function
 
 import math
+import types
 
 import numba
 import numpy as np
 import pyarrow as pa
-import types
 import six
 
 _string_buffer_types = np.uint8, np.uint32, np.uint8
@@ -117,7 +117,6 @@ NumbaStringArray.make = types.MethodType(_make, NumbaStringArray)
     [("start", numba.uint32), ("end", numba.uint32), ("data", numba.uint8[:])]
 )
 class NumbaString(object):
-
     def __init__(self, data, start=0, end=None):
         if end is None:
             end = data.shape[0]
@@ -159,7 +158,6 @@ NumbaString.make = types.MethodType(_make_string, NumbaString)
     ]
 )
 class NumbaStringArrayBuilder(object):
-
     def __init__(self, string_capacity, byte_capacity):
         self.missing = np.ones(_missing_capactiy(string_capacity), np.uint8)
         self.offsets = np.zeros(string_capacity + 1, np.uint32)

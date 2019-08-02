@@ -4,6 +4,7 @@ from __future__ import absolute_import, division, print_function
 
 import numba
 import numpy as np
+import pyarrow as pa
 
 from ._numba_compat import NumbaStringArray
 
@@ -157,3 +158,62 @@ def str_concat(sa1, sa2):
     result_data = result_data[:offset]
 
     return NumbaStringArray(result_missing, result_offsets, result_data, 0)
+
+
+@numba.njit(locals={"valid": numba.bool_, "value": numba.bool_})
+def _any_op(length, valid_bits, data):
+    for i in range(length):
+        byte_offset = i // 8
+        bit_offset = i % 8
+        mask = np.uint8(1 << bit_offset)
+        valid = valid_bits[byte_offset] & mask
+        value = data[byte_offset] & mask
+        if (valid and value) or (not valid):
+            return True
+
+    return False
+
+
+@numba.njit(locals={"valid": numba.bool_, "value": numba.bool_})
+def _any_op_skipna(length, valid_bits, data):
+    for i in range(length):
+        byte_offset = i // 8
+        bit_offset = i % 8
+        mask = np.uint8(1 << bit_offset)
+        valid = valid_bits[byte_offset] & mask
+        value = data[byte_offset] & mask
+        if valid and value:
+            return True
+
+    return False
+
+
+def any_op(arr, skipna):
+    if isinstance(arr, pa.ChunkedArray):
+        return any(any_op(chunk, skipna) for chunk in arr.chunks)
+
+    if skipna:
+        return _any_op_skipna(len(arr), *arr.buffers())
+    return _any_op(len(arr), *arr.buffers())
+
+
+@numba.njit(locals={"valid": numba.bool_, "value": numba.bool_})
+def _all_op(length, valid_bits, data):
+    # This may be specific to Pandas but we return True as long as there is not False in the data.
+    for i in range(length):
+        byte_offset = i // 8
+        bit_offset = i % 8
+        mask = np.uint8(1 << bit_offset)
+        valid = valid_bits[byte_offset] & mask
+        value = data[byte_offset] & mask
+        if valid and not value:
+            return False
+    return True
+
+
+def all_op(arr, skipna):
+    if isinstance(arr, pa.ChunkedArray):
+        return all(all_op(chunk, skipna) for chunk in arr.chunks)
+
+    # skipna is not relevant in the Pandas behaviour
+    return _all_op(len(arr), *arr.buffers())

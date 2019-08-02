@@ -2,25 +2,26 @@
 
 from __future__ import absolute_import, division, print_function
 
-from ._algorithms import extract_isnull_bytemap
-from collections import Iterable, OrderedDict
-from pandas.api.types import (
-    is_array_like,
-    is_bool_dtype,
-    is_integer,
-    is_integer_dtype,
-    is_int64_dtype,
-)
-from pandas.core.arrays import ExtensionArray
-from pandas.core.dtypes.dtypes import ExtensionDtype
-
 import datetime
+from collections import OrderedDict
+from collections.abc import Iterable
+from typing import Any, Optional, Sequence, Tuple, Union
+
 import numpy as np
 import pandas as pd
 import pyarrow as pa
 import six
-from typing import Any, Optional, Sequence, Tuple, Union
+from pandas.api.types import (
+    is_array_like,
+    is_bool_dtype,
+    is_int64_dtype,
+    is_integer,
+    is_integer_dtype,
+)
+from pandas.core.arrays import ExtensionArray
+from pandas.core.dtypes.dtypes import ExtensionDtype
 
+from ._algorithms import all_op, any_op, extract_isnull_bytemap
 
 _python_type_map = {
     pa.null().id: six.text_type,
@@ -49,6 +50,7 @@ _string_type_map = {"date64[ms]": pa.date64(), "string": pa.string()}
 
 
 class FletcherDtype(ExtensionDtype):
+    # na_value = pa.Null()
 
     def __init__(self, arrow_dtype):
         self.arrow_dtype = arrow_dtype
@@ -147,7 +149,13 @@ class FletcherDtype(ExtensionDtype):
         if string == "list<item: string>":
             return cls(pa.list_(pa.string()))
 
-        return cls(pa.type_for_alias(string))
+        try:
+            type_for_alias = pa.type_for_alias(string)
+        except (ValueError, KeyError):
+            # pandas API expects a TypeError
+            raise TypeError(string)
+
+        return cls(type_for_alias)
 
     @classmethod
     def construct_array_type(cls, *args):
@@ -247,6 +255,41 @@ class FletcherArray(ExtensionArray):
             return np.broadcast_to(0, len(array))
         return np.digitize(array, self.offsets[1:])
 
+    def _reduce(self, name, skipna=True, **kwargs):
+        """
+        Return a scalar result of performing the reduction operation.
+
+        Parameters
+        ----------
+        name : str
+            Name of the function, supported values are:
+            { any, all, min, max, sum, mean, median, prod,
+            std, var, sem, kurt, skew }.
+        skipna : bool, default True
+            If True, skip NaN values.
+        **kwargs
+            Additional keyword arguments passed to the reduction function.
+            Currently, `ddof` is the only supported kwarg.
+
+        Returns
+        -------
+        scalar
+
+        Raises
+        ------
+        TypeError : subclass does not define reductions
+        """
+        if name == "any" and pa.types.is_boolean(self.dtype.arrow_dtype):
+            return any_op(self.data, skipna=skipna)
+        elif name == "all" and pa.types.is_boolean(self.dtype.arrow_dtype):
+            return all_op(self.data, skipna=skipna)
+
+        raise TypeError(
+            "cannot perform {name} with type {dtype}".format(
+                name=name, dtype=self.dtype
+            )
+        )
+
     def __setitem__(self, key, value):
         # type: (Union[int, np.ndarray], Any) -> None
         """Set one or more values inplace.
@@ -316,8 +359,10 @@ class FletcherArray(ExtensionArray):
 
                 mask = None
                 # ARROW-2806: Inconsistent handling of np.nan requires adding a mask
-                if pa.types.is_integer(self.dtype.arrow_dtype) or pa.types.is_floating(
-                    self.dtype.arrow_dtype
+                if (
+                    pa.types.is_integer(self.dtype.arrow_dtype)
+                    or pa.types.is_floating(self.dtype.arrow_dtype)
+                    or pa.types.is_boolean(self.dtype.arrow_dtype)
                 ):
                     nan_values = pd.isna(value[key_chunk_indices])
                     if any(nan_values):

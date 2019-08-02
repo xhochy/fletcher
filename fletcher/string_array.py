@@ -12,7 +12,6 @@ from .base import FletcherArray
 
 @pd.api.extensions.register_series_accessor("text")
 class TextAccessor:
-
     def __init__(self, obj):
         if not isinstance(obj.values, FletcherArray):
             raise AttributeError("only FletcherArray[string] has text accessor")

@@ -4,11 +4,12 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 
 import numpy as np
 import numpy.testing as npt
-import fletcher as fr
 import pandas as pd
 import pandas.testing as pdt
 import pyarrow as pa
 import pytest
+
+import fletcher as fr
 
 
 @pytest.fixture
