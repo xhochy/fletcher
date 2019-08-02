@@ -1,12 +1,14 @@
 import hypothesis.strategies as st
 import pandas as pd
 import pyarrow as pa
-from hypothesis import given
+from hypothesis import example, given
 
 from fletcher._algorithms import all_op, any_op
 
 
 @given(data=st.lists(st.one_of(st.booleans(), st.none())), skipna=st.booleans())
+@example([], False)
+@example([], True)
 def test_any_op(data, skipna):
     arrow = pa.array(data, type=pa.bool_())
     # https://github.com/pandas-dev/pandas/issues/27709 / https://github.com/pandas-dev/pandas/issues/12863
