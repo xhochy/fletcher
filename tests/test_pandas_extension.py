@@ -12,11 +12,10 @@ import six
 
 from fletcher import FletcherArray, FletcherDtype
 
-from pandas.tests.extension.base import (  # BaseArithmeticOpsTests,; BaseBooleanReduceTests,; BaseComparisonOpsTests,; BaseNumericReduceTests,
-    # BaseBooleanReduceTests,
+from pandas.tests.extension.base import (  # BaseArithmeticOpsTests,; BaseComparisonOpsTests,; BaseNumericReduceTests,
+    BaseBooleanReduceTests,
     BaseCastingTests,
     BaseConstructorsTests,
-    # BaseComparisonOpsTests,
     BaseDtypeTests,
     BaseGetitemTests,
     BaseGroupbyTests,
@@ -450,13 +449,33 @@ class TestBasePrintingTests(BasePrintingTests):
     pass
 
 
-# TODO: Add a boolean type for testing
-# class TestBaseBooleanReduceTests(BaseBooleanReduceTests):
-#     pass
+class TestBaseBooleanReduceTests(BaseBooleanReduceTests):
+    @pytest.mark.parametrize("skipna", [True, False])
+    def test_reduce_series(self, data, all_boolean_reductions, skipna):
+        if pa.types.is_boolean(data.dtype.arrow_dtype):
+            BaseBooleanReduceTests.test_reduce_series(
+                self, data, all_boolean_reductions, skipna
+            )
+        else:
+            pytest.skip("Boolean reductions are only tested with boolean types")
 
 
 class TestBaseNoReduceTests(BaseNoReduceTests):
-    pass
+    @pytest.mark.parametrize("skipna", [True, False])
+    def test_reduce_series_numeric(self, data, all_numeric_reductions, skipna):
+        # TODO: Implement for numeric types and then skip this test
+        BaseNoReduceTests.test_reduce_series_numeric(
+            self, data, all_numeric_reductions, skipna
+        )
+
+    @pytest.mark.parametrize("skipna", [True, False])
+    def test_reduce_series_boolean(self, data, all_boolean_reductions, skipna):
+        if pa.types.is_boolean(data.dtype.arrow_dtype):
+            pytest.skip("BooleanArray does define boolean reductions, so don't raise")
+        else:
+            BaseNoReduceTests.test_reduce_series_boolean(
+                self, data, all_boolean_reductions, skipna
+            )
 
 
 # TODO: Implement

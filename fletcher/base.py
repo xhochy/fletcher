@@ -21,7 +21,7 @@ from pandas.api.types import (
 from pandas.core.arrays import ExtensionArray
 from pandas.core.dtypes.dtypes import ExtensionDtype
 
-from ._algorithms import extract_isnull_bytemap
+from ._algorithms import all_op, any_op, extract_isnull_bytemap
 
 _python_type_map = {
     pa.null().id: six.text_type,
@@ -254,6 +254,41 @@ class FletcherArray(ExtensionArray):
         if self.data.num_chunks == 1:
             return np.broadcast_to(0, len(array))
         return np.digitize(array, self.offsets[1:])
+
+    def _reduce(self, name, skipna=True, **kwargs):
+        """
+        Return a scalar result of performing the reduction operation.
+
+        Parameters
+        ----------
+        name : str
+            Name of the function, supported values are:
+            { any, all, min, max, sum, mean, median, prod,
+            std, var, sem, kurt, skew }.
+        skipna : bool, default True
+            If True, skip NaN values.
+        **kwargs
+            Additional keyword arguments passed to the reduction function.
+            Currently, `ddof` is the only supported kwarg.
+
+        Returns
+        -------
+        scalar
+
+        Raises
+        ------
+        TypeError : subclass does not define reductions
+        """
+        if name == "any" and pa.types.is_boolean(self.dtype.arrow_dtype):
+            return any_op(self.data, skipna=skipna)
+        elif name == "all" and pa.types.is_boolean(self.dtype.arrow_dtype):
+            return all_op(self.data, skipna=skipna)
+
+        raise TypeError(
+            "cannot perform {name} with type {dtype}".format(
+                name=name, dtype=self.dtype
+            )
+        )
 
     def __setitem__(self, key, value):
         # type: (Union[int, np.ndarray], Any) -> None
