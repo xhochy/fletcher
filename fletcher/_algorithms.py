@@ -188,10 +188,25 @@ def _any_op_skipna(length, valid_bits, data):
     return False
 
 
+@numba.njit(locals={"value": numba.bool_})
+def _any_op_nonnull(length, data):
+    for i in range(length):
+        byte_offset = i // 8
+        bit_offset = i % 8
+        mask = np.uint8(1 << bit_offset)
+        value = data[byte_offset] & mask
+        if value:
+            return True
+
+    return False
+
+
 def any_op(arr, skipna):
     if isinstance(arr, pa.ChunkedArray):
         return any(any_op(chunk, skipna) for chunk in arr.chunks)
 
+    if arr.null_count == 0:
+        return _any_op_nonnull(len(arr), arr.buffers()[1])
     if skipna:
         return _any_op_skipna(len(arr), *arr.buffers())
     return _any_op(len(arr), *arr.buffers())
@@ -211,9 +226,23 @@ def _all_op(length, valid_bits, data):
     return True
 
 
+@numba.njit(locals={"value": numba.bool_})
+def _all_op_nonnull(length, data):
+    for i in range(length):
+        byte_offset = i // 8
+        bit_offset = i % 8
+        mask = np.uint8(1 << bit_offset)
+        value = data[byte_offset] & mask
+        if not value:
+            return False
+    return True
+
+
 def all_op(arr, skipna):
     if isinstance(arr, pa.ChunkedArray):
         return all(all_op(chunk, skipna) for chunk in arr.chunks)
 
+    if arr.null_count == 0:
+        return _all_op_nonnull(len(arr), arr.buffers()[1])
     # skipna is not relevant in the Pandas behaviour
     return _all_op(len(arr), *arr.buffers())

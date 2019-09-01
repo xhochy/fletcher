@@ -477,7 +477,8 @@ class FletcherArray(ExtensionArray):
         size = 0
         for chunk in self.data.chunks:
             for buf in chunk.buffers():
-                size += buf.size
+                if buf is not None:
+                    size += buf.size
         return size
 
     @property
