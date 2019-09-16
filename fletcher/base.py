@@ -205,6 +205,29 @@ class FletcherArray(ExtensionArray):
         """
         return pa.column("dummy", self.data).to_pandas().values
 
+    @property
+    def size(self):
+        """
+        Number of elements in this array.
+
+        Returns
+        -------
+        size : int
+        """
+        # type: () -> int
+        return len(self.data)
+
+    @property
+    def shape(self):
+        # type: () -> Tuple[int]
+        # This may be patched by pandas to support pseudo-2D operations.
+        return (self.size,)
+
+    @property
+    def ndim(self):
+        # type: () -> int
+        return len(self.shape)
+
     def __len__(self):
         """
         Length of this array
@@ -214,7 +237,7 @@ class FletcherArray(ExtensionArray):
         length : int
         """
         # type: () -> int
-        return len(self.data)
+        return self.shape[0]
 
     @classmethod
     def _concat_same_type(cls, to_concat):
