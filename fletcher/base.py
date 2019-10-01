@@ -505,13 +505,6 @@ class FletcherArray(ExtensionArray):
         return size
 
     @property
-    def size(self):
-        """
-        return the number of elements in the underlying data
-        """
-        return len(self.data)
-
-    @property
     def base(self):
         """
         the base object of the underlying data
