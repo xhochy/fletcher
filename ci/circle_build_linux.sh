@@ -22,7 +22,7 @@ conda config --add channels https://repo.continuum.io/pkgs/free
 conda config --add channels conda-forge
 
 conda create -y -q -n fletcher python=${PYTHON_VERSION} \
-    pandas pyarrow pytest pytest-cov pytest-flake8 \
+    pandas pyarrow=0.14 pytest pytest-cov pytest-flake8 \
     hypothesis \
     flake8 \
     setuptools_scm \

@@ -1,6 +1,6 @@
 # fletcher
 
-[![CircleCI](https://circleci.com/gh/xhochy/fletcher/tree/master.svg?style=svg)](https://circleci.com/gh/xhochy/fletcher/tree/master)
+[![CircleCI](https://circleci.com/gh/krivonogov/fletcher/tree/master.svg?style=svg)](https://circleci.com/gh/krivonogov/fletcher/tree/master)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/ambv/black)
 [![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fxhochy%2Ffletcher.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2Fxhochy%2Ffletcher?ref=badge_shield)
 
