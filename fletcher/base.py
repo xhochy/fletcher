@@ -20,8 +20,11 @@ from pandas.api.types import (
 )
 from pandas.core.arrays import ExtensionArray
 from pandas.core.dtypes.dtypes import ExtensionDtype
+from pandas.core.sorting import get_group_index_sorter
 
 from ._algorithms import all_op, any_op, extract_isnull_bytemap
+
+from typing import Union, Optional
 
 _python_type_map = {
     pa.null().id: six.text_type,
@@ -664,14 +667,24 @@ class FletcherArray(ExtensionArray):
             new_values = self.copy()
         return new_values
 
-    def take(self, indices, allow_fill=False, fill_value=None):
+    def _indices_to_numpy_array(self, indices):
+        length = len(self)
+        if (isinstance(indices, slice) or np.any(indices < 0) or
+                (isinstance(indices, np.ndarray) and indices.dtype.kind == 'b')):
+            # pa.Array.take supports only positive indices
+            indices = np.arange(length)[indices]
+        else:
+            indices = np.asarray(indices, dtype=np.int)
+        return indices
+
+    def take(self, indices: Union[np.array, list, slice], allow_fill=False, fill_value=True):
         # type: (Sequence[int], bool, Optional[Any]) -> ExtensionArray
         """
         Take elements from an array.
 
         Parameters
         ----------
-        indices : sequence of integers
+        indices : sequence of integers,array of integers or slice
             Indices to be taken.
         allow_fill : bool, default False
             How to handle negative values in `indices`.
@@ -682,18 +695,11 @@ class FletcherArray(ExtensionArray):
               missing values. These values are set to `fill_value`. Any other
               other negative values raise a ``ValueError``.
         fill_value : any, optional
-            Fill value to use for NA-indices when `allow_fill` is True.
-            This may be ``None``, in which case the default NA value for
-            the type, ``self.dtype.na_value``, is used.
-            For many ExtensionArrays, there will be two representations of
-            `fill_value`: a user-facing "boxed" scalar, and a low-level
-            physical NA value. `fill_value` should be the user-facing version,
-            and the implementation should handle translating that to the
-            physical version for processing the take if nescessary.
+            fill_value must be given if allow_fill is true
 
         Returns
         -------
-        ExtensionArray
+        FletcherArray
 
         Raises
         ------
@@ -703,28 +709,53 @@ class FletcherArray(ExtensionArray):
             When `indices` contains negative values other than ``-1``
             and `allow_fill` is True.
 
-        Notes
-        -----
-        ExtensionArray.take is called by ``Series.__getitem__``, ``.loc``,
-        ``iloc``, when `indices` is a sequence of values. Additionally,
-        it's called by :meth:`Series.reindex`, or any other method
-        that causes realignemnt, with a `fill_value`.
-
         See Also
         --------
         numpy.take
         pandas.api.extensions.take
         """
-        from pandas.core.algorithms import take
+        if isinstance(indices, list):
+            indices = np.asarray(indices)
+            if not np.any(indices < 0):
+                allow_fill = False
+        if isinstance(indices,slice) and allow_fill:
+            Raise Exception('allow_fill cannot be used with slice')
 
-        data = self.astype(object)
-        if allow_fill and fill_value is None:
-            fill_value = self.dtype.na_value
-        # fill value should always be translated from the scalar
-        # type for the array, to the physical storage type for
-        # the data, before passing to take.
-        result = take(data, indices, fill_value=fill_value, allow_fill=allow_fill)
-        return self._from_sequence(result, dtype=self.data.type)
+        if not allow_fill:
+            indices = self._indices_to_numpy_array(indices)
+            lengths = np.fromiter(map(len, self.data.chunks), dtype=np.int64)
+            cum_lengths = lengths.cumsum()
+
+            bins = np.searchsorted(cum_lengths, indices, side='right')  #one might want to parallel this operation
+            cum_lengths -= lengths
+            limits_idx = np.concatenate([[0], np.bincount(bins, minlength=self.data.num_chunks).cumsum()])
+
+            if is_increasing(bins):
+                sort_idx = None
+            else:
+                sort_idx = get_group_index_sorter(bins, self.data.num_chunks)
+                del bins
+                indices = indices[sort_idx]
+                sort_idx = np.argsort(sort_idx, kind="merge")  # inverse sort indices
+
+            def take_in_one_chunk(i_chunk):
+                array_idx = indices[limits_idx[i_chunk]:limits_idx[i_chunk + 1]] - cum_lengths[i_chunk]
+                return self.data.chunk(i_chunk).take(pa.array(array_idx))#this is a pa.Array
+
+            result = take_in_one_chunk(0) if self.data.num_chunks == 1 else [take_in_one_chunk(i) for i in range(self.data.num_chunks)]
+
+            if sort_idx is None:
+                return FletcherArray(pa.chunked_array(result))
+            else:
+                return FletcherArray(pa.concat_arrays(result).take(pa.array(sort_idx)))
+
+        if allow_fill:
+            if fill_value is None:
+                raise Exception('fill_value must be given')
+            error_mask = indices < -1
+            if np.any(error_mask):
+                raise Exception('Since allow_fill is True, there cannot be any indices < -1')
+            return self._concat_same_type([self, FletcherArray([fill_value], dtype=self.data.type)]).take(indices)
 
 
 def pandas_from_arrow(arrow_object):
@@ -754,3 +785,25 @@ def pandas_from_arrow(arrow_object):
         raise NotImplementedError(
             "Objects of type {} are not supported".format(type(arrow_object))
         )
+
+@staticmethod
+def is_increasing(array: Union[np.ndarray, list]) -> bool:
+    """
+    Checks if an array is sorted in increasing order
+    >>> is_increasing([4, 4, 5])
+    True
+    >>> is_increasing([4, 3, 5])
+    False
+    >>> is_increasing([4, 5, 9])
+    True
+    >>> is_increasing(['a', 'a', 'c'])
+    True
+    >>> is_increasing(np.array(['2017-03-31', '2017-03-31', '2017-04-05'], dtype='datetime64[D]'))
+    True
+    """
+    array = np.asarray(array)
+    return array.size == 0 or np.all(array[1:] >= array[:-1])
+
+
+
+
