@@ -173,6 +173,17 @@ def test_factorize():
     npt.assert_array_equal(uniques, expected_uniques)
 
 
+def test_unique():
+    arr = fr.FletcherArray(TEST_ARRAY)
+    uniques = arr.unique()
+    expected_uniques = pd.unique(arr.astype(object))
+
+    assert isinstance(uniques, fr.FletcherArray)
+
+    uniques = uniques.astype(object)
+    npt.assert_array_equal(uniques, expected_uniques)
+
+
 def test_groupby():
     arr = fr.FletcherArray(["a", "a", "b", None])
     df = pd.DataFrame({"str": arr, "int": [10, 5, 24, 6]})
