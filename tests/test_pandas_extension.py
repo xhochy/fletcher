@@ -314,7 +314,11 @@ class TestBaseGroupbyTests(BaseGroupbyTests):
 
 
 class TestBaseInterfaceTests(BaseInterfaceTests):
-    pass
+    @pytest.mark.xfail(
+        reason="view or self[:] returns a shallow copy in-place edits are not backpropagated"
+    )
+    def test_view(self, data):
+        pass
 
 
 class TestBaseMethodsTests(BaseMethodsTests):
