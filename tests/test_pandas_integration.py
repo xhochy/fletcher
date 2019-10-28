@@ -22,10 +22,31 @@ TEST_ARRAY = pa.array(TEST_LIST, type=pa.string())
 
 @pytest.fixture
 def test_array_chunked():
-    chunks = []
-    for _ in range(10):
-        chunks.append(pa.array(TEST_LIST))
-    return pa.chunked_array(chunks)
+    return pa.chunked_array([pa.array(TEST_LIST) for _ in range(10)])
+
+
+@pytest.fixture(
+    params=["all", "all_float", "some_in_all_chunks", "only_in_some_chunk", "none"]
+)
+def test_array_chunked_nulls(request):
+    case_dict = {
+        "all": pa.chunked_array([pa.array([None] * 4) for _ in range(10)]),
+        "all_float": pa.chunked_array(
+            [pa.array([None] * 4, type=pa.float32()) for _ in range(10)]
+        ),
+        "some_in_all_chunks": pa.chunked_array(
+            [pa.array(["a", "b", None] * 4), pa.array(["a", None, "b"] * 4)]
+        ),
+        "only_in_some_chunk": pa.chunked_array(
+            [
+                pa.array(["a", "x"]),
+                pa.array(["a", "b", None] * 4),
+                pa.array(["a", "b"] * 4),
+            ]
+        ),
+        "none": pa.chunked_array([pa.array(["a", "b"] * 4) for _ in range(10)]),
+    }
+    return case_dict[request.param]
 
 
 # ----------------------------------------------------------------------------
@@ -111,6 +132,13 @@ def test_isnull():
     tm.assert_series_equal(df["A"].isnull(), pd.Series([False, False, True], name="A"))
 
 
+def test_isna_empty():
+    np.testing.assert_array_equal(
+        fr.FletcherArray(pa.chunked_array([[], [None], [1]], type=pa.int32())).isna(),
+        np.array([True, False]),
+    )
+
+
 def test_set_index():
     pd.DataFrame({"index": [3, 2, 1], "A": fr.FletcherArray(TEST_ARRAY)}).set_index(
         "index"
@@ -131,13 +159,11 @@ def test_nbytes():
     assert array.nbytes >= 8
 
 
-@pytest.mark.xfail
 def test_series_attributes():
     s = pd.Series(fr.FletcherArray(TEST_ARRAY))
     assert s.ndim == 1
     assert s.size == 3
     assert s.values is not None
-    # This line currently fails with pandas master: https://github.com/pandas-dev/pandas/issues/22414
     assert (s.T == s).all()
     assert s.memory_usage() > 8
 
@@ -147,6 +173,14 @@ def test_isna():
     expected = pd.Series([False, False, True])
     tm.assert_series_equal(s.isna(), expected)
     tm.assert_series_equal(s.notna(), ~expected)
+
+
+def test_isna_chunked(test_array_chunked_nulls):
+    fa = fr.FletcherArray(test_array_chunked_nulls)
+    fs = pd.Series(fa)
+    ps = pd.Series(np.array(fa))
+    tm.assert_series_equal(fs.isna(), ps.isna())
+    tm.assert_series_equal(fs.notna(), ps.notna())
 
 
 def test_np_asarray():
@@ -182,14 +216,12 @@ def test_groupby():
     tm.assert_frame_equal(result, expected)
 
 
-@pytest.mark.xfail
-@pytest.mark.parametrize("ascending", [True, False])
 @pytest.mark.parametrize("kind", ["quicksort", "mergesort", "heapsort"])
-def test_argsort(ascending, kind):
-    s = pd.Series(fr.FletcherArray(TEST_ARRAY))
-    result = s.argsort(ascending=ascending, kind=kind)
-    expected = s.astype(object).argsort(ascending=ascending, kind=kind)
-    tm.assert_frame_equal(result, expected)
+def test_argsort(test_array_chunked_nulls, kind):
+    s = pd.Series(fr.FletcherArray(test_array_chunked_nulls))
+    result = s.argsort(kind=kind)
+    expected = s.astype(object).argsort(kind=kind)
+    tm.assert_series_equal(result, expected)
 
 
 def test_fillna_chunked(test_array_chunked):

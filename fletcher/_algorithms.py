@@ -45,19 +45,19 @@ def extract_isnull_bytemap(chunked_array):
     -------
     valid_bytemap: numpy.array
     """
-    # TODO: Can we use np.empty here to improve performance?
+    if chunked_array.null_count == len(chunked_array):
+        return np.ones(len(chunked_array), dtype=bool)
+
     result = np.zeros(len(chunked_array), dtype=bool)
+    if chunked_array.null_count == 0:
+        return result
 
     offset = 0
     for chunk in chunked_array.chunks:
-        valid_bitmap = chunk.buffers()[0]
-        if valid_bitmap:
-            # TODO(ARROW-2664): We only need to following line to support
-            #   executing the code in disabled-JIT mode.
-            buf = memoryview(valid_bitmap)
-            _extract_isnull_bytemap(buf, len(chunk), chunk.offset, offset, result)
-        else:
-            return np.full(len(chunked_array), False)
+        if chunk.null_count > 0:
+            _extract_isnull_bytemap(
+                chunk.buffers()[0], len(chunk), chunk.offset, offset, result
+            )
         offset += len(chunk)
 
     return result
