@@ -44,14 +44,9 @@ def test_fletcherarray_constructor():
 
 def test_pandas_from_arrow():
     arr = pa.array(["a", "b", "c"], pa.string())
-    col = pa.Column.from_array("column", arr)
 
     expected_series_woutname = pd.Series(fr.FletcherArray(arr))
     pdt.assert_series_equal(expected_series_woutname, fr.pandas_from_arrow(arr))
-    pdt.assert_series_equal(expected_series_woutname, fr.pandas_from_arrow(col.data))
-
-    expected_series_wname = pd.Series(fr.FletcherArray(arr), name="column")
-    pdt.assert_series_equal(expected_series_wname, fr.pandas_from_arrow(col))
 
     rb = pa.RecordBatch.from_arrays([arr], ["column"])
     expected_df = pd.DataFrame({"column": fr.FletcherArray(arr)})

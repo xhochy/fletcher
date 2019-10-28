@@ -180,6 +180,9 @@ class FletcherArray(ExtensionArray):
         if is_array_like(array) or isinstance(array, list):
             self.data = pa.chunked_array([pa.array(array, type=dtype)])
         elif isinstance(array, pa.Array):
+            # ARROW-7008: pyarrow.chunked_array([array]) fails on array with all-None buffers
+            if len(array) == 0 and all((b is None for b in array.buffers())):
+                array = pa.array([], type=array.type)
             # TODO: Assert dtype
             self.data = pa.chunked_array([array])
         elif isinstance(array, pa.ChunkedArray):
@@ -203,7 +206,7 @@ class FletcherArray(ExtensionArray):
         """
         Correctly construct numpy arrays when passed to `np.asarray()`.
         """
-        return pa.column("dummy", self.data).to_pandas().values
+        return self.data.to_pandas().values
 
     @property
     def size(self):
@@ -367,32 +370,27 @@ class FletcherArray(ExtensionArray):
             key_chunk_indices = np.argwhere(affected_chunks_index == ix).flatten()
             array_chunk_indices = key[key_chunk_indices] - offset
 
-            if pa.types.is_date64(self.dtype.arrow_dtype):
-                # ARROW-2741: pa.array from np.datetime[D] and type=pa.date64 produces invalid results
-                arr = np.array(chunk.to_pylist())
-                arr[array_chunk_indices] = np.array(value)[key_chunk_indices]
-                pa_arr = pa.array(arr, self.dtype.arrow_dtype)
-            else:
-                arr = chunk.to_pandas()
-                # In the case where we zero-copy Arrow to Pandas conversion, the
-                # the resulting arrays are read-only.
-                if not arr.flags.writeable:
-                    arr = arr.copy()
-                arr[array_chunk_indices] = value[key_chunk_indices]
+            arr = chunk.to_pandas().values
+            # In the case where we zero-copy Arrow to Pandas conversion, the
+            # the resulting arrays are read-only.
+            if not arr.flags.writeable:
+                arr = arr.copy()
+            arr[array_chunk_indices] = value[key_chunk_indices]
 
-                mask = None
-                # ARROW-2806: Inconsistent handling of np.nan requires adding a mask
-                if (
-                    pa.types.is_integer(self.dtype.arrow_dtype)
-                    or pa.types.is_floating(self.dtype.arrow_dtype)
-                    or pa.types.is_boolean(self.dtype.arrow_dtype)
-                ):
-                    nan_values = pd.isna(value[key_chunk_indices])
-                    if any(nan_values):
-                        nan_index = key_chunk_indices & nan_values
-                        mask = np.ones_like(arr, dtype=bool)
-                        mask[nan_index] = False
-                pa_arr = pa.array(arr, self.dtype.arrow_dtype, mask=mask)
+            mask = None
+            # ARROW-2806: Inconsistent handling of np.nan requires adding a mask
+            if (
+                pa.types.is_integer(self.dtype.arrow_dtype)
+                or pa.types.is_date(self.dtype.arrow_dtype)
+                or pa.types.is_floating(self.dtype.arrow_dtype)
+                or pa.types.is_boolean(self.dtype.arrow_dtype)
+            ):
+                nan_values = pd.isna(value[key_chunk_indices])
+                if any(nan_values):
+                    nan_index = key_chunk_indices & nan_values
+                    mask = np.ones_like(arr, dtype=bool)
+                    mask[nan_index] = False
+            pa_arr = pa.array(arr, self.dtype.arrow_dtype, mask=mask)
             all_chunks[ix] = pa_arr
 
         self.data = pa.chunked_array(all_chunks)
@@ -547,9 +545,9 @@ class FletcherArray(ExtensionArray):
                 indices = indices.astype(int)
             if not is_int64_dtype(indices):
                 indices = indices.astype(np.int64)
-            return indices, type(self)(encoded.dictionary)
+            return indices.values, type(self)(encoded.dictionary)
         else:
-            np_array = pa.column("dummy", self.data).to_pandas().values
+            np_array = self.data.to_pandas().values
             return pd.factorize(np_array, na_sentinel=na_sentinel)
 
     def astype(self, dtype, copy=True):
@@ -733,7 +731,7 @@ def pandas_from_arrow(arrow_object):
 
     The conversion rules are:
       * {RecordBatch, Table} -> DataFrame
-      * {Array, ChunkedArray, Column} -> Series
+      * {Array, ChunkedArray} -> Series
     """
     if isinstance(arrow_object, pa.RecordBatch):
         data = OrderedDict()
@@ -743,13 +741,11 @@ def pandas_from_arrow(arrow_object):
         return pd.DataFrame(data)
     elif isinstance(arrow_object, pa.Table):
         data = OrderedDict()
-        for col in arrow_object.itercolumns():
-            data[col.name] = FletcherArray(col.data)
+        for name, col in zip(arrow_object.column_names, arrow_object.itercolumns()):
+            data[name] = FletcherArray(col)
         return pd.DataFrame(data)
     elif isinstance(arrow_object, (pa.ChunkedArray, pa.Array)):
         return pd.Series(FletcherArray(arrow_object))
-    elif isinstance(arrow_object, pa.Column):
-        return pd.Series(FletcherArray(arrow_object.data), name=arrow_object.name)
     else:
         raise NotImplementedError(
             "Objects of type {} are not supported".format(type(arrow_object))
