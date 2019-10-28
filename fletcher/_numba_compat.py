@@ -110,7 +110,7 @@ def _make(cls, sa):
 
 
 # @classmethod does not seem to be supported
-NumbaStringArray.make = types.MethodType(_make, NumbaStringArray)
+NumbaStringArray.make = types.MethodType(_make, NumbaStringArray)  # type: ignore
 
 
 @numba.jitclass(
@@ -143,7 +143,7 @@ def _make_string(cls, obj):
     raise TypeError()
 
 
-NumbaString.make = types.MethodType(_make_string, NumbaString)
+NumbaString.make = types.MethodType(_make_string, NumbaString)  # type: ignore
 
 
 @numba.jitclass(
