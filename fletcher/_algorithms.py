@@ -11,9 +11,7 @@ from ._numba_compat import NumbaStringArray
 
 @numba.jit(nogil=True, nopython=True)
 def _extract_isnull_bytemap(bitmap, bitmap_length, bitmap_offset, dst_offset, dst):
-    """
-    (internal) write the values of a valid bitmap as bytes to a pre-allocatored
-    isnull bytemap.
+    """(internal) write the values of a valid bitmap as bytes to a pre-allocatored isnull bytemap.
 
     Parameters
     ----------

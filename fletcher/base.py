@@ -50,28 +50,36 @@ _string_type_map = {"date64[ms]": pa.date64(), "string": pa.string()}
 
 
 class FletcherDtype(ExtensionDtype):
+    """Dtype for a pandas ExtensionArray backed by Apache Arrow."""
+
     # na_value = pa.Null()
 
-    def __init__(self, arrow_dtype):
+    def __init__(self, arrow_dtype: pa.DataType):
         self.arrow_dtype = arrow_dtype
 
     def __hash__(self):
+        """Hash the Dtype."""
         return hash(self.arrow_dtype)
 
     def __str__(self):
+        """Convert to string."""
         return "fletcher[{}]".format(self.arrow_dtype)
 
     def __repr__(self):
+        """Return the textual representation of this object."""
         return "FletcherDType({})".format(str(self.arrow_dtype))
 
     def __eq__(self, other):
         """Check whether 'other' is equal to self.
+
         By default, 'other' is considered equal if
         * it's a string matching 'self.name'.
         * it's an instance of this type.
+
         Parameters
         ----------
         other : Any
+
         Returns
         -------
         bool
@@ -85,8 +93,8 @@ class FletcherDtype(ExtensionDtype):
 
     @property
     def type(self):
-        # type: () -> type
-        """The scalar type for the array, e.g. ``int``
+        """Return the scalar type for the array, e.g. ``int``.
+
         It's expected ``ExtensionArray[item]`` returns an instance
         of ``ExtensionDtype.type`` for scalar ``item``.
         """
@@ -95,11 +103,13 @@ class FletcherDtype(ExtensionDtype):
     @property
     def kind(self):
         # type () -> str
-        """A character code (one of 'biufcmMOSUV'), default 'O'
+        """Return a character code (one of 'biufcmMOSUV'), default 'O'.
+
         This should match the NumPy dtype used when the array is
         converted to an ndarray, which is probably 'O' for object if
         the extension type cannot be represented as a built-in NumPy
         type.
+
         See Also
         --------
         numpy.dtype.kind
@@ -112,7 +122,8 @@ class FletcherDtype(ExtensionDtype):
     @property
     def name(self):
         # type: () -> str
-        """A string identifying the data type.
+        """Return a string identifying the data type.
+
         Will be used for display in, e.g. ``Series.dtype``
         """
         return str(self)
@@ -120,16 +131,20 @@ class FletcherDtype(ExtensionDtype):
     @classmethod
     def construct_from_string(cls, string):
         """Attempt to construct this type from a string.
+
         Parameters
         ----------
         string : str
+
         Returns
         -------
         self : instance of 'cls'
+
         Raises
         ------
         TypeError
             If a class cannot be constructed from this 'string'.
+
         Examples
         --------
         If the extension dtype can be constructed without any arguments,
@@ -160,7 +175,7 @@ class FletcherDtype(ExtensionDtype):
     @classmethod
     def construct_array_type(cls, *args):
         """
-        Return the array type associated with this dtype
+        Return the array type associated with this dtype.
 
         Returns
         -------
@@ -172,6 +187,8 @@ class FletcherDtype(ExtensionDtype):
 
 
 class FletcherArray(ExtensionArray):
+    """Pandas ExtensionArray implementation backed by Apache Arrow."""
+
     _can_hold_na = True
 
     def __init__(self, array, dtype=None, copy=None):
@@ -200,53 +217,52 @@ class FletcherArray(ExtensionArray):
     @property
     def dtype(self):
         # type: () -> ExtensionDtype
+        """Return the ExtensionDtype of this array."""
         return self._dtype
 
     def __array__(self, copy=None):
-        """
-        Correctly construct numpy arrays when passed to `np.asarray()`.
-        """
+        """Correctly construct numpy arrays when passed to `np.asarray()`."""
         return self.data.to_pandas().values
 
     @property
     def size(self):
         """
-        Number of elements in this array.
+        Return the number of elements in this array.
 
         Returns
         -------
         size : int
         """
-        # type: () -> int
         return len(self.data)
 
     @property
     def shape(self):
         # type: () -> Tuple[int]
+        """Return the shape of the data."""
         # This may be patched by pandas to support pseudo-2D operations.
         return (self.size,)
 
     @property
     def ndim(self):
         # type: () -> int
+        """Return the number of dimensions of the underlying data."""
         return len(self.shape)
 
     def __len__(self):
+        # type: () -> int
         """
-        Length of this array
+        Length of this array.
 
         Returns
         -------
         length : int
         """
-        # type: () -> int
         return self.shape[0]
 
     @classmethod
     def _concat_same_type(cls, to_concat):
         # type: (Sequence[ExtensionArray]) -> ExtensionArray
-        """
-        Concatenate multiple array
+        """Concatenate multiple array.
 
         Parameters
         ----------
@@ -263,9 +279,7 @@ class FletcherArray(ExtensionArray):
         )
 
     def _calculate_chunk_offsets(self):
-        """
-        Returns an array holding the indices pointing to the first element of each chunk
-        """
+        """Return an array holding the indices pointing to the first element of each chunk."""
         offset = 0
         offsets = []
         for chunk in self.data.iterchunks():
@@ -274,9 +288,7 @@ class FletcherArray(ExtensionArray):
         return np.array(offsets)
 
     def _get_chunk_indexer(self, array):
-        """
-        Returns an array with the chunk number for each index
-        """
+        """Return an array with the chunk number for each index."""
         if self.data.num_chunks == 1:
             return np.broadcast_to(0, len(array))
         return np.digitize(array, self.offsets[1:])
@@ -398,6 +410,7 @@ class FletcherArray(ExtensionArray):
     def __getitem__(self, item):
         # type (Any) -> Any
         """Select a subset of self.
+
         Parameters
         ----------
         item : int, slice, or ndarray
@@ -405,9 +418,11 @@ class FletcherArray(ExtensionArray):
             * slice: A slice object, where 'start', 'stop', and 'step' are
               integers or None
             * ndarray: A 1-d boolean NumPy ndarray the same length as 'self'
+
         Returns
         -------
         item : scalar or ExtensionArray
+
         Notes
         -----
         For scalar ``item``, return a scalar value suitable for the array's
@@ -492,9 +507,7 @@ class FletcherArray(ExtensionArray):
     @property
     def nbytes(self):
         # type: () -> int
-        """
-        The number of bytes needed to store this object in memory.
-        """
+        """Return the number of bytes needed to store this object in memory."""
         size = 0
         for chunk in self.data.chunks:
             for buf in chunk.buffers():
@@ -504,18 +517,18 @@ class FletcherArray(ExtensionArray):
 
     @property
     def base(self):
-        """
-        the base object of the underlying data
-        """
+        """Return base object of the underlying data."""
         return self.data
 
     def factorize(self, na_sentinel=-1):
         # type: (int) -> Tuple[np.ndarray, ExtensionArray]
         """Encode the extension array as an enumerated type.
+
         Parameters
         ----------
         na_sentinel : int, default -1
             Value to use in the `labels` array to indicate missing values.
+
         Returns
         -------
         labels : ndarray
@@ -527,9 +540,11 @@ class FletcherArray(ExtensionArray):
                uniques will *not* contain an entry for the NA value of
                the ExtensionArray if there are any missing values present
                in `self`.
+
         See Also
         --------
         pandas.factorize : Top-level factorize method that dispatches here.
+
         Notes
         -----
         :meth:`pandas.factorize` offers a `sort` keyword as well.
@@ -611,7 +626,8 @@ class FletcherArray(ExtensionArray):
         return cls(pa.array(scalars, type=dtype, from_pandas=True))
 
     def fillna(self, value=None, method=None, limit=None):
-        """ Fill NA/NaN values using the specified method.
+        """Fill NA/NaN values using the specified method.
+
         Parameters
         ----------
         value : scalar, array-like
@@ -629,6 +645,7 @@ class FletcherArray(ExtensionArray):
             be partially filled. If method is not specified, this is the
             maximum number of entries along the entire axis where NaNs will be
             filled.
+
         Returns
         -------
         filled : ExtensionArray with NA/NaN filled
@@ -725,16 +742,18 @@ class FletcherArray(ExtensionArray):
         return self._from_sequence(result, dtype=self.data.type)
 
 
-def pandas_from_arrow(arrow_object):
+def pandas_from_arrow(
+    arrow_object: Union[pa.RecordBatch, pa.Table, pa.Array, pa.ChunkedArray]
+):
     """
-    Converts Arrow object instance to their Pandas equivalent by using Fletcher.
+    Convert Arrow object instance to their Pandas equivalent by using Fletcher.
 
     The conversion rules are:
       * {RecordBatch, Table} -> DataFrame
       * {Array, ChunkedArray} -> Series
     """
     if isinstance(arrow_object, pa.RecordBatch):
-        data = OrderedDict()
+        data: OrderedDict = OrderedDict()
         for ix, arr in enumerate(arrow_object):
             col_name = arrow_object.schema.names[ix]
             data[col_name] = FletcherArray(arr)

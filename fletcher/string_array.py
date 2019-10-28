@@ -12,6 +12,8 @@ from .base import FletcherArray
 
 @pd.api.extensions.register_series_accessor("text")
 class TextAccessor:
+    """Accessor for pandas exposed as ``.str``."""
+
     def __init__(self, obj):
         if not isinstance(obj.values, FletcherArray):
             raise AttributeError("only FletcherArray[string] has text accessor")
@@ -19,9 +21,11 @@ class TextAccessor:
         self.data = self.obj.values.data
 
     def startswith(self, needle, na=None):
+        """Check whether a row starts with a certain pattern."""
         return self._call_x_with(_startswith, needle, na)
 
     def endswith(self, needle, na=None):
+        """Check whether a row ends with a certain pattern."""
         return self._call_x_with(_endswith, needle, na)
 
     def _call_x_with(self, impl, needle, na=None):

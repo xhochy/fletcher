@@ -29,16 +29,14 @@ _all_arithmetic_operators = [
 
 @pytest.fixture(params=_all_arithmetic_operators)
 def all_arithmetic_operators(request):
-    """
-    Fixture for dunder names for common arithmetic operations
-    """
+    """Fixture for dunder names for common arithmetic operations."""
     return request.param
 
 
 @pytest.fixture(params=["__eq__", "__ne__", "__le__", "__lt__", "__ge__", "__gt__"])
 def all_compare_operators(request):
     """
-    Fixture for dunder names for common compare operations
+    Fixture for dunder names for common compare operations.
 
     * >=
     * >
@@ -53,7 +51,7 @@ def all_compare_operators(request):
 @pytest.fixture(params=["__le__", "__lt__", "__ge__", "__gt__"])
 def compare_operators_no_eq_ne(request):
     """
-    Fixture for dunder names for compare operations except == and !=
+    Fixture for dunder names for compare operations except == and !=.
 
     * >=
     * >
@@ -79,9 +77,7 @@ _all_numeric_reductions = [
 
 @pytest.fixture(params=_all_numeric_reductions)
 def all_numeric_reductions(request):
-    """
-    Fixture for numeric reduction names
-    """
+    """Fixture for numeric reduction names."""
     return request.param
 
 
@@ -90,15 +86,13 @@ _all_boolean_reductions = ["all", "any"]
 
 @pytest.fixture(params=_all_boolean_reductions)
 def all_boolean_reductions(request):
-    """
-    Fixture for boolean reduction names
-    """
+    """Fixture for boolean reduction names."""
     return request.param
 
 
 @pytest.fixture(params=["data", "data_missing"])
 def all_data(request, data, data_missing):
-    """Parametrized fixture giving 'data' and 'data_missing'"""
+    """Parametrized fixture giving 'data' and 'data_missing'."""
     if request.param == "data":
         return data
     elif request.param == "data_missing":
@@ -119,5 +113,5 @@ def na_cmp():
 
 @pytest.fixture
 def na_value():
-    """The scalar missing value for this type. Default 'None'"""
+    """Fixture for the scalar missing value for this type. Default 'None'."""
     return None
