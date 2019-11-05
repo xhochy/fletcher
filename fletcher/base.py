@@ -20,6 +20,7 @@ from pandas.api.types import (
 )
 from pandas.core.arrays import ExtensionArray
 from pandas.core.dtypes.dtypes import ExtensionDtype
+from pandas.api.extensions import register_extension_dtype
 
 from ._algorithms import all_op, any_op, extract_isnull_bytemap
 
@@ -49,6 +50,7 @@ _python_type_map = {
 _string_type_map = {"date64[ms]": pa.date64(), "string": pa.string()}
 
 
+@register_extension_dtype
 class FletcherDtype(ExtensionDtype):
     """Dtype for a pandas ExtensionArray backed by Apache Arrow."""
 
@@ -185,6 +187,9 @@ class FletcherDtype(ExtensionDtype):
             raise NotImplementedError("construct_array_type does not support arguments")
         return FletcherArray
 
+    def __from_arrow__(self, array):
+        return FletcherArray(array, dtype=self)
+
 
 class FletcherArray(ExtensionArray):
     """Pandas ExtensionArray implementation backed by Apache Arrow."""
@@ -223,6 +228,10 @@ class FletcherArray(ExtensionArray):
     def __array__(self, copy=None):
         """Correctly construct numpy arrays when passed to `np.asarray()`."""
         return self.data.to_pandas().values
+
+    def __arrow_array__(self, type=None):
+        # TODO handle type, chunks
+        return self.data.chunk(0)
 
     @property
     def size(self):
