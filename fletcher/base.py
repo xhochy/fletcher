@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 import pyarrow as pa
 import six
+from pandas.api.extensions import register_extension_dtype
 from pandas.api.types import (
     is_array_like,
     is_bool_dtype,
@@ -20,7 +21,6 @@ from pandas.api.types import (
 )
 from pandas.core.arrays import ExtensionArray
 from pandas.core.dtypes.dtypes import ExtensionDtype
-from pandas.api.extensions import register_extension_dtype
 
 from ._algorithms import all_op, any_op, extract_isnull_bytemap
 
@@ -188,6 +188,7 @@ class FletcherDtype(ExtensionDtype):
         return FletcherArray
 
     def __from_arrow__(self, array):
+        """Construct a FletcherArray from the pyarrow data."""
         return FletcherArray(array, dtype=self)
 
 
@@ -230,6 +231,7 @@ class FletcherArray(ExtensionArray):
         return self.data.to_pandas().values
 
     def __arrow_array__(self, type=None):
+        """Convert myself to a pyarrow Array or ChunkedArray."""
         return self.data
 
     @property
