@@ -230,8 +230,7 @@ class FletcherArray(ExtensionArray):
         return self.data.to_pandas().values
 
     def __arrow_array__(self, type=None):
-        # TODO handle type, chunks
-        return self.data.chunk(0)
+        return self.data
 
     @property
     def size(self):
