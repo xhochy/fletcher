@@ -237,6 +237,27 @@ class FletcherArray(ExtensionArray):
         """
         return len(self.data)
 
+    def __arrow_array__(self, type=None):
+        # type: (pa.DataType,) -> pa.Array
+        """
+        Implement pyarrow array interface (requires pyarrow>=0.15).
+
+        Returns
+        -------
+        pa.Array
+
+        """
+        if self._has_single_chunk:
+            data = self.data.chunks[0]
+        else:
+            data = pa.concat_arrays(self.data.iterchunks())
+            self.data = pa.chunked_array([data])  # modify a data pointer inplace
+
+        if type is not None and type != data.type:
+            return data.cast(type, safe=False)
+        else:
+            return data
+
     @property
     def shape(self):
         # type: () -> Tuple[int]
@@ -291,7 +312,7 @@ class FletcherArray(ExtensionArray):
 
     def _get_chunk_indexer(self, array):
         """Return an array with the chunk number for each index."""
-        if self.data.num_chunks == 1:
+        if self._has_single_chunk:
             return np.broadcast_to(0, len(array))
         return np.digitize(array, self.offsets[1:])
 
@@ -522,7 +543,7 @@ class FletcherArray(ExtensionArray):
         """
         if self.data.num_chunks == 0:
             return type(self)(pa.array([], type=self.data.type)).factorize(na_sentinel)
-        elif self.data.num_chunks == 1:
+        elif self._has_single_chunk:
             # Dictionaryencode and do the same as above
             encoded = self.data.chunk(0).dictionary_encode()
             indices = encoded.indices.to_pandas()
@@ -535,6 +556,7 @@ class FletcherArray(ExtensionArray):
         else:
             np_array = self.data.to_pandas().values
             return pd.factorize(np_array, na_sentinel=na_sentinel)
+
     def astype(self, dtype, copy=True):
         """
         Cast to a NumPy array with 'dtype'.
@@ -649,6 +671,38 @@ class FletcherArray(ExtensionArray):
             new_values = self.copy()
         return new_values
 
+    def _take_on_concatenated_chunks(self, indices):
+        return FletcherArray(self.__arrow_array__().take(pa.array(indices)))
+
+    def _take_on_chunks(self, indices, limits_idx, cum_lengths, sort_idx=None):
+        def take_in_one_chunk(i_chunk):
+            indices_chunk = indices[limits_idx[i_chunk] : limits_idx[i_chunk + 1]]
+            indices_chunk -= cum_lengths[i_chunk]
+            return self.data.chunk(i_chunk).take(pa.array(indices_chunk))
+            # this is a pyarrow.Array
+
+        result = [take_in_one_chunk(i) for i in range(self.data.num_chunks)]
+        # we know that self.data.num_chunks >1
+
+        if sort_idx is None:
+            return FletcherArray(
+                pa.chunked_array(filter(len, result), type=self.data.type)
+            )
+        else:
+            return FletcherArray(pa.concat_arrays(result).take(pa.array(sort_idx)))
+
+    @property
+    def _indices_dtype(self):
+        """
+        Return the correct DataType for an array of indices of an ExtensionArray, either int32 or int64
+        depending on the length.
+        """
+
+        # this is the right bound because the last element of self is at position len(self)-1
+        return np.dtype(
+            np.int32() if len(self) <= np.iinfo(np.int32()).max + 1 else np.int64()
+        )
+
     def take(self, indices, allow_fill=False, fill_value=None):
         # type: (Sequence[int], bool, Optional[Any]) -> ExtensionArray
         """
@@ -700,16 +754,67 @@ class FletcherArray(ExtensionArray):
         numpy.take
         pandas.api.extensions.take
         """
-        from pandas.core.algorithms import take
+        threshold_ratio = 0.3
 
-        data = self.astype(object)
-        if allow_fill and fill_value is None:
-            fill_value = self.dtype.na_value
-        # fill value should always be translated from the scalar
-        # type for the array, to the physical storage type for
-        # the data, before passing to take.
-        result = take(data, indices, fill_value=fill_value, allow_fill=allow_fill)
-        return self._from_sequence(result, dtype=self.data.type)
+        # this is the threshold to decide whether or not to concat everything first.
+        # Benchmarks were made on string, int32, int64, float32, float64 and it turns out that 0.3 is the value where it
+        # is best to switch to concatening everything first, both time-wise and memory-wise
+
+        length = len(self)
+        indices = np.asarray(indices, dtype=self._indices_dtype)
+        has_negative_indices = np.any(indices < 0)  # type: ignore
+        allow_fill &= has_negative_indices
+        if allow_fill:
+            validate_indices(indices, length)
+        if (has_negative_indices and not allow_fill) or np.any(
+            indices >= length  # type: ignore
+        ):
+            # this will raise IndexError expected by pandas in all needed cases
+            indices = np.arange(length, dtype=self._indices_dtype).take(indices)
+        # here we guarantee that indices is numpy array of ints
+        # and we have checked that all indices are between -1/0 and len(self)
+
+        if not allow_fill:
+
+            if self._has_single_chunk:
+                return FletcherArray(self.data.chunk(0).take(pa.array(indices)))
+
+            lengths = np.fromiter(map(len, self.data.iterchunks()), dtype=np.int)
+            cum_lengths = lengths.cumsum()
+
+            bins = self._get_chunk_indexer(indices)
+
+            cum_lengths -= lengths
+            limits_idx = np.concatenate(
+                [[0], np.bincount(bins, minlength=self.data.num_chunks).cumsum()]
+            )
+
+            if pd.Series(bins).is_monotonic:
+                del bins
+                return self._take_on_chunks(
+                    indices, limits_idx=limits_idx, cum_lengths=cum_lengths
+                )
+            elif len(indices) / len(self) > threshold_ratio:
+                # check which method is going to take less memory
+                return self._take_on_concatenated_chunks(indices)
+            else:
+                sort_idx = get_group_index_sorter(bins, self.data.num_chunks)
+                del bins
+                indices = indices.take(sort_idx, out=indices)  # type: ignore
+                sort_idx = np.argsort(sort_idx, kind="merge")  # inverse sort indices
+                return self._take_on_chunks(
+                    indices,
+                    sort_idx=sort_idx,
+                    limits_idx=limits_idx,
+                    cum_lengths=cum_lengths,
+                )
+
+        else:
+            if pd.isnull(fill_value):
+                fill_value = None
+            return self._concat_same_type(
+                [self, FletcherArray([fill_value], dtype=self.data.type)]
+            ).take(indices)
 
 
 def pandas_from_arrow(
