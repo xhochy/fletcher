@@ -4,13 +4,13 @@ from __future__ import absolute_import, division, print_function
 
 import datetime
 from collections import OrderedDict
-from collections.abc import Iterable
 from typing import Any, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import pandas as pd
 import pyarrow as pa
 import six
+from pandas.api.types import is_array_like, is_bool_dtype, is_integer
 from pandas.api.types import (
     is_array_like,
     is_bool_dtype,
@@ -20,6 +20,8 @@ from pandas.api.types import (
 )
 from pandas.core.arrays import ExtensionArray
 from pandas.core.dtypes.dtypes import ExtensionDtype
+from pandas.core.indexers import validate_indices
+from pandas.core.sorting import get_group_index_sorter
 
 from ._algorithms import all_op, any_op, extract_isnull_bytemap
 
@@ -432,50 +434,20 @@ class FletcherArray(ExtensionArray):
         For a boolean mask, return an instance of ``ExtensionArray``, filtered
         to the values where ``item`` is True.
         """
-        # Workaround for Arrow bug that segfaults on empty slice.
-        # This is fixed in Arrow master, will be released in 0.10
-        if isinstance(item, slice):
-            start = item.start or 0
-            stop = item.stop if item.stop is not None else len(self.data)
-            stop = min(stop, len(self.data))
-            step = item.step if item.step is not None else 1
-            # Arrow can't handle slices with steps other than 1
-            # https://issues.apache.org/jira/browse/ARROW-2714
-            if step != 1:
-                arr = np.asarray(self)[item]
-                # ARROW-2806: Inconsistent handling of np.nan requires adding a mask
-                if pa.types.is_integer(self.dtype.arrow_dtype) or pa.types.is_floating(
-                    self.dtype.arrow_dtype
-                ):
-                    mask = pd.isna(arr)
-                else:
-                    mask = None
-                return type(self)(pa.array(arr, type=self.dtype.arrow_dtype, mask=mask))
-            if stop - start == 0:
-                return type(self)(pa.array([], type=self.data.type))
-        elif isinstance(item, Iterable):
-            if not is_array_like(item):
-                item = np.array(item)
-            if is_integer_dtype(item):
-                return self.take(item)
-            elif is_bool_dtype(item):
-                indices = np.array(item)
-                indices = np.argwhere(indices).flatten()
-                return self.take(indices)
+        if is_integer(item):
+            return self.data[item].as_py()
+        if (
+            not isinstance(item, slice)
+            and len(item) > 0
+            and np.asarray(item[:1]).dtype.kind == "b"
+        ):
+            item = np.argwhere(item).flatten()
+        elif isinstance(item, slice):
+            if item.step == 1 or item.step is None:
+                return FletcherArray(self.data[item])
             else:
-                raise IndexError(
-                    "Only integers, slices and integer or boolean arrays are valid indices."
-                )
-        elif is_integer(item):
-            if item < 0:
-                item += len(self)
-            if item >= len(self):
-                return None
-        value = self.data[item]
-        if isinstance(value, pa.ChunkedArray):
-            return type(self)(value)
-        else:
-            return value.as_py()
+                item = np.arange(len(self), dtype=self._indices_dtype)[item]
+        return self.take(item)
 
     def isna(self):
         # type: () -> np.ndarray
@@ -516,9 +488,8 @@ class FletcherArray(ExtensionArray):
         return size
 
     @property
-    def base(self):
-        """Return base object of the underlying data."""
-        return self.data
+    def _has_single_chunk(self):
+        return self.data.num_chunks == 1
 
     def factorize(self, na_sentinel=-1):
         # type: (int) -> Tuple[np.ndarray, ExtensionArray]
@@ -549,8 +520,8 @@ class FletcherArray(ExtensionArray):
         -----
         :meth:`pandas.factorize` offers a `sort` keyword as well.
         """
-        if pa.types.is_dictionary(self.data.type):
-            raise NotImplementedError()
+        if self.data.num_chunks == 0:
+            return type(self)(pa.array([], type=self.data.type)).factorize(na_sentinel)
         elif self.data.num_chunks == 1:
             # Dictionaryencode and do the same as above
             encoded = self.data.chunk(0).dictionary_encode()
@@ -564,7 +535,6 @@ class FletcherArray(ExtensionArray):
         else:
             np_array = self.data.to_pandas().values
             return pd.factorize(np_array, na_sentinel=na_sentinel)
-
     def astype(self, dtype, copy=True):
         """
         Cast to a NumPy array with 'dtype'.
