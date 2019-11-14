@@ -28,7 +28,7 @@ def test_array_chunked():
 @pytest.fixture(
     params=["all", "all_float", "some_in_all_chunks", "only_in_some_chunk", "none"]
 )
-def test_array_chunked_nulls(request):
+def array_chunked_nulls(request):
     case_dict = {
         "all": pa.chunked_array([pa.array([None] * 4) for _ in range(10)]),
         "all_float": pa.chunked_array(
@@ -175,8 +175,8 @@ def test_isna():
     tm.assert_series_equal(s.notna(), ~expected)
 
 
-def test_isna_chunked(test_array_chunked_nulls):
-    fa = fr.FletcherArray(test_array_chunked_nulls)
+def test_isna_chunked(array_chunked_nulls):
+    fa = fr.FletcherArray(array_chunked_nulls)
     fs = pd.Series(fa)
     ps = pd.Series(np.array(fa))
     tm.assert_series_equal(fs.isna(), ps.isna())
@@ -217,8 +217,8 @@ def test_groupby():
 
 
 @pytest.mark.parametrize("kind", ["quicksort", "mergesort", "heapsort"])
-def test_argsort(test_array_chunked_nulls, kind):
-    s = pd.Series(fr.FletcherArray(test_array_chunked_nulls))
+def test_argsort(array_chunked_nulls, kind):
+    s = pd.Series(fr.FletcherArray(array_chunked_nulls))
     result = s.argsort(kind=kind)
     expected = s.astype(object).argsort(kind=kind)
     tm.assert_series_equal(result, expected)
