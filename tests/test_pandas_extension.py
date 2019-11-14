@@ -393,11 +393,6 @@ class TestBaseMethodsTests(BaseMethodsTests):
                 self, data_for_grouping, na_sentinel
             )
 
-    @pytest.mark.parametrize("box", [pd.Series, lambda x: x])
-    @pytest.mark.parametrize("method", [lambda x: x.unique(), pd.unique])
-    def test_unique(self, data, box, method):
-        BaseMethodsTests.test_unique(self, data, box, method)
-
     def test_searchsorted(self, data_for_sorting, as_series):  # noqa: F811
         if pa.types.is_boolean(data_for_sorting.dtype.arrow_dtype):
             pytest.skip("Boolean has too few values for this test")
