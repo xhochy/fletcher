@@ -489,8 +489,9 @@ class FletcherArray(ExtensionArray):
     def copy(self):
         # type: () -> ExtensionArray
         """
-        Return a copy of the array
-        currently is a shadow copy - pyarrow array are supposed to be immutable
+        Return a copy of the array.
+
+        Currently is a shadow copy - pyarrow array are supposed to be immutable.
 
         Returns
         -------
@@ -738,13 +739,18 @@ class FletcherArray(ExtensionArray):
     def unique(self):
         """
         Compute the ExtensionArray of unique values.
-        It completely relies on the Pyarrow.ChunkedArray.unique
+
+        It relies on the Pyarrow.ChunkedArray.unique and if
+        it fails, comes back to the naive implementation.
 
         Returns
         -------
         uniques : ExtensionArray
         """
-        return type(self)(self.data.unique())
+        try:
+            return type(self)(self.data.unique())
+        except NotImplementedError:
+            return super().unique()
 
 
 def pandas_from_arrow(
