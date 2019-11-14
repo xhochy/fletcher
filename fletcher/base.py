@@ -486,22 +486,17 @@ class FletcherArray(ExtensionArray):
         """
         return extract_isnull_bytemap(self.data)
 
-    def copy(self, deep=False):
-        # type: (bool) -> ExtensionArray
+    def copy(self):
+        # type: () -> ExtensionArray
         """
         Return a copy of the array.
 
-        Parameters
-        ----------
-        deep : bool, default False
-            Also copy the underlying data backing this array.
+        Currently is a shadow copy - pyarrow array are supposed to be immutable.
 
         Returns
         -------
         ExtensionArray
         """
-        if deep:
-            raise NotImplementedError("Deep copy is not supported")
         return type(self)(self.data)
 
     @property
@@ -740,6 +735,22 @@ class FletcherArray(ExtensionArray):
         # the data, before passing to take.
         result = take(data, indices, fill_value=fill_value, allow_fill=allow_fill)
         return self._from_sequence(result, dtype=self.data.type)
+
+    def unique(self):
+        """
+        Compute the ExtensionArray of unique values.
+
+        It relies on the Pyarrow.ChunkedArray.unique and if
+        it fails, comes back to the naive implementation.
+
+        Returns
+        -------
+        uniques : ExtensionArray
+        """
+        try:
+            return type(self)(self.data.unique())
+        except NotImplementedError:
+            return super().unique()
 
 
 def pandas_from_arrow(
