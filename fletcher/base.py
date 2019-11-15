@@ -686,7 +686,6 @@ class FletcherArray(ExtensionArray):
 
     @property
     def _indices_dtype(self):
-
         """
         Return the correct DataType for an array of indices of an ExtensionArray.
 
