@@ -3,21 +3,13 @@
 from __future__ import absolute_import, division, print_function
 
 import datetime
-from collections import OrderedDict
 from typing import Any, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import pandas as pd
 import pyarrow as pa
 import six
-from pandas.api.types import is_array_like, is_bool_dtype, is_integer
-from pandas.api.types import (
-    is_array_like,
-    is_bool_dtype,
-    is_int64_dtype,
-    is_integer,
-    is_integer_dtype,
-)
+from pandas.api.types import is_array_like, is_bool_dtype, is_int64_dtype, is_integer
 from pandas.core.arrays import ExtensionArray
 from pandas.core.dtypes.dtypes import ExtensionDtype
 from pandas.core.indexers import validate_indices
@@ -693,11 +685,12 @@ class FletcherArray(ExtensionArray):
 
     @property
     def _indices_dtype(self):
-        """
-        Return the correct DataType for an array of indices of an ExtensionArray, either int32 or int64
-        depending on the length.
-        """
 
+        """
+        Return the correct DataType for an array of indices of an ExtensionArray.
+
+        The Datatype is either int32 or int64 depending on the length.
+        """
         # this is the right bound because the last element of self is at position len(self)-1
         return np.dtype(
             np.int32() if len(self) <= np.iinfo(np.int32()).max + 1 else np.int64()
