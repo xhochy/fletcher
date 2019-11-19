@@ -230,27 +230,6 @@ class FletcherArray(ExtensionArray):
         """
         return len(self.data)
 
-    def __arrow_array__(self, type=None):
-        # type: (pa.DataType,) -> pa.Array
-        """
-        Implement pyarrow array interface (requires pyarrow>=0.15).
-
-        Returns
-        -------
-        pa.Array
-
-        """
-        if self._has_single_chunk:
-            data = self.data.chunks[0]
-        else:
-            data = pa.concat_arrays(self.data.iterchunks())
-            self.data = pa.chunked_array([data])  # modify a data pointer inplace
-
-        if type is not None and type != data.type:
-            return data.cast(type, safe=False)
-        else:
-            return data
-
     @property
     def shape(self):
         # type: () -> Tuple[int]
@@ -665,7 +644,8 @@ class FletcherArray(ExtensionArray):
         return new_values
 
     def _take_on_concatenated_chunks(self, indices):
-        return FletcherArray(self.__arrow_array__().take(pa.array(indices)))
+        arr = pa.concat_arrays(chunk for chunk in self.data.iterchunks())
+        return FletcherArray(arr.take(pa.array(indices)))
 
     def _take_on_chunks(self, indices, limits_idx, cum_lengths, sort_idx=None):
         def take_in_one_chunk(i_chunk):
