@@ -95,13 +95,15 @@ def test_str_concat():
 def test_decode_example():
     strings = ["foo", "bar", "baz"]
     expected = strings[1].encode("utf32")
-    expected = memoryview(expected)
-    expected = np.asarray(expected).view(np.uint32)
+    expected_view = memoryview(expected)
+    expected_arr = np.asarray(expected_view).view(np.uint32)
 
     # remove endianness marker
-    expected = expected.view(np.uint32)[1:]
+    expected_arr = expected_arr.view(np.uint32)[1:]
 
-    np.testing.assert_almost_equal(NumbaStringArray.make(strings).decode(1), expected)
+    np.testing.assert_almost_equal(
+        NumbaStringArray.make(strings).decode(1), expected_arr
+    )
 
 
 @pytest.mark.parametrize(

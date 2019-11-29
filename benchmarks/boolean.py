@@ -8,11 +8,11 @@ import fletcher as fr
 class BooleanAny:
     def setup(self):
         data = np.zeros(2 ** 24).astype(bool)
-        self.fr_data = pd.Series(fr.FletcherArray(pa.array(data)))
+        self.fr_data = pd.Series(fr.FletcherChunkedArray(pa.array(data)))
         self.np_data = pd.Series(data.astype(np.float32))
         data_withna = np.zeros(2 ** 24).astype(bool).astype(object)
         data_withna[-1] = None
-        self.fr_data_withna = pd.Series(fr.FletcherArray(pa.array(data_withna)))
+        self.fr_data_withna = pd.Series(fr.FletcherChunkedArray(pa.array(data_withna)))
         self.np_data_withna = pd.Series(data_withna.astype(np.float32))
 
     def time_fletcher(self):
@@ -43,11 +43,11 @@ class BooleanAny:
 class BooleanAll:
     def setup(self):
         data = np.ones(2 ** 24).astype(bool)
-        self.fr_data = pd.Series(fr.FletcherArray(pa.array(data)))
+        self.fr_data = pd.Series(fr.FletcherChunkedArray(pa.array(data)))
         self.np_data = pd.Series(data.astype(np.float32))
         data_withna = data.astype(object)
         data_withna[-1] = None
-        self.fr_data_withna = pd.Series(fr.FletcherArray(pa.array(data_withna)))
+        self.fr_data_withna = pd.Series(fr.FletcherChunkedArray(pa.array(data_withna)))
         self.np_data_withna = pd.Series(data_withna.astype(np.float32))
 
     def time_fletcher(self):

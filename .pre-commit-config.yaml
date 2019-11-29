@@ -16,6 +16,9 @@ repos:
     hooks:
      - id: mypy
        additional_dependencies: [pandas]
+       args:
+         - --check-untyped-defs
+         - --ignore-missing-imports
   - repo: git://github.com/pre-commit/mirrors-isort
     rev: v4.3.18
     hooks:

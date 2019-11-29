@@ -1,3 +1,5 @@
+from typing import Any
+
 import numpy as np
 import pandas as pd
 import pyarrow as pa
@@ -18,7 +20,7 @@ class TimeSuite:
         array = generate_test_array(2 ** 15)
         self.df = pd.DataFrame({"str": array})
         self.df_ext = pd.DataFrame(
-            {"str": fr.FletcherArray(pa.array(array, pa.string()))}
+            {"str": fr.FletcherChunkedArray(pa.array(array, pa.string()))}
         )
 
     def time_isnull(self):
@@ -53,6 +55,10 @@ class TimeSuite:
 
 
 class Indexing(object):
+    # index and value have diverse values, disable type checks for them
+    indexer: Any
+    value: Any
+
     n = 2 ** 12
 
     params = [
@@ -92,7 +98,7 @@ class Indexing(object):
             array = [array]
         self.df_ext = pd.DataFrame(
             {
-                "str": fr.FletcherArray(
+                "str": fr.FletcherChunkedArray(
                     pa.chunked_array([pa.array(chunk, pa.string()) for chunk in array])
                 )
             }

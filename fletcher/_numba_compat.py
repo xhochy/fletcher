@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
 
-from __future__ import absolute_import, division, print_function
-
 import math
 import types
+from typing import Callable
 
 import numba
 import numpy as np
@@ -35,6 +34,8 @@ class NumbaStringArray(object):
 
         NumbaStringArray.make(array)
     """
+
+    make: Callable
 
     def __init__(self, missing, offsets, data, offset):
         self.missing = missing
@@ -117,6 +118,8 @@ NumbaStringArray.make = types.MethodType(_make, NumbaStringArray)  # type: ignor
     [("start", numba.uint32), ("end", numba.uint32), ("data", numba.uint8[:])]
 )
 class NumbaString(object):
+    make: Callable
+
     def __init__(self, data, start=0, end=None):
         if end is None:
             end = data.shape[0]

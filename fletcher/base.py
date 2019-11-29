@@ -49,7 +49,7 @@ _python_type_map = {
 _string_type_map = {"date64[ms]": pa.date64(), "string": pa.string()}
 
 
-class FletcherDtype(ExtensionDtype):
+class FletcherChunkedDtype(ExtensionDtype):
     """Dtype for a pandas ExtensionArray backed by Apache Arrow."""
 
     # na_value = pa.Null()
@@ -63,11 +63,11 @@ class FletcherDtype(ExtensionDtype):
 
     def __str__(self):
         """Convert to string."""
-        return "fletcher[{}]".format(self.arrow_dtype)
+        return "fletcher_chunked[{}]".format(self.arrow_dtype)
 
     def __repr__(self):
         """Return the textual representation of this object."""
-        return "FletcherDType({})".format(str(self.arrow_dtype))
+        return "FletcherChunkedDType({})".format(str(self.arrow_dtype))
 
     def __eq__(self, other):
         """Check whether 'other' is equal to self.
@@ -158,8 +158,8 @@ class FletcherDtype(ExtensionDtype):
         ...                         "'{}'".format(cls, string))
         """
         # Remove fletcher specific naming from the arrow type string.
-        if string.startswith("fletcher["):
-            string = string[9:-1]
+        if string.startswith("fletcher_chunked["):
+            string = string[len("fletcher_chunked[") : -1]
 
         if string == "list<item: string>":
             return cls(pa.list_(pa.string()))
@@ -183,17 +183,17 @@ class FletcherDtype(ExtensionDtype):
         """
         if len(args) > 0:
             raise NotImplementedError("construct_array_type does not support arguments")
-        return FletcherArray
+        return FletcherChunkedArray
 
 
-class FletcherArray(ExtensionArray):
+class FletcherChunkedArray(ExtensionArray):
     """Pandas ExtensionArray implementation backed by Apache Arrow."""
 
     _can_hold_na = True
 
     def __init__(self, array, dtype=None, copy=None):
         # Copy is not used at the moment. It's only affect will be when we
-        # allow array to be a FletcherArray
+        # allow array to be a FletcherChunkedArray
         if is_array_like(array) or isinstance(array, list):
             self.data = pa.chunked_array([pa.array(array, type=dtype)])
         elif isinstance(array, pa.Array):
@@ -211,12 +211,11 @@ class FletcherArray(ExtensionArray):
                     self.__class__.__name__, type(array)
                 )
             )
-        self._dtype = FletcherDtype(self.data.type)
+        self._dtype = FletcherChunkedDtype(self.data.type)
         self.offsets = self._calculate_chunk_offsets()
 
     @property
-    def dtype(self):
-        # type: () -> ExtensionDtype
+    def dtype(self) -> ExtensionDtype:
         """Return the ExtensionDtype of this array."""
         return self._dtype
 
@@ -581,7 +580,7 @@ class FletcherArray(ExtensionArray):
         if self.dtype == dtype:
             return self
 
-        if isinstance(dtype, FletcherDtype):
+        if isinstance(dtype, FletcherChunkedDtype):
             dtype = dtype.arrow_dtype.to_pandas_dtype()
             arrow_type = dtype.arrow_dtype
         elif isinstance(dtype, pa.DataType):
@@ -595,7 +594,9 @@ class FletcherArray(ExtensionArray):
         if pa.types.is_list(self.dtype.arrow_dtype) and dtype.kind == "U":
             return np.vectorize(six.text_type)(np.asarray(self))
         if arrow_type is not None:
-            return FletcherArray(np.asarray(self).astype(dtype), dtype=arrow_type)
+            return FletcherChunkedArray(
+                np.asarray(self).astype(dtype), dtype=arrow_type
+            )
         else:
             return np.asarray(self).astype(dtype)
 
@@ -614,9 +615,9 @@ class FletcherArray(ExtensionArray):
         -------
         ExtensionArray
         """
-        if isinstance(scalars, FletcherArray):
+        if isinstance(scalars, FletcherChunkedArray):
             return scalars
-        if dtype and isinstance(dtype, FletcherDtype):
+        if dtype and isinstance(dtype, FletcherChunkedDtype):
             dtype = dtype.arrow_dtype
         return cls(pa.array(scalars, type=dtype, from_pandas=True))
 
@@ -767,15 +768,15 @@ def pandas_from_arrow(
         data: OrderedDict = OrderedDict()
         for ix, arr in enumerate(arrow_object):
             col_name = arrow_object.schema.names[ix]
-            data[col_name] = FletcherArray(arr)
+            data[col_name] = FletcherChunkedArray(arr)
         return pd.DataFrame(data)
     elif isinstance(arrow_object, pa.Table):
         data = OrderedDict()
         for name, col in zip(arrow_object.column_names, arrow_object.itercolumns()):
-            data[name] = FletcherArray(col)
+            data[name] = FletcherChunkedArray(col)
         return pd.DataFrame(data)
     elif isinstance(arrow_object, (pa.ChunkedArray, pa.Array)):
-        return pd.Series(FletcherArray(arrow_object))
+        return pd.Series(FletcherChunkedArray(arrow_object))
     else:
         raise NotImplementedError(
             "Objects of type {} are not supported".format(type(arrow_object))

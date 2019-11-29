@@ -14,7 +14,7 @@ import fletcher as fr
 data = ["foo", None, "baz", "bar", None, "..bar"]
 
 df = pd.DataFrame(
-    {"pd": pd.Series(data), "fr": fr.FletcherArray(data, dtype=pa.string())}
+    {"pd": pd.Series(data), "fr": fr.FletcherChunkedArray(data, dtype=pa.string())}
 )
 
 

@@ -7,7 +7,7 @@ import pandas as pd
 
 from ._algorithms import _endswith, _startswith
 from ._numba_compat import NumbaString, NumbaStringArray
-from .base import FletcherArray
+from .base import FletcherChunkedArray
 
 
 @pd.api.extensions.register_series_accessor("text")
@@ -15,8 +15,8 @@ class TextAccessor:
     """Accessor for pandas exposed as ``.str``."""
 
     def __init__(self, obj):
-        if not isinstance(obj.values, FletcherArray):
-            raise AttributeError("only FletcherArray[string] has text accessor")
+        if not isinstance(obj.values, FletcherChunkedArray):
+            raise AttributeError("only FletcherChunkedArray[string] has text accessor")
         self.obj = obj
         self.data = self.obj.values.data
 
