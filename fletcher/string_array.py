@@ -1,7 +1,3 @@
-# -*- coding: utf-8 -*-
-
-from __future__ import absolute_import, division, print_function
-
 import numpy as np
 import pandas as pd
 
@@ -29,7 +25,7 @@ class TextAccessor:
         return self._call_x_with(_endswith, needle, na)
 
     def _call_x_with(self, impl, needle, na=None):
-        needle = NumbaString.make(needle)
+        needle = NumbaString.make(needle)  # type: ignore
 
         if isinstance(na, bool):
             result = np.zeros(len(self.data), dtype=np.bool)
@@ -41,7 +37,8 @@ class TextAccessor:
 
         offset = 0
         for chunk in self.data.chunks:
-            impl(NumbaStringArray.make(chunk), needle, na_arg, offset, result)
+            str_arr = NumbaStringArray.make(chunk)  # type: ignore
+            impl(str_arr, needle, na_arg, offset, result)
             offset += len(chunk)
 
         result = pd.Series(result, index=self.obj.index, name=self.obj.name)

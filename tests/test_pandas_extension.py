@@ -8,9 +8,13 @@ from distutils.version import LooseVersion
 import pandas as pd
 import pyarrow as pa
 import pytest
-import six
 
-from fletcher import FletcherChunkedArray, FletcherChunkedDtype
+from fletcher import (
+    FletcherChunkedArray,
+    FletcherChunkedDtype,
+    FletcherContinuousArray,
+    FletcherContinuousDtype,
+)
 
 from pandas.tests.extension.base import (  # BaseArithmeticOpsTests,; BaseComparisonOpsTests,; BaseNumericReduceTests,
     BaseBooleanReduceTests,
@@ -152,6 +156,28 @@ test_types = [
 ]
 
 
+@pytest.fixture(params=["chunked", "continuous"])
+def fletcher_variant(request):
+    """Whether to test the chunked or continuous implementation."""
+    return request.param
+
+
+@pytest.fixture
+def fletcher_dtype(fletcher_variant):
+    if fletcher_variant == "chunked":
+        return FletcherChunkedDtype
+    else:
+        return FletcherContinuousDtype
+
+
+@pytest.fixture
+def fletcher_array(fletcher_variant):
+    if fletcher_variant == "chunked":
+        return FletcherChunkedArray
+    else:
+        return FletcherContinuousArray
+
+
 @pytest.fixture(params=[True, False])
 def box_in_series(request):
     """Whether to box the data in a Series."""
@@ -164,28 +190,28 @@ def fletcher_type(request):
 
 
 @pytest.fixture
-def dtype(fletcher_type):
-    return FletcherChunkedDtype(fletcher_type.dtype)
+def dtype(fletcher_type, fletcher_dtype):
+    return fletcher_dtype(fletcher_type.dtype)
 
 
 @pytest.fixture
-def data(fletcher_type):
-    return FletcherChunkedArray(fletcher_type.data, dtype=fletcher_type.dtype)
+def data(fletcher_type, fletcher_array):
+    return fletcher_array(fletcher_type.data, dtype=fletcher_type.dtype)
 
 
 @pytest.fixture
-def data_missing(fletcher_type):
-    return FletcherChunkedArray(fletcher_type.data_missing, dtype=fletcher_type.dtype)
+def data_missing(fletcher_type, fletcher_array):
+    return fletcher_array(fletcher_type.data_missing, dtype=fletcher_type.dtype)
 
 
 @pytest.fixture
-def data_repeated(fletcher_type):
+def data_repeated(fletcher_type, fletcher_array):
     """Return different versions of data for count times."""
     pass  # noqa
 
     def gen(count):
         for _ in range(count):
-            yield FletcherChunkedArray(
+            yield fletcher_array(
                 fletcher_type.data_repeated(), dtype=fletcher_type.dtype
             )
 
@@ -193,46 +219,40 @@ def data_repeated(fletcher_type):
 
 
 @pytest.fixture
-def data_for_grouping(fletcher_type):
+def data_for_grouping(fletcher_type, fletcher_array):
     """Fixture with data for factorization, grouping, and unique tests.
 
     Expected to be like [B, B, NA, NA, A, A, B, C]
 
     Where A < B < C and NA is missing
     """
-    return FletcherChunkedArray(
-        fletcher_type.data_for_grouping, dtype=fletcher_type.dtype
-    )
+    return fletcher_array(fletcher_type.data_for_grouping, dtype=fletcher_type.dtype)
 
 
 @pytest.fixture
-def data_for_sorting(fletcher_type):
+def data_for_sorting(fletcher_type, fletcher_array):
     """Length-3 array with a known sort order.
 
     This should be three items [B, C, A] with
     A < B < C
     """
-    return FletcherChunkedArray(
-        fletcher_type.data_for_sorting, dtype=fletcher_type.dtype
-    )
+    return fletcher_array(fletcher_type.data_for_sorting, dtype=fletcher_type.dtype)
 
 
 @pytest.fixture
-def data_missing_for_sorting(fletcher_type):
+def data_missing_for_sorting(fletcher_type, fletcher_array):
     """Length-3 array with a known sort order.
 
     This should be three items [B, NA, A] with
     A < B and NA missing.
     """
-    return FletcherChunkedArray(
+    return fletcher_array(
         fletcher_type.data_missing_for_sorting, dtype=fletcher_type.dtype
     )
 
 
 class TestBaseCasting(BaseCastingTests):
-    @pytest.mark.xfail(six.PY2, reason="Cast of UTF8 to `str` fails in py2.")
-    def test_astype_str(self, data):
-        BaseCastingTests.test_astype_str(self, data)
+    pass
 
 
 class TestBaseConstructors(BaseConstructorsTests):
@@ -357,7 +377,10 @@ class TestBaseMethodsTests(BaseMethodsTests):
         self.assert_series_equal(result, expected)
 
     def test_combine_add(self, data_repeated, dtype):
-        if dtype.name == "fletcher_chunked[date64[ms]]":
+        if dtype.name in [
+            "fletcher_chunked[date64[ms]]",
+            "fletcher_continuous[date64[ms]]",
+        ]:
             pytest.skip(
                 "unsupported operand type(s) for +: 'datetime.date' and 'datetime.date"
             )
@@ -424,6 +447,9 @@ class TestBaseReshapingTests(BaseReshapingTests):
             "fletcher_chunked[int64]",
             "fletcher_chunked[double]",
             "fletcher_chunked[bool]",
+            "fletcher_continuous[int64]",
+            "fletcher_continuous[double]",
+            "fletcher_continuous[bool]",
         ]:
             # https://github.com/pandas-dev/pandas/issues/21792
             pytest.skip("pd.concat(int64, fletcher_chunked[int64] yields int64")

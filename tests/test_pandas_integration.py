@@ -138,7 +138,9 @@ def test_isnull():
 
 def test_isna_empty():
     np.testing.assert_array_equal(
-        fr.FletcherArray(pa.chunked_array([[], [None], [1]], type=pa.int32())).isna(),
+        fr.FletcherChunkedArray(
+            pa.chunked_array([[], [None], [1]], type=pa.int32())
+        ).isna(),
         np.array([True, False]),
     )
 
@@ -180,7 +182,7 @@ def test_isna():
 
 
 def test_isna_chunked(array_chunked_nulls):
-    fa = fr.FletcherArray(array_chunked_nulls)
+    fa = fr.FletcherChunkedArray(array_chunked_nulls)
     fs = pd.Series(fa)
     ps = pd.Series(np.array(fa))
     tm.assert_series_equal(fs.isna(), ps.isna())
@@ -212,11 +214,11 @@ def test_factorize():
 
 
 def test_unique():
-    arr = fr.FletcherArray(TEST_ARRAY)
+    arr = fr.FletcherChunkedArray(TEST_ARRAY)
     uniques = arr.unique()
     expected_uniques = pd.unique(arr.astype(object))
 
-    assert isinstance(uniques, fr.FletcherArray)
+    assert isinstance(uniques, fr.FletcherChunkedArray)
 
     uniques = uniques.astype(object)
     npt.assert_array_equal(uniques, expected_uniques)

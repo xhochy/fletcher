@@ -36,7 +36,7 @@ def null_count(sa):
     ],
 )
 def test_null_count(array, expected):
-    assert null_count(NumbaStringArray.make(array)) == expected
+    assert null_count(NumbaStringArray.make(array)) == expected  # type: ignore
 
 
 @pytest.mark.parametrize(
@@ -54,7 +54,7 @@ def test_null_count(array, expected):
 def test_isnull(array, expected, offset):
     array = pa.array(array, pa.string())[offset:]
     np.testing.assert_array_equal(
-        isnull(NumbaStringArray.make(array)),
+        isnull(NumbaStringArray.make(array)),  # type: ignore
         np.asarray(expected[offset:], dtype=np.bool),
     )
 
@@ -75,7 +75,7 @@ def test_isnull(array, expected, offset):
 def test_str_length(array, expected, offset):
     array = pa.array(array, pa.string())[offset:]
     np.testing.assert_array_equal(
-        str_length(NumbaStringArray.make(array)),
+        str_length(NumbaStringArray.make(array)),  # type: ignore
         np.asarray(expected[offset:], dtype=np.int32),
     )
 
@@ -84,8 +84,10 @@ def test_str_concat():
     a1 = pa.array(["f", "ba", "baz"])
     a2 = pa.array(["oo", "r", ""])
 
-    actual = str_concat(NumbaStringArray.make(a1), NumbaStringArray.make(a2))
-    expected = NumbaStringArray.make(["foo", "bar", "baz"])
+    str_a1 = NumbaStringArray.make(a1)  # type: ignore
+    str_a2 = NumbaStringArray.make(a2)  # type: ignore
+    actual = str_concat(str_a1, str_a2)
+    expected = NumbaStringArray.make(["foo", "bar", "baz"])  # type: ignore
 
     np.testing.assert_array_equal(actual.missing, expected.missing)
     np.testing.assert_array_equal(actual.offsets, expected.offsets)
@@ -102,7 +104,7 @@ def test_decode_example():
     expected_arr = expected_arr.view(np.uint32)[1:]
 
     np.testing.assert_almost_equal(
-        NumbaStringArray.make(strings).decode(1), expected_arr
+        NumbaStringArray.make(strings).decode(1), expected_arr  # type: ignore
     )
 
 

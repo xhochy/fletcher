@@ -1,13 +1,9 @@
-# -*- coding: utf-8 -*-
-
 import math
 import types
-from typing import Callable
 
 import numba
 import numpy as np
 import pyarrow as pa
-import six
 
 _string_buffer_types = np.uint8, np.uint32, np.uint8
 
@@ -27,15 +23,13 @@ def buffers_as_arrays(sa):
         ("offset", numba.int64),
     ]
 )
-class NumbaStringArray(object):
+class NumbaStringArray:
     """Wrapper around arrow's StringArray for use in numba functions.
 
     Usage::
 
         NumbaStringArray.make(array)
     """
-
-    make: Callable
 
     def __init__(self, missing, offsets, data, offset):
         self.missing = missing
@@ -117,9 +111,7 @@ NumbaStringArray.make = types.MethodType(_make, NumbaStringArray)  # type: ignor
 @numba.jitclass(
     [("start", numba.uint32), ("end", numba.uint32), ("data", numba.uint8[:])]
 )
-class NumbaString(object):
-    make: Callable
-
+class NumbaString:
     def __init__(self, data, start=0, end=None):
         if end is None:
             end = data.shape[0]
@@ -137,7 +129,7 @@ class NumbaString(object):
 
 
 def _make_string(cls, obj):
-    if isinstance(obj, six.text_type):
+    if isinstance(obj, str):
         data = obj.encode("utf8")
         data = np.asarray(memoryview(data))
 
@@ -160,7 +152,7 @@ NumbaString.make = types.MethodType(_make_string, NumbaString)  # type: ignore
         ("byte_capacity", numba.uint32),
     ]
 )
-class NumbaStringArrayBuilder(object):
+class NumbaStringArrayBuilder:
     def __init__(self, string_capacity, byte_capacity):
         self.missing = np.ones(_missing_capactiy(string_capacity), np.uint8)
         self.offsets = np.zeros(string_capacity + 1, np.uint32)

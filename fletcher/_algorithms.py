@@ -1,6 +1,4 @@
-# -*- coding: utf-8 -*-
-
-from __future__ import absolute_import, division, print_function
+from typing import Union
 
 import numba
 import numpy as np
@@ -33,32 +31,45 @@ def _extract_isnull_bytemap(bitmap, bitmap_length, bitmap_offset, dst_offset, ds
         dst[dst_offset + i] = (bitmap[byte_idx] & bit_mask) == 0
 
 
-def extract_isnull_bytemap(chunked_array):
+def extract_isnull_bytemap(array: Union[pa.ChunkedArray, pa.Array]) -> np.array:
     """
-    Extract the valid bitmaps of a chunked array into numpy isnull bytemaps.
+    Extract the valid bitmaps of a (chunked) array into numpy isnull bytemaps.
 
     Parameters
     ----------
-    chunked_array: pyarrow.ChunkedArray
+    array
+        Array from which we extract the validity bits as bytes
 
     Returns
     -------
-    valid_bytemap: numpy.array
+    valid_bytemap
     """
-    if chunked_array.null_count == len(chunked_array):
-        return np.ones(len(chunked_array), dtype=bool)
+    if array.null_count == len(array):
+        return np.ones(len(array), dtype=bool)
 
-    result = np.zeros(len(chunked_array), dtype=bool)
-    if chunked_array.null_count == 0:
-        return result
+    if isinstance(array, pa.ChunkedArray):
+        result = np.zeros(len(array), dtype=bool)
+        if array.null_count == 0:
+            return result
 
-    offset = 0
-    for chunk in chunked_array.chunks:
-        if chunk.null_count > 0:
-            _extract_isnull_bytemap(
-                chunk.buffers()[0], len(chunk), chunk.offset, offset, result
-            )
-        offset += len(chunk)
+        offset = 0
+        for chunk in array.chunks:
+            if chunk.null_count > 0:
+                _extract_isnull_bytemap(
+                    chunk.buffers()[0], len(chunk), chunk.offset, offset, result
+                )
+            offset += len(chunk)
+    else:
+        valid_bitmap = array.buffers()[0]
+        if valid_bitmap:
+            # TODO: Can we use np.empty here to improve performance?
+            result = np.zeros(len(array), dtype=bool)
+            # TODO(ARROW-2664): We only need to following line to support
+            #   executing the code in disabled-JIT mode.
+            buf = memoryview(valid_bitmap)
+            _extract_isnull_bytemap(buf, len(array), array.offset, 0, result)
+        else:
+            result = np.full(len(array), False)
 
     return result
 
