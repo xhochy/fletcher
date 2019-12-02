@@ -1,12 +1,15 @@
+from datetime import timedelta
+
 import hypothesis.strategies as st
 import numpy as np
 import pandas as pd
 import pyarrow as pa
-from hypothesis import example, given
+from hypothesis import example, given, settings
 
 from fletcher._algorithms import all_op, any_op
 
 
+@settings(deadline=timedelta(milliseconds=1000))
 @given(data=st.lists(st.one_of(st.booleans(), st.none())), skipna=st.booleans())
 @example([], False)
 @example([], True)
@@ -29,6 +32,7 @@ def test_any_op(data, skipna):
         assert any_op(arrow, skipna) == pandas.any(skipna=skipna)
 
 
+@settings(deadline=timedelta(milliseconds=1000))
 @given(data=st.lists(st.one_of(st.booleans(), st.none())), skipna=st.booleans())
 # Test with numpy.array as input.
 # This has the caveat that the missing buffer is None.
