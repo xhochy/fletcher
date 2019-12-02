@@ -30,6 +30,9 @@ conda create -y -q -n fletcher python=${PYTHON_VERSION} \
     codecov \
     six \
     sphinx \
+    sphinx_rtd_theme \
+    numpydoc \
+    sphinxcontrib-apidoc \
     pre_commit \
     -c conda-forge
 source activate fletcher
