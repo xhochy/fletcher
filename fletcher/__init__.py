@@ -1,4 +1,17 @@
-from .base import FletcherArray, FletcherDtype, pandas_from_arrow
+from .base import (
+    FletcherChunkedArray,
+    FletcherChunkedDtype,
+    FletcherContinuousArray,
+    FletcherContinuousDtype,
+    pandas_from_arrow,
+)
 from .string_array import TextAccessor
 
-__all__ = ["FletcherArray", "FletcherDtype", "TextAccessor", "pandas_from_arrow"]
+__all__ = [
+    "FletcherChunkedArray",
+    "FletcherChunkedDtype",
+    "FletcherContinuousArray",
+    "FletcherContinuousDtype",
+    "TextAccessor",
+    "pandas_from_arrow",
+]

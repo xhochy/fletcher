@@ -1,7 +1,3 @@
-# -*- coding: utf-8 -*-
-
-from __future__ import absolute_import, division, print_function, unicode_literals
-
 import numpy as np
 import numpy.testing as npt
 import pandas as pd
@@ -18,7 +14,7 @@ def array_inhom_chunks():
     chunk2 = pa.array(list("12345"), pa.string())
     chunk3 = pa.array(list("Z"), pa.string())
     chunked_array = pa.chunked_array([chunk1, chunk2, chunk3])
-    return fr.FletcherArray(chunked_array)
+    return fr.FletcherChunkedArray(chunked_array)
 
 
 @pytest.mark.parametrize(
@@ -39,17 +35,17 @@ def test_get_chunk_indexer(array_inhom_chunks, indices, expected):
 
 def test_fletcherarray_constructor():
     with pytest.raises(ValueError):
-        fr.FletcherArray(None)
+        fr.FletcherChunkedArray(None)
 
 
 def test_pandas_from_arrow():
     arr = pa.array(["a", "b", "c"], pa.string())
 
-    expected_series_woutname = pd.Series(fr.FletcherArray(arr))
+    expected_series_woutname = pd.Series(fr.FletcherChunkedArray(arr))
     pdt.assert_series_equal(expected_series_woutname, fr.pandas_from_arrow(arr))
 
     rb = pa.RecordBatch.from_arrays([arr], ["column"])
-    expected_df = pd.DataFrame({"column": fr.FletcherArray(arr)})
+    expected_df = pd.DataFrame({"column": fr.FletcherChunkedArray(arr)})
     pdt.assert_frame_equal(expected_df, fr.pandas_from_arrow(rb))
 
     table = pa.Table.from_arrays([arr], ["column"])

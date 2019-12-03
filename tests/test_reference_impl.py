@@ -1,7 +1,3 @@
-# -*- coding: utf-8 -*-
-
-from __future__ import absolute_import, division, print_function, unicode_literals
-
 import operator as op
 
 import pandas as pd
@@ -14,7 +10,7 @@ import fletcher as fr
 data = ["foo", None, "baz", "bar", None, "..bar"]
 
 df = pd.DataFrame(
-    {"pd": pd.Series(data), "fr": fr.FletcherArray(data, dtype=pa.string())}
+    {"pd": pd.Series(data), "fr": fr.FletcherChunkedArray(data, dtype=pa.string())}
 )
 
 
