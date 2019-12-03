@@ -115,7 +115,7 @@ test_types = [
     pytest.param(
         FletcherTestType(
             pa.list_(pa.string()),
-            [["B", "C"], ["A"], [None], ["A", "A"], []],
+            [["B", "C"], ["A"], [None], ["A", "A"], []] * 20,
             [None, ["A"]],
             [["B"], ["B"], None, None, ["A"], ["A"], ["B"], ["C"]],
             [["B"], ["C"], ["A"]],
@@ -308,7 +308,11 @@ class TestBaseGroupbyTests(BaseGroupbyTests):
             or pa.types.is_floating(data_for_grouping.dtype.arrow_dtype)
             or pa.types.is_boolean(data_for_grouping.dtype.arrow_dtype)
         ):
-            pytest.mark.xfail(reasion="ExtensionIndex is not yet implemented")
+            pytest.mark.xfail(reason="ExtensionIndex is not yet implemented")
+        elif pa.types.is_list(data_for_grouping.dtype.arrow_dtype):
+            pytest.mark.xfail(
+                reason="ArrowNotImplementedError: dictionary-encode not implemented for list<item: string>"
+            )
         else:
             BaseGroupbyTests.test_groupby_extension_agg(
                 self, as_index, data_for_grouping
@@ -321,6 +325,10 @@ class TestBaseGroupbyTests(BaseGroupbyTests):
             or pa.types.is_boolean(data_for_grouping.dtype.arrow_dtype)
         ):
             pytest.mark.xfail(reasion="ExtensionIndex is not yet implemented")
+        elif pa.types.is_list(data_for_grouping.dtype.arrow_dtype):
+            pytest.mark.xfail(
+                reason="ArrowNotImplementedError: dictionary-encode not implemented for list<item: string>"
+            )
         else:
             BaseGroupbyTests.test_groupby_extension_no_sort(self, data_for_grouping)
 
@@ -334,8 +342,24 @@ class TestBaseGroupbyTests(BaseGroupbyTests):
             expected = pd.Series([3, 3, 3, 3, 3, 3], name="A")
 
             self.assert_series_equal(result, expected)
+        elif pa.types.is_list(data_for_grouping.dtype.arrow_dtype):
+            pytest.mark.xfail(
+                reason="ArrowNotImplementedError: dictionary-encode not implemented for list<item: string>"
+            )
         else:
             BaseGroupbyTests.test_groupby_extension_transform(self, data_for_grouping)
+
+    def test_groupby_extension_apply(
+        self, data_for_grouping, groupby_apply_op  # noqa: F811
+    ):
+        if pa.types.is_list(data_for_grouping.dtype.arrow_dtype):
+            pytest.mark.xfail(
+                reason="ArrowNotImplementedError: dictionary-encode not implemented for list<item: string>"
+            )
+        else:
+            BaseGroupbyTests.test_groupby_extension_apply(
+                self, data_for_grouping, groupby_apply_op
+            )
 
 
 class TestBaseInterfaceTests(BaseInterfaceTests):
