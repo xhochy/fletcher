@@ -15,7 +15,7 @@ from fletcher import (
     FletcherContinuousDtype,
 )
 
-from pandas.tests.extension.base import (  # BaseArithmeticOpsTests,; BaseComparisonOpsTests,; BaseNumericReduceTests,
+from pandas.tests.extension.base import (  # BaseArithmeticOpsTests,; BaseComparisonOpsTests,;
     BaseBooleanReduceTests,
     BaseCastingTests,
     BaseConstructorsTests,
@@ -25,6 +25,7 @@ from pandas.tests.extension.base import (  # BaseArithmeticOpsTests,; BaseCompar
     BaseInterfaceTests,
     BaseMethodsTests,
     BaseMissingTests,
+    BaseNumericReduceTests,
     BaseNoReduceTests,
     BaseParsingTests,
     BasePrintingTests,
@@ -525,10 +526,17 @@ class TestBaseBooleanReduceTests(BaseBooleanReduceTests):
 class TestBaseNoReduceTests(BaseNoReduceTests):
     @pytest.mark.parametrize("skipna", [True, False])
     def test_reduce_series_numeric(self, data, all_numeric_reductions, skipna):
-        # TODO: Implement for numeric types and then skip this test
-        BaseNoReduceTests.test_reduce_series_numeric(
-            self, data, all_numeric_reductions, skipna
-        )
+        arrow_dtype = data.dtype.arrow_dtype
+        if (
+            pa.types.is_integer(arrow_dtype)
+            or pa.types.is_floating(arrow_dtype)
+            or pa.types.is_decimal(arrow_dtype)
+        ):
+            pytest.skip("Numeric arrays implement reductions, so don't raise")
+        else:
+            BaseNoReduceTests.test_reduce_series_numeric(
+                self, data, all_numeric_reductions, skipna
+            )
 
     @pytest.mark.parametrize("skipna", [True, False])
     def test_reduce_series_boolean(self, data, all_boolean_reductions, skipna):
@@ -541,8 +549,20 @@ class TestBaseNoReduceTests(BaseNoReduceTests):
 
 
 # TODO: Implement
-# class TestBaseNumericReduceTests(BaseNumericReduceTests):
-#    pass
+class TestBaseNumericReduceTests(BaseNumericReduceTests):
+    @pytest.mark.parametrize("skipna", [True, False])
+    def test_reduce_series(self, data, all_numeric_reductions, skipna):
+        arrow_dtype = data.dtype.arrow_dtype
+        if (
+            pa.types.is_integer(arrow_dtype)
+            or pa.types.is_floating(arrow_dtype)
+            or pa.types.is_decimal(arrow_dtype)
+        ):
+            BaseNumericReduceTests.test_reduce_series(
+                self, data, all_numeric_reductions, skipna
+            )
+        else:
+            pytest.skip("Reduce not implemented on non-numeric types")
 
 
 # TODO: Implement

@@ -16,7 +16,20 @@ from pandas.api.types import (
 from pandas.core.arrays import ExtensionArray
 from pandas.core.dtypes.dtypes import ExtensionDtype
 
-from ._algorithms import all_op, any_op, extract_isnull_bytemap
+from ._algorithms import (
+    all_op,
+    any_op,
+    extract_isnull_bytemap,
+    kurt_op,
+    max_op,
+    median_op,
+    min_op,
+    prod_op,
+    skew_op,
+    std_op,
+    sum_op,
+    var_op,
+)
 
 _python_type_map = {
     pa.null().id: str,
@@ -42,6 +55,14 @@ _python_type_map = {
 }
 
 _string_type_map = {"date64[ms]": pa.date64(), "string": pa.string()}
+
+
+def _is_numeric(arrow_dtype: pa.DataType) -> bool:
+    return (
+        pa.types.is_integer(arrow_dtype)
+        or pa.types.is_floating(arrow_dtype)
+        or pa.types.is_decimal(arrow_dtype)
+    )
 
 
 class FletcherBaseDtype(ExtensionDtype):
@@ -110,6 +131,14 @@ class FletcherBaseDtype(ExtensionDtype):
         Will be used for display in, e.g. ``Series.dtype``
         """
         return str(self)
+
+    @property
+    def _is_boolean(self):
+        return pa.types.is_boolean(self.arrow_dtype)
+
+    @property
+    def _is_numeric(self):
+        return _is_numeric(self.arrow_dtype)
 
 
 class FletcherContinuousDtype(FletcherBaseDtype):
@@ -310,6 +339,66 @@ class FletcherBaseArray(ExtensionArray):
         """Return base object of the underlying data."""
         return self.data
 
+    def _reduce(self, name, skipna=True, **kwargs):
+        """
+        Return a scalar result of performing the reduction operation.
+
+        Parameters
+        ----------
+        name : str
+            Name of the function, supported values are:
+            { any, all, min, max, sum, mean, median, prod,
+            std, var, sem, kurt, skew }.
+        skipna : bool, default True
+            If True, skip NaN values.
+        **kwargs
+            Additional keyword arguments passed to the reduction function.
+            Currently, `ddof` is the only supported kwarg.
+
+        Returns
+        -------
+        scalar
+
+        Raises
+        ------
+        TypeError : subclass does not define reductions
+        """
+        if name == "any" and pa.types.is_boolean(self.dtype.arrow_dtype):
+            return any_op(self.data, skipna=skipna)
+        elif name == "all" and pa.types.is_boolean(self.dtype.arrow_dtype):
+            return all_op(self.data, skipna=skipna)
+        elif name == "sum" and self.dtype._is_numeric:
+            # TODO: skipna
+            return sum_op(self.data)
+        elif name == "max" and self.dtype._is_numeric:
+            # TODO: skipna
+            return max_op(self.data)
+        elif name == "min" and self.dtype._is_numeric:
+            # TODO: skipna
+            return min_op(self.data)
+        elif name == "mean" and self.dtype._is_numeric:
+            # TODO: skipna
+            return sum_op(self.data) / len(self.data)
+        elif name == "prod" and self.dtype._is_numeric:
+            # TODO: skipna
+            return prod_op(self.data)
+        elif name == "std" and self.dtype._is_numeric:
+            return std_op(self.data, skipna=skipna)
+        elif name == "skew" and self.dtype._is_numeric:
+            return skew_op(self.data, skipna=skipna)
+        elif name == "kurt" and self.dtype._is_numeric:
+            return kurt_op(self.data, skipna=skipna)
+        elif name == "var" and self.dtype._is_numeric:
+            return var_op(self.data, skipna=skipna)
+        elif name == "median" and self.dtype._is_numeric:
+            return median_op(self.data, skipna=skipna)
+
+        raise TypeError(
+            "cannot perform {name} with type {dtype}".format(
+                name=name, dtype=self.dtype
+            )
+        )
+
 
 class FletcherContinuousArray(FletcherBaseArray):
     """Pandas ExtensionArray implementation backed by Apache Arrow's pyarrow.Array."""
@@ -351,41 +440,6 @@ class FletcherContinuousArray(FletcherBaseArray):
         ExtensionArray
         """
         return cls(pa.concat_arrays([array.data for array in to_concat]))
-
-    def _reduce(self, name, skipna=True, **kwargs):
-        """
-        Return a scalar result of performing the reduction operation.
-
-        Parameters
-        ----------
-        name : str
-            Name of the function, supported values are:
-            { any, all, min, max, sum, mean, median, prod,
-            std, var, sem, kurt, skew }.
-        skipna : bool, default True
-            If True, skip NaN values.
-        **kwargs
-            Additional keyword arguments passed to the reduction function.
-            Currently, `ddof` is the only supported kwarg.
-
-        Returns
-        -------
-        scalar
-
-        Raises
-        ------
-        TypeError : subclass does not define reductions
-        """
-        if name == "any" and pa.types.is_boolean(self.dtype.arrow_dtype):
-            return any_op(self.data, skipna=skipna)
-        elif name == "all" and pa.types.is_boolean(self.dtype.arrow_dtype):
-            return all_op(self.data, skipna=skipna)
-
-        raise TypeError(
-            "cannot perform {name} with type {dtype}".format(
-                name=name, dtype=self.dtype
-            )
-        )
 
     def __setitem__(self, key, value):
         # type: (Union[int, np.ndarray], Any) -> None
@@ -841,41 +895,6 @@ class FletcherChunkedArray(FletcherBaseArray):
         if self.data.num_chunks == 1:
             return np.broadcast_to(0, len(array))
         return np.digitize(array, self.offsets[1:])
-
-    def _reduce(self, name, skipna=True, **kwargs):
-        """
-        Return a scalar result of performing the reduction operation.
-
-        Parameters
-        ----------
-        name : str
-            Name of the function, supported values are:
-            { any, all, min, max, sum, mean, median, prod,
-            std, var, sem, kurt, skew }.
-        skipna : bool, default True
-            If True, skip NaN values.
-        **kwargs
-            Additional keyword arguments passed to the reduction function.
-            Currently, `ddof` is the only supported kwarg.
-
-        Returns
-        -------
-        scalar
-
-        Raises
-        ------
-        TypeError : subclass does not define reductions
-        """
-        if name == "any" and pa.types.is_boolean(self.dtype.arrow_dtype):
-            return any_op(self.data, skipna=skipna)
-        elif name == "all" and pa.types.is_boolean(self.dtype.arrow_dtype):
-            return all_op(self.data, skipna=skipna)
-
-        raise TypeError(
-            "cannot perform {name} with type {dtype}".format(
-                name=name, dtype=self.dtype
-            )
-        )
 
     def __setitem__(self, key, value):
         # type: (Union[int, np.ndarray], Any) -> None

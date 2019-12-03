@@ -1,10 +1,20 @@
-from typing import Union
+from functools import partial
+from typing import Callable, Union
 
 import numba
 import numpy as np
 import pyarrow as pa
+from pandas.core import nanops
 
 from ._numba_compat import NumbaStringArray
+
+
+def _extract_data_buffer_as_np_array(array: pa.Array) -> np.ndarray:
+    # TODO: Write an explicit test for this with offsets
+    dtype = array.type.to_pandas_dtype()
+    start = array.offset
+    end = array.offset + len(array)
+    return np.asanyarray(array.buffers()[1]).view(dtype)[start:end]
 
 
 @numba.jit(nogil=True, nopython=True)
@@ -261,3 +271,38 @@ def all_op(arr: Union[pa.ChunkedArray, pa.Array], skipna: bool) -> bool:
         return _all_op_nonnull(len(arr), arr.buffers()[1])
     # skipna is not relevant in the Pandas behaviour
     return _all_op(len(arr), *arr.buffers())
+
+
+def np_op(npop: Callable, arr: Union[pa.ChunkedArray, pa.Array]):
+    """Use numpy operations to provide a reduction."""
+    if isinstance(arr, pa.ChunkedArray):
+        return npop([np_op(npop, chunk) for chunk in arr.iterchunks()])
+    else:
+        np_arr = _extract_data_buffer_as_np_array(arr)
+        mask = extract_isnull_bytemap(arr)
+        return npop(np_arr[~mask])
+
+
+sum_op = partial(np_op, np.sum)
+max_op = partial(np_op, np.amax)
+min_op = partial(np_op, np.amin)
+prod_op = partial(np_op, np.prod)
+
+
+def pd_nanop(nanop: Callable, arr: Union[pa.ChunkedArray, pa.Array], skipna: bool):
+    """Use pandas.core.nanops to provide a reduction."""
+    if isinstance(arr, pa.ChunkedArray):
+        data = pa.concat_arrays(arr.iterchunks())
+    else:
+        data = arr
+    np_arr = _extract_data_buffer_as_np_array(data)
+    mask = extract_isnull_bytemap(data)
+
+    return nanop(np_arr, skipna=skipna, mask=mask)
+
+
+std_op = partial(pd_nanop, nanops.nanstd)
+skew_op = partial(pd_nanop, nanops.nanskew)
+kurt_op = partial(pd_nanop, nanops.nankurt)
+var_op = partial(pd_nanop, nanops.nanvar)
+median_op = partial(pd_nanop, nanops.nanmedian)
