@@ -124,12 +124,12 @@ class FletcherContinuousDtype(FletcherBaseDtype):
         return "FletcherContinuousDtype({})".format(str(self.arrow_dtype))
 
     @classmethod
-    def construct_from_string(cls, string):
+    def construct_from_string(cls, string: str):
         """Attempt to construct this type from a string.
 
         Parameters
         ----------
-        string : str
+        string
 
         Returns
         -------
@@ -260,7 +260,7 @@ class FletcherBaseArray(ExtensionArray):
         """Return the ExtensionDtype of this array."""
         return self._dtype
 
-    def __array__(self, copy=None) -> np.ndarray:
+    def __array__(self, copy: Optional[bool] = None) -> np.ndarray:
         """Correctly construct numpy arrays when passed to `np.asarray()`."""
         return self.data.to_pandas().values
 
@@ -411,20 +411,20 @@ class FletcherContinuousArray(FletcherBaseArray):
         """
         # Convert all possible input key types to an array of integers
         if is_bool_dtype(key):
-            key = np.argwhere(key).flatten()
+            key_array = np.argwhere(key).flatten()
         elif isinstance(key, slice):
-            key = np.array(range(len(self))[key])
+            key_array = np.array(range(len(self))[key])
         elif is_integer(key):
-            key = np.array([key])
+            key_array = np.array([key])
         else:
-            key = np.asanyarray(key)
+            key_array = np.asanyarray(key)
 
         if pd.api.types.is_scalar(value):
-            value = np.broadcast_to(value, len(key))
+            value = np.broadcast_to(value, len(key_array))
         else:
             value = np.asarray(value)
 
-        if len(key) != len(value):
+        if len(key_array) != len(value):
             raise ValueError("Length mismatch between index and value.")
 
         arr = self.data.to_pandas().values
@@ -432,7 +432,7 @@ class FletcherContinuousArray(FletcherBaseArray):
         # the resulting arrays are read-only.
         if not arr.flags.writeable:
             arr = arr.copy()
-        arr[key] = value
+        arr[key_array] = value
 
         mask = None
         # ARROW-2806: Inconsistent handling of np.nan requires adding a mask
@@ -444,7 +444,7 @@ class FletcherContinuousArray(FletcherBaseArray):
         ):
             nan_values = pd.isna(value)
             if any(nan_values):
-                nan_index = key & nan_values
+                nan_index = key_array & nan_values
                 mask = np.ones_like(arr, dtype=bool)
                 mask[nan_index] = False
         self.data = pa.array(arr, self.dtype.arrow_dtype, mask=mask)
@@ -901,23 +901,23 @@ class FletcherChunkedArray(FletcherBaseArray):
         """
         # Convert all possible input key types to an array of integers
         if is_bool_dtype(key):
-            key = np.argwhere(key).flatten()
+            key_array = np.argwhere(key).flatten()
         elif isinstance(key, slice):
-            key = np.array(range(len(self))[key])
+            key_array = np.array(range(len(self))[key])
         elif is_integer(key):
-            key = np.array([key])
+            key_array = np.array([key])
         else:
-            key = np.asanyarray(key)
+            key_array = np.asanyarray(key)
 
         if pd.api.types.is_scalar(value):
-            value = np.broadcast_to(value, len(key))
+            value = np.broadcast_to(value, len(key_array))
         else:
             value = np.asarray(value)
 
-        if len(key) != len(value):
+        if len(key_array) != len(value):
             raise ValueError("Length mismatch between index and value.")
 
-        affected_chunks_index = self._get_chunk_indexer(key)
+        affected_chunks_index = self._get_chunk_indexer(key_array)
         affected_chunks_unique = np.unique(affected_chunks_index)
 
         all_chunks = list(self.data.iterchunks())
@@ -929,7 +929,7 @@ class FletcherChunkedArray(FletcherBaseArray):
 
             # Translate the array-wide indices to indices of the chunk
             key_chunk_indices = np.argwhere(affected_chunks_index == ix).flatten()
-            array_chunk_indices = key[key_chunk_indices] - offset
+            array_chunk_indices = key_array[key_chunk_indices] - offset
 
             arr = chunk.to_pandas().values
             # In the case where we zero-copy Arrow to Pandas conversion, the

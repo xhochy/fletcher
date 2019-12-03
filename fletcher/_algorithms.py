@@ -8,7 +8,13 @@ from ._numba_compat import NumbaStringArray
 
 
 @numba.jit(nogil=True, nopython=True)
-def _extract_isnull_bytemap(bitmap, bitmap_length, bitmap_offset, dst_offset, dst):
+def _extract_isnull_bytemap(
+    bitmap: bytes,
+    bitmap_length: int,
+    bitmap_offset: int,
+    dst_offset: int,
+    dst: np.ndarray,
+) -> None:
     """(internal) write the values of a valid bitmap as bytes to a pre-allocatored isnull bytemap.
 
     Parameters
@@ -31,7 +37,7 @@ def _extract_isnull_bytemap(bitmap, bitmap_length, bitmap_offset, dst_offset, ds
         dst[dst_offset + i] = (bitmap[byte_idx] & bit_mask) == 0
 
 
-def extract_isnull_bytemap(array: Union[pa.ChunkedArray, pa.Array]) -> np.array:
+def extract_isnull_bytemap(array: Union[pa.ChunkedArray, pa.Array]) -> np.ndarray:
     """
     Extract the valid bitmaps of a (chunked) array into numpy isnull bytemaps.
 
@@ -170,7 +176,7 @@ def str_concat(sa1, sa2):
 
 
 @numba.njit(locals={"valid": numba.bool_, "value": numba.bool_})
-def _any_op(length, valid_bits, data):
+def _any_op(length: int, valid_bits: bytes, data: bytes) -> int:
     for i in range(length):
         byte_offset = i // 8
         bit_offset = i % 8
@@ -184,7 +190,7 @@ def _any_op(length, valid_bits, data):
 
 
 @numba.njit(locals={"valid": numba.bool_, "value": numba.bool_})
-def _any_op_skipna(length, valid_bits, data):
+def _any_op_skipna(length: int, valid_bits: bytes, data: bytes) -> bool:
     for i in range(length):
         byte_offset = i // 8
         bit_offset = i % 8
@@ -198,7 +204,7 @@ def _any_op_skipna(length, valid_bits, data):
 
 
 @numba.njit(locals={"value": numba.bool_})
-def _any_op_nonnull(length, data):
+def _any_op_nonnull(length: int, data: bytes) -> bool:
     for i in range(length):
         byte_offset = i // 8
         bit_offset = i % 8
@@ -210,7 +216,7 @@ def _any_op_nonnull(length, data):
     return False
 
 
-def any_op(arr, skipna):
+def any_op(arr: Union[pa.ChunkedArray, pa.Array], skipna: bool) -> bool:
     if isinstance(arr, pa.ChunkedArray):
         return any(any_op(chunk, skipna) for chunk in arr.chunks)
 
@@ -222,7 +228,7 @@ def any_op(arr, skipna):
 
 
 @numba.njit(locals={"valid": numba.bool_, "value": numba.bool_})
-def _all_op(length, valid_bits, data):
+def _all_op(length: int, valid_bits: bytes, data: bytes) -> bool:
     # This may be specific to Pandas but we return True as long as there is not False in the data.
     for i in range(length):
         byte_offset = i // 8
@@ -236,7 +242,7 @@ def _all_op(length, valid_bits, data):
 
 
 @numba.njit(locals={"value": numba.bool_})
-def _all_op_nonnull(length, data):
+def _all_op_nonnull(length: int, data: bytes) -> bool:
     for i in range(length):
         byte_offset = i // 8
         bit_offset = i % 8
@@ -247,7 +253,7 @@ def _all_op_nonnull(length, data):
     return True
 
 
-def all_op(arr, skipna):
+def all_op(arr: Union[pa.ChunkedArray, pa.Array], skipna: bool) -> bool:
     if isinstance(arr, pa.ChunkedArray):
         return all(all_op(chunk, skipna) for chunk in arr.chunks)
 
