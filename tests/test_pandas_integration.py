@@ -166,7 +166,6 @@ def test_series_attributes():
     assert s.ndim == 1
     assert s.size == 3
     assert s.values is not None
-    assert (s.T == s).all()
     assert s.memory_usage() > 8
 
 

@@ -1,5 +1,5 @@
 from functools import partial
-from typing import Callable, Union
+from typing import Any, Callable, List, Optional, Tuple, Union
 
 import numba
 import numpy as np
@@ -9,8 +9,18 @@ from pandas.core import nanops
 from ._numba_compat import NumbaStringArray
 
 
+def _calculate_chunk_offsets(chunked_array: pa.ChunkedArray) -> np.ndarray:
+    """Return an array holding the indices pointing to the first element of each chunk."""
+    offset = 0
+    offsets = []
+    for chunk in chunked_array.iterchunks():
+        offsets.append(offset)
+        offset += len(chunk)
+    return np.array(offsets)
+
+
 def _extract_data_buffer_as_np_array(array: pa.Array) -> np.ndarray:
-    # TODO: Write an explicit test for this with offsets
+    """Extract the data buffer of a numeric-typed pyarrow.Array as an np.ndarray."""
     dtype = array.type.to_pandas_dtype()
     start = array.offset
     end = array.offset + len(array)
@@ -273,20 +283,41 @@ def all_op(arr: Union[pa.ChunkedArray, pa.Array], skipna: bool) -> bool:
     return _all_op(len(arr), *arr.buffers())
 
 
-def np_op(npop: Callable, arr: Union[pa.ChunkedArray, pa.Array]):
+def np_reduce_op(
+    npop: Callable,
+    arr: Union[pa.ChunkedArray, pa.Array],
+    skipna: bool = True,
+    identity: Optional[int] = None,
+):
     """Use numpy operations to provide a reduction."""
-    if isinstance(arr, pa.ChunkedArray):
-        return npop([np_op(npop, chunk) for chunk in arr.iterchunks()])
+    if not skipna and arr.null_count > 0:
+        return pa.NA
+    elif isinstance(arr, pa.ChunkedArray):
+        valid_chunks = [
+            chunk for chunk in arr.iterchunks() if chunk.null_count != len(chunk)
+        ]
+        results = pa.array(
+            [
+                np_reduce_op(npop, chunk, skipna=skipna, identity=identity)
+                for chunk in valid_chunks
+            ]
+        )
+        return np_reduce_op(npop, results, skipna=skipna, identity=identity)
     else:
+        if len(arr) == 0:
+            if identity is None:
+                raise ValueError("zero-size reduction on operation with no identity")
+            else:
+                return identity
         np_arr = _extract_data_buffer_as_np_array(arr)
         mask = extract_isnull_bytemap(arr)
         return npop(np_arr[~mask])
 
 
-sum_op = partial(np_op, np.sum)
-max_op = partial(np_op, np.amax)
-min_op = partial(np_op, np.amin)
-prod_op = partial(np_op, np.prod)
+sum_op = partial(np_reduce_op, np.sum, identity=0)
+max_op = partial(np_reduce_op, np.amax)
+min_op = partial(np_reduce_op, np.amin)
+prod_op = partial(np_reduce_op, np.prod, identity=1)
 
 
 def pd_nanop(nanop: Callable, arr: Union[pa.ChunkedArray, pa.Array], skipna: bool):
@@ -306,3 +337,116 @@ skew_op = partial(pd_nanop, nanops.nanskew)
 kurt_op = partial(pd_nanop, nanops.nankurt)
 var_op = partial(pd_nanop, nanops.nanvar)
 median_op = partial(pd_nanop, nanops.nanmedian)
+
+
+def _in_chunk_offsets(
+    arr: pa.ChunkedArray, offsets: List[int]
+) -> List[Tuple[int, int, int]]:
+    new_offsets = []
+    pos = 0
+    chunk = 0
+    chunk_pos = 0
+    for offset, offset_next in zip(offsets, offsets[1:] + [len(arr)]):
+        diff = offset - pos
+        chunk_remains = len(arr.chunk(chunk)) - chunk_pos
+        step = offset_next - offset
+        if diff == chunk_remains:
+            chunk += 1
+            chunk_pos = 0
+            pos += chunk_remains
+            new_offsets.append((chunk, chunk_pos, step))
+        elif diff == 0:  # The first offset
+            new_offsets.append((chunk, chunk_pos, step))
+        else:  # diff < chunk_remains
+            chunk_pos += diff
+            pos += diff
+            new_offsets.append((chunk, chunk_pos, step))
+    return new_offsets
+
+
+def _combined_in_chunk_offsets(
+    a: pa.ChunkedArray, b: pa.ChunkedArray
+) -> Tuple[List[Tuple[int, int, int]], List[Tuple[int, int, int]]]:
+    offsets_a = _calculate_chunk_offsets(a)
+    offsets_b = _calculate_chunk_offsets(b)
+    offsets = sorted(set(list(offsets_a) + list(offsets_b)))
+    in_a_offsets = _in_chunk_offsets(a, offsets)
+    in_b_offsets = _in_chunk_offsets(b, offsets)
+    return in_a_offsets, in_b_offsets
+
+
+def np_ufunc_op(op: Callable, a: Union[pa.ChunkedArray, pa.Array], b: Any):
+    """Apply a NumPy ufunc where at least one of the arguments is an Arrow structure."""
+    if isinstance(a, pa.ChunkedArray):
+        if isinstance(b, pa.ChunkedArray):
+            in_a_offsets, in_b_offsets = _combined_in_chunk_offsets(a, b)
+
+            new_chunks: List[pa.Array] = []
+            for a_offset, b_offset in zip(in_a_offsets, in_b_offsets):
+                a_slice = a.chunk(a_offset[0])[a_offset[1] : a_offset[1] + a_offset[2]]
+                b_slice = b.chunk(b_offset[0])[b_offset[1] : b_offset[1] + b_offset[2]]
+                new_chunks.append(np_ufunc_op(op, a_slice, b_slice))
+            return pa.chunked_array(new_chunks)
+        elif np.isscalar(b):
+            new_chunks = []
+            for chunk in a.iterchunks():
+                new_chunks.append(np_ufunc_op(op, chunk, b))
+            return pa.chunked_array(new_chunks)
+        else:
+            new_chunks = []
+            offsets = _calculate_chunk_offsets(a)
+            for chunk, offset in zip(a.iterchunks(), offsets):
+                new_chunks.append(
+                    np_ufunc_op(op, chunk, b[offset : offset + len(chunk)])
+                )
+            return pa.chunked_array(new_chunks)
+    elif isinstance(a, pa.Array) and isinstance(b, pa.ChunkedArray):
+        new_chunks = []
+        offsets = _calculate_chunk_offsets(b)
+        for chunk, offset in zip(b.iterchunks(), offsets):
+            new_chunks.append(np_ufunc_op(op, a[offset : offset + len(chunk)], chunk))
+        return pa.chunked_array(new_chunks)
+    elif isinstance(a, pa.Array) and isinstance(b, pa.Array):
+        np_arr_a = _extract_data_buffer_as_np_array(a)
+        mask_a = extract_isnull_bytemap(a)
+        np_arr_b = _extract_data_buffer_as_np_array(b)
+        mask_b = extract_isnull_bytemap(b)
+
+        new_arr = op(np_arr_a, np_arr_b)
+        # Don't set type as we might have valid casts like int->float in truediv
+        return pa.array(new_arr, mask=(mask_a | mask_b))
+    elif isinstance(a, pa.Array):
+        # b is non-masked, either array-like or scalar
+        # numpy can handle all types of b from here
+        np_arr = _extract_data_buffer_as_np_array(a)
+        mask = extract_isnull_bytemap(a)
+        new_arr = op(np_arr, b)
+        # Don't set type as we might have valid casts like int->float in truediv
+        return pa.array(new_arr, mask=mask)
+    elif isinstance(b, pa.ChunkedArray):
+        if np.isscalar(a):
+            new_chunks = []
+            for chunk in b.iterchunks():
+                new_chunks.append(np_ufunc_op(op, a, chunk))
+            return pa.chunked_array(new_chunks)
+        else:
+            new_chunks = []
+            offsets = _calculate_chunk_offsets(b)
+            for chunk, offset in zip(b.iterchunks(), offsets):
+                new_chunks.append(
+                    np_ufunc_op(op, a[offset : offset + len(chunk)], chunk)
+                )
+            return pa.chunked_array(new_chunks)
+    elif isinstance(b, pa.Array):
+        # a is non-masked, either array-like or scalar
+        # numpy can handle all types of b from here
+        np_arr = _extract_data_buffer_as_np_array(b)
+        mask = extract_isnull_bytemap(b)
+        if np.isscalar(a):
+            a = np.array(a)
+        new_arr = op(a, np_arr)
+        # Don't set type as we might have valid casts like int->float in truediv
+        return pa.array(new_arr, mask=mask)
+    else:
+        # Should never be reached, add a safe-guard
+        raise NotImplementedError(f"Cannot apply ufunc on {type(a)} and {type(b)}")

@@ -1,7 +1,9 @@
 import datetime
+import operator
 from collections import OrderedDict
 from collections.abc import Iterable
-from typing import Any, List, Optional, Sequence, Tuple, Union
+from functools import partialmethod
+from typing import Any, Callable, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -17,6 +19,7 @@ from pandas.core.arrays import ExtensionArray
 from pandas.core.dtypes.dtypes import ExtensionDtype
 
 from ._algorithms import (
+    _calculate_chunk_offsets,
     all_op,
     any_op,
     extract_isnull_bytemap,
@@ -24,6 +27,7 @@ from ._algorithms import (
     max_op,
     median_op,
     min_op,
+    np_ufunc_op,
     prod_op,
     skew_op,
     std_op,
@@ -399,6 +403,89 @@ class FletcherBaseArray(ExtensionArray):
             )
         )
 
+    def __array_ufunc__(self, ufunc, method, *inputs, **kwargs):
+        """Apply a NumPy ufunc on the ExtensionArray."""
+        if method != "__call__":
+            raise NotImplementedError("Only method=__call__ is supported in ufuncs")
+        if len(inputs) != 2:
+            raise NotImplementedError("Only ufuncs with a second input are supported")
+        if len(kwargs) > 0:
+            raise NotImplementedError("ufuncs with kwargs aren't supported")
+        if isinstance(inputs[0], FletcherBaseArray):
+            left = inputs[0].data
+        else:
+            left = inputs[0]
+        if isinstance(inputs[1], FletcherBaseArray):
+            right = inputs[1].data
+        else:
+            right = inputs[1]
+        return type(self)(np_ufunc_op(ufunc, left, right))
+
+    def _np_ufunc_op(self, op: Callable, other):
+        """Apply a NumPy ufunc on the instance and any other object."""
+        if isinstance(other, pd.Series):
+            return NotImplemented
+        if isinstance(other, FletcherBaseArray):
+            other = other.data
+        return type(self)(np_ufunc_op(op, self.data, other))
+
+    def _np_compare_op(self, op: Callable, np_op: Callable, other):
+        """Apply a NumPy-based comparison on the instance and any other object."""
+        if isinstance(other, pd.Series):
+            return NotImplemented
+        # TODO: Only numeric comparisons are fast currently
+        if not self.dtype._is_numeric:
+            if isinstance(other, FletcherBaseArray):
+                other = other.data.to_pandas()
+            return type(self)(op(self.data.to_pandas(), other))
+        return self._np_ufunc_op(np_op, other)
+
+    __eq__ = partialmethod(  # type: ignore
+        _np_compare_op, operator.eq, np.ndarray.__eq__
+    )
+    __ne__ = partialmethod(  # type: ignore
+        _np_compare_op, operator.ne, np.ndarray.__ne__
+    )
+    __le__ = partialmethod(_np_compare_op, operator.le, np.ndarray.__le__)
+    __lt__ = partialmethod(_np_compare_op, operator.lt, np.ndarray.__lt__)
+    __ge__ = partialmethod(_np_compare_op, operator.ge, np.ndarray.__ge__)
+    __gt__ = partialmethod(_np_compare_op, operator.gt, np.ndarray.__gt__)
+
+    __add__ = partialmethod(_np_ufunc_op, np.ndarray.__add__)
+    __radd__ = partialmethod(_np_ufunc_op, np.ndarray.__radd__)
+    __sub__ = partialmethod(_np_ufunc_op, np.ndarray.__sub__)
+    __rsub__ = partialmethod(_np_ufunc_op, np.ndarray.__rsub__)
+    __mul__ = partialmethod(_np_ufunc_op, np.ndarray.__mul__)
+    __rmul__ = partialmethod(_np_ufunc_op, np.ndarray.__rmul__)
+    __floordiv__ = partialmethod(_np_ufunc_op, np.ndarray.__floordiv__)
+    __rfloordiv__ = partialmethod(_np_ufunc_op, np.ndarray.__rfloordiv__)
+    __truediv__ = partialmethod(_np_ufunc_op, np.ndarray.__truediv__)
+    __rtruediv__ = partialmethod(_np_ufunc_op, np.ndarray.__rtruediv__)
+    __pow__ = partialmethod(_np_ufunc_op, np.ndarray.__pow__)
+    __rpow__ = partialmethod(_np_ufunc_op, np.ndarray.__rpow__)
+    __mod__ = partialmethod(_np_ufunc_op, np.ndarray.__mod__)
+    __rmod__ = partialmethod(_np_ufunc_op, np.ndarray.__rmod__)
+
+    def __divmod__(self, other):
+        """Compute divmod via floordiv and mod."""
+        return (self.__floordiv__(other), self.__mod__(other))
+
+    def unique(self):
+        """
+        Compute the ExtensionArray of unique values.
+
+        It relies on the Pyarrow.ChunkedArray.unique and if
+        it fails, comes back to the naive implementation.
+
+        Returns
+        -------
+        uniques : ExtensionArray
+        """
+        try:
+            return type(self)(self.data.unique())
+        except NotImplementedError:
+            return super().unique()
+
 
 class FletcherContinuousArray(FletcherBaseArray):
     """Pandas ExtensionArray implementation backed by Apache Arrow's pyarrow.Array."""
@@ -463,6 +550,14 @@ class FletcherContinuousArray(FletcherBaseArray):
         -------
         None
         """
+        if pa.types.is_list(self.data.type):
+            # TODO: We can probably implement this for the scalar case?
+            # TODO: Implement a list accessor and then the three mentioned methods
+            raise ValueError(
+                "__setitem__ is not supported for list types "
+                "due to the ambiguity of the arguments, use .fr_list.setvalue, "
+                ".fr_list.setslice or fr_list.setmask instead."
+            )
         # Convert all possible input key types to an array of integers
         if is_bool_dtype(key):
             key_array = np.argwhere(key).flatten()
@@ -498,9 +593,9 @@ class FletcherContinuousArray(FletcherBaseArray):
         ):
             nan_values = pd.isna(value)
             if any(nan_values):
-                nan_index = key_array & nan_values
-                mask = np.ones_like(arr, dtype=bool)
-                mask[nan_index] = False
+                nan_index = key_array[nan_values]
+                mask = np.zeros_like(arr, dtype=bool)
+                mask[nan_index] = True
         self.data = pa.array(arr, self.dtype.arrow_dtype, mask=mask)
 
     def __getitem__(self, item):
@@ -817,22 +912,6 @@ class FletcherContinuousArray(FletcherBaseArray):
         result = take(data, indices, fill_value=fill_value, allow_fill=allow_fill)
         return self._from_sequence(result, dtype=self.data.type)
 
-    def unique(self):
-        """
-        Compute the ExtensionArray of unique values.
-
-        It relies on the Pyarrow.ChunkedArray.unique and if
-        it fails, comes back to the naive implementation.
-
-        Returns
-        -------
-        uniques : ExtensionArray
-        """
-        try:
-            return type(self)(self.data.unique())
-        except NotImplementedError:
-            return super().unique()
-
 
 class FletcherChunkedArray(FletcherBaseArray):
     """Pandas ExtensionArray implementation backed by Apache Arrow."""
@@ -881,14 +960,9 @@ class FletcherChunkedArray(FletcherBaseArray):
             )
         )
 
-    def _calculate_chunk_offsets(self):
+    def _calculate_chunk_offsets(self) -> np.ndarray:
         """Return an array holding the indices pointing to the first element of each chunk."""
-        offset = 0
-        offsets = []
-        for chunk in self.data.iterchunks():
-            offsets.append(offset)
-            offset += len(chunk)
-        return np.array(offsets)
+        return _calculate_chunk_offsets(self.data)
 
     def _get_chunk_indexer(self, array):
         """Return an array with the chunk number for each index."""
@@ -918,6 +992,14 @@ class FletcherChunkedArray(FletcherBaseArray):
         -------
         None
         """
+        if pa.types.is_list(self.data.type):
+            # TODO: We can probably implement this for the scalar case?
+            # TODO: Implement a list accessor and then the three mentioned methods
+            raise ValueError(
+                "__setitem__ is not supported for list types "
+                "due to the ambiguity of the arguments, use .fr_list.setvalue, "
+                ".fr_list.setslice or fr_list.setmask instead."
+            )
         # Convert all possible input key types to an array of integers
         if is_bool_dtype(key):
             key_array = np.argwhere(key).flatten()
@@ -967,9 +1049,9 @@ class FletcherChunkedArray(FletcherBaseArray):
             ):
                 nan_values = pd.isna(value[key_chunk_indices])
                 if any(nan_values):
-                    nan_index = key_chunk_indices & nan_values
-                    mask = np.ones_like(arr, dtype=bool)
-                    mask[nan_index] = False
+                    nan_index = array_chunk_indices[nan_values]
+                    mask = np.zeros_like(arr, dtype=bool)
+                    mask[nan_index] = True
             pa_arr = pa.array(arr, self.dtype.arrow_dtype, mask=mask)
             all_chunks[ix] = pa_arr
 
