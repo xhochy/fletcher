@@ -252,7 +252,12 @@ class TestBaseCasting(BaseCastingTests):
 
 
 class TestBaseConstructors(BaseConstructorsTests):
-    pass
+    def test_from_dtype(self, data):
+        if pa.types.is_string(data.dtype.arrow_dtype):
+            pytest.xfail(
+                "String construction is failing as Pandas wants to pass the FletcherChunkedDtype to NumPy"
+            )
+        BaseConstructorsTests.test_from_dtype(self, data)
 
 
 class TestBaseDtype(BaseDtypeTests):
@@ -260,7 +265,13 @@ class TestBaseDtype(BaseDtypeTests):
 
 
 class TestBaseGetitemTests(BaseGetitemTests):
-    pass
+    def test_loc_iloc_frame_single_dtype(self, data):
+        if pa.types.is_string(data.dtype.arrow_dtype):
+            pytest.mark.xfail(
+                reason="https://github.com/pandas-dev/pandas/issues/27673"
+            )
+        else:
+            BaseGetitemTests.test_loc_iloc_frame_single_dtype(self, data)
 
 
 class TestBaseGroupbyTests(BaseGroupbyTests):
