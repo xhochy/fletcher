@@ -1,8 +1,8 @@
 import datetime
 import string
-import sys
 from collections import namedtuple
 from distutils.version import LooseVersion
+from random import choices
 from typing import Optional, Type
 
 import pandas as pd
@@ -59,14 +59,6 @@ FletcherTestType = namedtuple(
         "data_repeated",
     ],
 )
-
-if sys.version_info >= (3, 6):
-    from random import choices
-else:
-    from random import choice
-
-    def choices(seq, k):
-        return [choice(seq) for i in range(k)]
 
 
 test_types = [
