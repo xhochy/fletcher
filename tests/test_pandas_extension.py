@@ -260,13 +260,7 @@ class TestBaseCasting(BaseCastingTests):
 
 
 class TestBaseConstructors(BaseConstructorsTests):
-    @pytest.mark.xfail(reason="Tries to construct dtypes with np.dtype")
-    def test_from_dtype(self, data):
-        if pa.types.is_string(data.dtype.arrow_dtype):
-            pytest.xfail(
-                "String construction is failing as Pandas wants to pass the FletcherChunkedDtype to NumPy"
-            )
-        BaseConstructorsTests.test_from_dtype(self, data)
+    pass
 
 
 class TestBaseDtype(BaseDtypeTests):
