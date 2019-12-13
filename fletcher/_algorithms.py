@@ -35,7 +35,7 @@ def _extract_isnull_bytemap(
     dst_offset: int,
     dst: np.ndarray,
 ) -> None:
-    """(internal) write the values of a valid bitmap as bytes to a pre-allocatored isnull bytemap.
+    """Write the values of a valid bitmap as bytes to a pre-allocatored isnull bytemap.
 
     Parameters
     ----------
