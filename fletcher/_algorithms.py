@@ -310,8 +310,11 @@ def np_reduce_op(
             else:
                 return identity
         np_arr = _extract_data_buffer_as_np_array(arr)
-        mask = extract_isnull_bytemap(arr)
-        return npop(np_arr[~mask])
+        if arr.null_count > 0:
+            mask = extract_isnull_bytemap(arr)
+            return npop(np_arr[~mask])
+        else:
+            return npop(np_arr)
 
 
 sum_op = partial(np_reduce_op, np.sum, identity=0)
@@ -408,18 +411,30 @@ def np_ufunc_op(op: Callable, a: Union[pa.ChunkedArray, pa.Array], b: Any):
         return pa.chunked_array(new_chunks)
     elif isinstance(a, pa.Array) and isinstance(b, pa.Array):
         np_arr_a = _extract_data_buffer_as_np_array(a)
-        mask_a = extract_isnull_bytemap(a)
         np_arr_b = _extract_data_buffer_as_np_array(b)
-        mask_b = extract_isnull_bytemap(b)
+        if a.null_count > 0 and b.null_count > 0:
+            # TODO: Combine them before extracting
+            mask_a = extract_isnull_bytemap(a)
+            mask_b = extract_isnull_bytemap(b)
+            mask = mask_a | mask_b
+        elif a.null_count > 0:
+            mask = extract_isnull_bytemap(a)
+        elif b.null_count > 0:
+            mask = extract_isnull_bytemap(b)
+        else:
+            mask = None
 
         new_arr = op(np_arr_a, np_arr_b)
         # Don't set type as we might have valid casts like int->float in truediv
-        return pa.array(new_arr, mask=(mask_a | mask_b))
+        return pa.array(new_arr, mask=mask)
     elif isinstance(a, pa.Array):
         # b is non-masked, either array-like or scalar
         # numpy can handle all types of b from here
         np_arr = _extract_data_buffer_as_np_array(a)
-        mask = extract_isnull_bytemap(a)
+        if a.null_count > 0:
+            mask = extract_isnull_bytemap(a)
+        else:
+            mask = None
         new_arr = op(np_arr, b)
         # Don't set type as we might have valid casts like int->float in truediv
         return pa.array(new_arr, mask=mask)
