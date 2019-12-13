@@ -16,7 +16,7 @@ from pandas.api.types import (
     is_integer_dtype,
 )
 from pandas.core.arrays import ExtensionArray
-from pandas.core.dtypes.dtypes import ExtensionDtype
+from pandas.core.dtypes.dtypes import ExtensionDtype, register_extension_dtype
 
 from ._algorithms import (
     _calculate_chunk_offsets,
@@ -145,6 +145,7 @@ class FletcherBaseDtype(ExtensionDtype):
         return _is_numeric(self.arrow_dtype)
 
 
+@register_extension_dtype
 class FletcherContinuousDtype(FletcherBaseDtype):
     """Dtype for a pandas ExtensionArray backed by Apache Arrow's pyarrow.Array."""
 
@@ -188,6 +189,10 @@ class FletcherContinuousDtype(FletcherBaseDtype):
         # Remove fletcher specific naming from the arrow type string.
         if string.startswith("fletcher_continuous["):
             string = string[len("fletcher_continuous[") : -1]
+        else:
+            raise TypeError(
+                "fletcher_continuous types need to start with 'fletcher_continuous['"
+            )
 
         if string == "list<item: string>":
             return cls(pa.list_(pa.string()))
@@ -214,6 +219,7 @@ class FletcherContinuousDtype(FletcherBaseDtype):
         return FletcherContinuousArray
 
 
+@register_extension_dtype
 class FletcherChunkedDtype(FletcherBaseDtype):
     """Dtype for a pandas ExtensionArray backed by Apache Arrow's pyarrow.ChunkedArray."""
 
@@ -257,6 +263,10 @@ class FletcherChunkedDtype(FletcherBaseDtype):
         # Remove fletcher specific naming from the arrow type string.
         if string.startswith("fletcher_chunked["):
             string = string[len("fletcher_chunked[") : -1]
+        else:
+            raise TypeError(
+                "fletcher_chunked types need to start with 'fletcher_chunked['"
+            )
 
         if string == "list<item: string>":
             return cls(pa.list_(pa.string()))
