@@ -191,7 +191,7 @@ class FletcherContinuousDtype(FletcherBaseDtype):
             string = string[len("fletcher_continuous[") : -1]
         else:
             raise TypeError(
-                "fletcher_continuous types need to start with 'fletcher_continuous['"
+                f"Cannot construct a 'FletcherContinuousDtype' from '{string}'"
             )
 
         if string == "list<item: string>":
@@ -265,7 +265,7 @@ class FletcherChunkedDtype(FletcherBaseDtype):
             string = string[len("fletcher_chunked[") : -1]
         else:
             raise TypeError(
-                "fletcher_chunked types need to start with 'fletcher_chunked['"
+                f"Cannot construct a 'FletcherChunkedDtype' from '{string}'"
             )
 
         if string == "list<item: string>":
@@ -416,7 +416,9 @@ class FletcherBaseArray(ExtensionArray):
     def __array_ufunc__(self, ufunc, method, *inputs, **kwargs):
         """Apply a NumPy ufunc on the ExtensionArray."""
         if method != "__call__":
-            raise NotImplementedError("Only method=__call__ is supported in ufuncs")
+            raise NotImplementedError(
+                f"Only method == '__call__' is supported in ufuncs, not '{method}'"
+            )
         if len(inputs) != 2:
             raise NotImplementedError("Only ufuncs with a second input are supported")
         if len(kwargs) > 0:
