@@ -260,34 +260,7 @@ class TestBaseDtype(BaseDtypeTests):
 
 
 class TestBaseGetitemTests(BaseGetitemTests):
-    def test_take_non_na_fill_value(self, data_missing):
-        if pa.types.is_integer(data_missing.dtype.arrow_dtype):
-            pytest.mark.xfail(reasion="Take is not yet correctly implemented for ints")
-        else:
-            BaseGetitemTests.test_take_non_na_fill_value(self, data_missing)
-
-    def test_reindex_non_na_fill_value(self, data_missing):
-        if pa.types.is_integer(data_missing.dtype.arrow_dtype):
-            pytest.mark.xfail(reasion="Take is not yet correctly implemented for ints")
-        else:
-            BaseGetitemTests.test_reindex_non_na_fill_value(self, data_missing)
-
-    def test_take_series(self, data):
-        BaseGetitemTests.test_take_series(self, data)
-
-    def test_loc_iloc_frame_single_dtype(self, data):
-        if pa.types.is_string(data.dtype.arrow_dtype):
-            pytest.mark.xfail(
-                reason="https://github.com/pandas-dev/pandas/issues/27673"
-            )
-        else:
-            BaseGetitemTests.test_loc_iloc_frame_single_dtype(self, data)
-
-    @pytest.mark.skip
-    def test_reindex(self):
-        # No longer available in master and fails with pandas 0.23.1
-        # due to a dtype assumption that does not hold for Arrow
-        pass
+    pass
 
 
 class TestBaseGroupbyTests(BaseGroupbyTests):
