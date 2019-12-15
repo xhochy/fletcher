@@ -32,6 +32,7 @@ from fletcher._algorithms import (
 @example(np.ones(10).astype(bool), True)
 def test_any_op(data, skipna):
     arrow = pa.array(data, type=pa.bool_())
+    # TODO(pandas-0.26): Use pandas.BooleanArray
     # https://github.com/pandas-dev/pandas/issues/27709 / https://github.com/pandas-dev/pandas/issues/12863
     pandas = pd.Series(data).astype(float)
 

@@ -416,9 +416,16 @@ class FletcherBaseArray(ExtensionArray):
     def __array_ufunc__(self, ufunc, method, *inputs, **kwargs):
         """Apply a NumPy ufunc on the ExtensionArray."""
         if method != "__call__":
-            raise NotImplementedError(
-                f"Only method == '__call__' is supported in ufuncs, not '{method}'"
-            )
+            if (
+                method == "reduce"
+                and getattr(ufunc, "__name__") == "logical_or"
+                and self.dtype.arrow_dtype.id == 1
+            ):
+                return any_op(self.data, skipna=False)
+            else:
+                raise NotImplementedError(
+                    f"Only method == '__call__' is supported in ufuncs, not '{method}'"
+                )
         if len(inputs) != 2:
             raise NotImplementedError("Only ufuncs with a second input are supported")
         if len(kwargs) > 0:
