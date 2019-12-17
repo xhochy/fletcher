@@ -411,7 +411,7 @@ def np_ufunc_op(a: Any, b: Any, op: Callable):
         raise NotImplementedError(f"Cannot apply ufunc on {type(a)} and {type(b)}")
 
 
-@np_ufunc_op.register
+@np_ufunc_op.register(pa.ChunkedArray)
 def _1(a: pa.ChunkedArray, b: Any, op: Callable):
     """Apply a NumPy ufunc where at least one of the arguments is an Arrow structure."""
     if isinstance(b, pa.ChunkedArray):
@@ -436,7 +436,7 @@ def _1(a: pa.ChunkedArray, b: Any, op: Callable):
         return pa.chunked_array(new_chunks)
 
 
-@np_ufunc_op.register
+@np_ufunc_op.register(pa.Array)
 def _2(a: pa.Array, b: Any, op: Callable):
     """Apply a NumPy ufunc where at least one of the arguments is an Arrow structure."""
     if isinstance(b, pa.ChunkedArray):
