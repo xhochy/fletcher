@@ -174,9 +174,9 @@ def assert_content_equals_array(result, expected):
 
 
 def check_np_ufunc(a, b, expected):
-    result = np_ufunc_op(np.ndarray.__add__, a, b)
+    result = np_ufunc_op(a, b, np.ndarray.__add__)
     assert_content_equals_array(result, expected)
-    result = np_ufunc_op(np.ndarray.__add__, b, a)
+    result = np_ufunc_op(b, a, np.ndarray.__add__)
     assert_content_equals_array(result, expected)
 
 

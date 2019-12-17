@@ -382,20 +382,15 @@ class FletcherBaseArray(ExtensionArray):
         elif name == "all" and pa.types.is_boolean(self.dtype.arrow_dtype):
             return all_op(self.data, skipna=skipna)
         elif name == "sum" and self.dtype._is_numeric:
-            # TODO: skipna
-            return sum_op(self.data)
+            return sum_op(self.data, skipna=skipna)
         elif name == "max" and self.dtype._is_numeric:
-            # TODO: skipna
-            return max_op(self.data)
+            return max_op(self.data, skipna=skipna)
         elif name == "min" and self.dtype._is_numeric:
-            # TODO: skipna
-            return min_op(self.data)
+            return min_op(self.data, skipna=skipna)
         elif name == "mean" and self.dtype._is_numeric:
-            # TODO: skipna
-            return sum_op(self.data) / len(self.data)
+            return sum_op(self.data, skipna=skipna) / len(self.data)
         elif name == "prod" and self.dtype._is_numeric:
-            # TODO: skipna
-            return prod_op(self.data)
+            return prod_op(self.data, skipna=skipna)
         elif name == "std" and self.dtype._is_numeric:
             return std_op(self.data, skipna=skipna)
         elif name == "skew" and self.dtype._is_numeric:
@@ -438,7 +433,7 @@ class FletcherBaseArray(ExtensionArray):
             right = inputs[1].data
         else:
             right = inputs[1]
-        return type(self)(np_ufunc_op(ufunc, left, right))
+        return type(self)(np_ufunc_op(left, right, ufunc))
 
     def _np_ufunc_op(self, op: Callable, other):
         """Apply a NumPy ufunc on the instance and any other object."""
@@ -446,7 +441,7 @@ class FletcherBaseArray(ExtensionArray):
             return NotImplemented
         if isinstance(other, FletcherBaseArray):
             other = other.data
-        return type(self)(np_ufunc_op(op, self.data, other))
+        return type(self)(np_ufunc_op(self.data, other, op))
 
     def _np_compare_op(self, op: Callable, np_op: Callable, other):
         """Apply a NumPy-based comparison on the instance and any other object."""

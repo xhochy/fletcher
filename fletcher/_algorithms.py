@@ -1,4 +1,4 @@
-from functools import partial
+from functools import partial, singledispatch
 from typing import Any, Callable, List, Optional, Tuple, Union
 
 import numba
@@ -378,38 +378,74 @@ def _combined_in_chunk_offsets(
     return in_a_offsets, in_b_offsets
 
 
-def np_ufunc_op(op: Callable, a: Union[pa.ChunkedArray, pa.Array], b: Any):
+@singledispatch
+def np_ufunc_op(a: Any, b: Any, op: Callable):
     """Apply a NumPy ufunc where at least one of the arguments is an Arrow structure."""
-    if isinstance(a, pa.ChunkedArray):
-        if isinstance(b, pa.ChunkedArray):
-            in_a_offsets, in_b_offsets = _combined_in_chunk_offsets(a, b)
-
-            new_chunks: List[pa.Array] = []
-            for a_offset, b_offset in zip(in_a_offsets, in_b_offsets):
-                a_slice = a.chunk(a_offset[0])[a_offset[1] : a_offset[1] + a_offset[2]]
-                b_slice = b.chunk(b_offset[0])[b_offset[1] : b_offset[1] + b_offset[2]]
-                new_chunks.append(np_ufunc_op(op, a_slice, b_slice))
-            return pa.chunked_array(new_chunks)
-        elif np.isscalar(b):
+    # a is neither a pa.Array nor a pa.ChunkedArray, we expect only numpy.ndarray or scalars.
+    if isinstance(b, pa.ChunkedArray):
+        if np.isscalar(a):
             new_chunks = []
-            for chunk in a.iterchunks():
-                new_chunks.append(np_ufunc_op(op, chunk, b))
+            for chunk in b.iterchunks():
+                new_chunks.append(np_ufunc_op(a, chunk, op))
             return pa.chunked_array(new_chunks)
         else:
             new_chunks = []
-            offsets = _calculate_chunk_offsets(a)
-            for chunk, offset in zip(a.iterchunks(), offsets):
+            offsets = _calculate_chunk_offsets(b)
+            for chunk, offset in zip(b.iterchunks(), offsets):
                 new_chunks.append(
-                    np_ufunc_op(op, chunk, b[offset : offset + len(chunk)])
+                    np_ufunc_op(a[offset : offset + len(chunk)], chunk, op)
                 )
             return pa.chunked_array(new_chunks)
-    elif isinstance(a, pa.Array) and isinstance(b, pa.ChunkedArray):
+    elif isinstance(b, pa.Array):
+        # a is non-masked, either array-like or scalar
+        # numpy can handle all types of b from here
+        np_arr = _extract_data_buffer_as_np_array(b)
+        mask = extract_isnull_bytemap(b)
+        if np.isscalar(a):
+            a = np.array(a)
+        new_arr = op(a, np_arr)
+        # Don't set type as we might have valid casts like int->float in truediv
+        return pa.array(new_arr, mask=mask)
+    else:
+        # Should never be reached, add a safe-guard
+        raise NotImplementedError(f"Cannot apply ufunc on {type(a)} and {type(b)}")
+
+
+@np_ufunc_op.register
+def _1(a: pa.ChunkedArray, b: Any, op: Callable):
+    """Apply a NumPy ufunc where at least one of the arguments is an Arrow structure."""
+    if isinstance(b, pa.ChunkedArray):
+        in_a_offsets, in_b_offsets = _combined_in_chunk_offsets(a, b)
+
+        new_chunks: List[pa.Array] = []
+        for a_offset, b_offset in zip(in_a_offsets, in_b_offsets):
+            a_slice = a.chunk(a_offset[0])[a_offset[1] : a_offset[1] + a_offset[2]]
+            b_slice = b.chunk(b_offset[0])[b_offset[1] : b_offset[1] + b_offset[2]]
+            new_chunks.append(np_ufunc_op(a_slice, b_slice, op))
+        return pa.chunked_array(new_chunks)
+    elif np.isscalar(b):
+        new_chunks = []
+        for chunk in a.iterchunks():
+            new_chunks.append(np_ufunc_op(chunk, b, op))
+        return pa.chunked_array(new_chunks)
+    else:
+        new_chunks = []
+        offsets = _calculate_chunk_offsets(a)
+        for chunk, offset in zip(a.iterchunks(), offsets):
+            new_chunks.append(np_ufunc_op(chunk, b[offset : offset + len(chunk)], op))
+        return pa.chunked_array(new_chunks)
+
+
+@np_ufunc_op.register
+def _2(a: pa.Array, b: Any, op: Callable):
+    """Apply a NumPy ufunc where at least one of the arguments is an Arrow structure."""
+    if isinstance(b, pa.ChunkedArray):
         new_chunks = []
         offsets = _calculate_chunk_offsets(b)
         for chunk, offset in zip(b.iterchunks(), offsets):
-            new_chunks.append(np_ufunc_op(op, a[offset : offset + len(chunk)], chunk))
+            new_chunks.append(np_ufunc_op(a[offset : offset + len(chunk)], chunk, op))
         return pa.chunked_array(new_chunks)
-    elif isinstance(a, pa.Array) and isinstance(b, pa.Array):
+    elif isinstance(b, pa.Array):
         np_arr_a = _extract_data_buffer_as_np_array(a)
         np_arr_b = _extract_data_buffer_as_np_array(b)
         if a.null_count > 0 and b.null_count > 0:
@@ -427,7 +463,7 @@ def np_ufunc_op(op: Callable, a: Union[pa.ChunkedArray, pa.Array], b: Any):
         new_arr = op(np_arr_a, np_arr_b)
         # Don't set type as we might have valid casts like int->float in truediv
         return pa.array(new_arr, mask=mask)
-    elif isinstance(a, pa.Array):
+    else:
         # b is non-masked, either array-like or scalar
         # numpy can handle all types of b from here
         np_arr = _extract_data_buffer_as_np_array(a)
@@ -438,30 +474,3 @@ def np_ufunc_op(op: Callable, a: Union[pa.ChunkedArray, pa.Array], b: Any):
         new_arr = op(np_arr, b)
         # Don't set type as we might have valid casts like int->float in truediv
         return pa.array(new_arr, mask=mask)
-    elif isinstance(b, pa.ChunkedArray):
-        if np.isscalar(a):
-            new_chunks = []
-            for chunk in b.iterchunks():
-                new_chunks.append(np_ufunc_op(op, a, chunk))
-            return pa.chunked_array(new_chunks)
-        else:
-            new_chunks = []
-            offsets = _calculate_chunk_offsets(b)
-            for chunk, offset in zip(b.iterchunks(), offsets):
-                new_chunks.append(
-                    np_ufunc_op(op, a[offset : offset + len(chunk)], chunk)
-                )
-            return pa.chunked_array(new_chunks)
-    elif isinstance(b, pa.Array):
-        # a is non-masked, either array-like or scalar
-        # numpy can handle all types of b from here
-        np_arr = _extract_data_buffer_as_np_array(b)
-        mask = extract_isnull_bytemap(b)
-        if np.isscalar(a):
-            a = np.array(a)
-        new_arr = op(a, np_arr)
-        # Don't set type as we might have valid casts like int->float in truediv
-        return pa.array(new_arr, mask=mask)
-    else:
-        # Should never be reached, add a safe-guard
-        raise NotImplementedError(f"Cannot apply ufunc on {type(a)} and {type(b)}")
