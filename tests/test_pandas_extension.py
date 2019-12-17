@@ -62,6 +62,30 @@ FletcherTestType = namedtuple(
 )
 
 
+def is_arithmetic_type(arrow_dtype: pa.DataType) -> bool:
+    """Check whether this is a type that support arithmetics."""
+    return (
+        pa.types.is_integer(arrow_dtype)
+        or pa.types.is_floating(arrow_dtype)
+        or pa.types.is_decimal(arrow_dtype)
+    )
+
+
+skip_non_artithmetic_type = pytest.mark.skip_by_type_filter(
+    [lambda x: not is_arithmetic_type(x)]
+)
+xfail_list_setitem_not_implemented = pytest.mark.xfail_by_type_filter(
+    [pa.types.is_list], "__setitem__ is not implemented for lists"
+)
+xfail_missing_list_dict_encode = pytest.mark.xfail_by_type_filter(
+    [pa.types.is_list],
+    "ArrowNotImplementedError: dictionary-encode not implemented for list<item: string>",
+)
+xfail_bool_too_few_uniques = pytest.mark.xfail_by_type_filter(
+    [pa.types.is_boolean], "Test requires at least 3 unique values"
+)
+
+
 test_types = [
     FletcherTestType(
         pa.string(),
@@ -208,6 +232,24 @@ def fletcher_type(request):
     return request.param
 
 
+@pytest.fixture(autouse=True)
+def skip_by_type_filter(request, fletcher_type):
+    if request.node.get_closest_marker("skip_by_type_filter"):
+        for marker in request.node.iter_markers("skip_by_type_filter"):
+            for func in marker.args[0]:
+                if func(fletcher_type.dtype):
+                    pytest.skip(f"skipped for type: {fletcher_type}")
+
+
+@pytest.fixture(autouse=True)
+def xfail_by_type_filter(request, fletcher_type):
+    if request.node.get_closest_marker("xfail_by_type_filter"):
+        for marker in request.node.iter_markers("xfail_by_type_filter"):
+            for func in marker.args[0]:
+                if func(fletcher_type.dtype):
+                    pytest.xfail(f"XFAIL for type: {fletcher_type}")
+
+
 @pytest.fixture
 def dtype(fletcher_type, fletcher_dtype):
     return fletcher_dtype(fletcher_type.dtype)
@@ -306,29 +348,18 @@ class TestBaseGetitemTests(BaseGetitemTests):
 
 
 class TestBaseGroupbyTests(BaseGroupbyTests):
+    @xfail_bool_too_few_uniques
+    @xfail_missing_list_dict_encode
     @pytest.mark.parametrize("as_index", [True, False])
     def test_groupby_extension_agg(self, as_index, data_for_grouping):
-        if pa.types.is_boolean(data_for_grouping.dtype.arrow_dtype):
-            pytest.mark.xfail("Test requires at least 3 unique values")
-        elif pa.types.is_list(data_for_grouping.dtype.arrow_dtype):
-            pytest.mark.xfail(
-                reason="ArrowNotImplementedError: dictionary-encode not implemented for list<item: string>"
-            )
-        else:
-            BaseGroupbyTests.test_groupby_extension_agg(
-                self, as_index, data_for_grouping
-            )
+        BaseGroupbyTests.test_groupby_extension_agg(self, as_index, data_for_grouping)
 
+    @xfail_bool_too_few_uniques
+    @xfail_missing_list_dict_encode
     def test_groupby_extension_no_sort(self, data_for_grouping):
-        if pa.types.is_boolean(data_for_grouping.dtype.arrow_dtype):
-            pytest.mark.xfail("Test requires at least 3 unique values")
-        elif pa.types.is_list(data_for_grouping.dtype.arrow_dtype):
-            pytest.mark.xfail(
-                reason="ArrowNotImplementedError: dictionary-encode not implemented for list<item: string>"
-            )
-        else:
-            BaseGroupbyTests.test_groupby_extension_no_sort(self, data_for_grouping)
+        BaseGroupbyTests.test_groupby_extension_no_sort(self, data_for_grouping)
 
+    @xfail_missing_list_dict_encode
     def test_groupby_extension_transform(self, data_for_grouping):
         if pa.types.is_boolean(data_for_grouping.dtype.arrow_dtype):
             valid = data_for_grouping[~data_for_grouping.isna()]
@@ -339,24 +370,16 @@ class TestBaseGroupbyTests(BaseGroupbyTests):
             expected = pd.Series([3, 3, 3, 3, 3, 3], name="A")
 
             self.assert_series_equal(result, expected)
-        elif pa.types.is_list(data_for_grouping.dtype.arrow_dtype):
-            pytest.mark.xfail(
-                reason="ArrowNotImplementedError: dictionary-encode not implemented for list<item: string>"
-            )
         else:
             BaseGroupbyTests.test_groupby_extension_transform(self, data_for_grouping)
 
+    @xfail_missing_list_dict_encode
     def test_groupby_extension_apply(
         self, data_for_grouping, groupby_apply_op  # noqa: F811
     ):
-        if pa.types.is_list(data_for_grouping.dtype.arrow_dtype):
-            pytest.mark.xfail(
-                reason="ArrowNotImplementedError: dictionary-encode not implemented for list<item: string>"
-            )
-        else:
-            BaseGroupbyTests.test_groupby_extension_apply(
-                self, data_for_grouping, groupby_apply_op
-            )
+        BaseGroupbyTests.test_groupby_extension_apply(
+            self, data_for_grouping, groupby_apply_op
+        )
 
 
 class TestBaseInterfaceTests(BaseInterfaceTests):
@@ -372,11 +395,9 @@ class TestBaseInterfaceTests(BaseInterfaceTests):
         else:
             BaseInterfaceTests.test_array_interface(self, data)
 
+    @xfail_list_setitem_not_implemented
     def test_copy(self, data):
-        if pa.types.is_list(data.dtype.arrow_dtype):
-            pytest.xfail("Scalar __setitem__ not implemented for list")
-        else:
-            BaseInterfaceTests.test_array_interface(self, data)
+        BaseInterfaceTests.test_array_interface(self, data)
 
 
 class TestBaseMethodsTests(BaseMethodsTests):
@@ -422,65 +443,47 @@ class TestBaseMethodsTests(BaseMethodsTests):
         else:
             BaseMethodsTests.test_combine_add(self, data_repeated)
 
+    @xfail_bool_too_few_uniques
     def test_argsort(self, data_for_sorting):
-        if pa.types.is_boolean(data_for_sorting.dtype.arrow_dtype):
-            pytest.skip("Boolean has too few values for this test")
-        else:
-            BaseMethodsTests.test_argsort(self, data_for_sorting)
+        BaseMethodsTests.test_argsort(self, data_for_sorting)
 
     @pytest.mark.parametrize("ascending", [True, False])
+    @xfail_bool_too_few_uniques
     def test_sort_values(self, data_for_sorting, ascending):
-        if pa.types.is_boolean(data_for_sorting.dtype.arrow_dtype):
-            pytest.skip("Boolean has too few values for this test")
-        else:
-            BaseMethodsTests.test_sort_values(self, data_for_sorting, ascending)
+        BaseMethodsTests.test_sort_values(self, data_for_sorting, ascending)
 
     @pytest.mark.parametrize("na_sentinel", [-1, -2])
+    @xfail_bool_too_few_uniques
+    @xfail_missing_list_dict_encode
     def test_factorize(self, data_for_grouping, na_sentinel):
-        if pa.types.is_boolean(data_for_grouping.dtype.arrow_dtype):
-            pytest.skip("Boolean has too few values for this test")
-        elif pa.types.is_list(data_for_grouping.dtype.arrow_dtype):
-            pytest.xfail("Factorize not iplemented for lists")
-        else:
-            BaseMethodsTests.test_factorize(self, data_for_grouping, na_sentinel)
+        BaseMethodsTests.test_factorize(self, data_for_grouping, na_sentinel)
 
     @pytest.mark.parametrize("na_sentinel", [-1, -2])
+    @xfail_bool_too_few_uniques
+    @xfail_missing_list_dict_encode
     def test_factorize_equivalence(self, data_for_grouping, na_sentinel):
-        if pa.types.is_boolean(data_for_grouping.dtype.arrow_dtype):
-            pytest.skip("Boolean has too few values for this test")
-        elif pa.types.is_list(data_for_grouping.dtype.arrow_dtype):
-            pytest.xfail("Factorize not iplemented for lists")
-        else:
-            BaseMethodsTests.test_factorize_equivalence(
-                self, data_for_grouping, na_sentinel
-            )
+        BaseMethodsTests.test_factorize_equivalence(
+            self, data_for_grouping, na_sentinel
+        )
 
     @pytest.mark.parametrize("ascending", [True, False])
+    @xfail_missing_list_dict_encode
     def test_sort_values_frame(self, data_for_sorting, ascending):
-        if pa.types.is_list(data_for_sorting.dtype.arrow_dtype):
-            pytest.xfail("Factorize not iplemented for lists")
-        else:
-            BaseMethodsTests.test_sort_values_frame(self, data_for_sorting, ascending)
+        BaseMethodsTests.test_sort_values_frame(self, data_for_sorting, ascending)
 
+    @xfail_bool_too_few_uniques
     def test_searchsorted(self, data_for_sorting, as_series):  # noqa: F811
-        if pa.types.is_boolean(data_for_sorting.dtype.arrow_dtype):
-            pytest.skip("Boolean has too few values for this test")
-        else:
-            BaseMethodsTests.test_searchsorted(self, data_for_sorting, as_series)
+        BaseMethodsTests.test_searchsorted(self, data_for_sorting, as_series)
 
     @pytest.mark.parametrize("box", [pd.Series, lambda x: x])
     @pytest.mark.parametrize("method", [lambda x: x.unique(), pd.unique])
+    @xfail_missing_list_dict_encode
     def test_unique(self, data, box, method):
-        if pa.types.is_list(data.dtype.arrow_dtype):
-            pytest.xfail("unique is not implemented for lists")
-        else:
-            BaseMethodsTests.test_unique(self, data, box, method)
+        BaseMethodsTests.test_unique(self, data, box, method)
 
+    @xfail_missing_list_dict_encode
     def test_factorize_empty(self, data):
-        if pa.types.is_list(data.dtype.arrow_dtype):
-            pytest.xfail("dictionary-encode is not implemented for lists")
-        else:
-            BaseMethodsTests.test_factorize_empty(self, data)
+        BaseMethodsTests.test_factorize_empty(self, data)
 
     def test_fillna_copy_frame(self, data_missing):
         if pa.types.is_list(data_missing.dtype.arrow_dtype):
@@ -494,11 +497,9 @@ class TestBaseMethodsTests(BaseMethodsTests):
         else:
             BaseMethodsTests.test_fillna_copy_series(self, data_missing)
 
+    @xfail_list_setitem_not_implemented
     def test_combine_first(self, data):
-        if pa.types.is_list(data.dtype.arrow_dtype):
-            pytest.xfail("Scalar __setitem__ not implemented for list")
-        else:
-            BaseMethodsTests.test_combine_first(self, data)
+        BaseMethodsTests.test_combine_first(self, data)
 
     def test_shift_fill_value(self, data):
         if pa.types.is_list(data.dtype.arrow_dtype):
@@ -512,11 +513,9 @@ class TestBaseMethodsTests(BaseMethodsTests):
         else:
             BaseMethodsTests.test_hash_pandas_object_works(self, data, as_frame)
 
+    @xfail_list_setitem_not_implemented
     def test_where_series(self, data, na_value, as_frame):  # noqa: F811
-        if pa.types.is_list(data.dtype.arrow_dtype):
-            pytest.xfail("Scalar __setitem__ not implemented for list")
-        else:
-            BaseMethodsTests.test_where_series(self, data, na_value, as_frame)
+        BaseMethodsTests.test_where_series(self, data, na_value, as_frame)
 
 
 class TestBaseMissingTests(BaseMissingTests):
@@ -568,101 +567,71 @@ class TestBaseReshapingTests(BaseReshapingTests):
         else:
             BaseReshapingTests.test_merge_on_extension_array_duplicates(self, data)
 
+    @xfail_list_setitem_not_implemented
     def test_ravel(self, data):
-        if pa.types.is_list(data.dtype.arrow_dtype):
-            pytest.xfail("Scalar __setitem__ not implemented for list")
-        else:
-            BaseReshapingTests.test_ravel(self, data)
+        BaseReshapingTests.test_ravel(self, data)
 
 
 class TestBaseSetitemTests(BaseSetitemTests):
+    @xfail_list_setitem_not_implemented
     def test_setitem_scalar_series(self, data, box_in_series):
-        if pa.types.is_list(data.dtype.arrow_dtype):
-            pytest.xfail("Scalar __setitem__ not implemented for list")
-        else:
-            BaseSetitemTests.test_setitem_scalar_series(self, data, box_in_series)
+        BaseSetitemTests.test_setitem_scalar_series(self, data, box_in_series)
 
+    @xfail_list_setitem_not_implemented
     def test_setitem_sequence(self, data, box_in_series):
-        if pa.types.is_list(data.dtype.arrow_dtype):
-            pytest.xfail("Scalar __setitem__ not implemented for list")
-        else:
-            BaseSetitemTests.test_setitem_sequence(self, data, box_in_series)
+        BaseSetitemTests.test_setitem_sequence(self, data, box_in_series)
 
+    @xfail_list_setitem_not_implemented
     def test_setitem_empty_indxer(self, data, box_in_series):
-        if pa.types.is_list(data.dtype.arrow_dtype):
-            pytest.xfail("Scalar __setitem__ not implemented for list")
-        else:
-            BaseSetitemTests.test_setitem_empty_indxer(self, data, box_in_series)
+        BaseSetitemTests.test_setitem_empty_indxer(self, data, box_in_series)
 
+    @xfail_list_setitem_not_implemented
     def test_setitem_sequence_broadcasts(self, data, box_in_series):
-        if pa.types.is_list(data.dtype.arrow_dtype):
-            pytest.xfail("Scalar __setitem__ not implemented for list")
-        else:
-            BaseSetitemTests.test_setitem_sequence_broadcasts(self, data, box_in_series)
+        BaseSetitemTests.test_setitem_sequence_broadcasts(self, data, box_in_series)
 
     @pytest.mark.parametrize("setter", ["loc", "iloc"])
+    @xfail_list_setitem_not_implemented
     def test_setitem_scalar(self, data, setter):
-        if pa.types.is_list(data.dtype.arrow_dtype):
-            pytest.xfail("Scalar __setitem__ not implemented for list")
-        else:
-            BaseSetitemTests.test_setitem_scalar(self, data, setter)
+        BaseSetitemTests.test_setitem_scalar(self, data, setter)
 
+    @xfail_list_setitem_not_implemented
     def test_setitem_loc_scalar_mixed(self, data):
-        if pa.types.is_list(data.dtype.arrow_dtype):
-            pytest.xfail("Scalar __setitem__ not implemented for list")
-        else:
-            BaseSetitemTests.test_setitem_loc_scalar_mixed(self, data)
+        BaseSetitemTests.test_setitem_loc_scalar_mixed(self, data)
 
+    @xfail_list_setitem_not_implemented
     def test_setitem_loc_scalar_single(self, data):
-        if pa.types.is_list(data.dtype.arrow_dtype):
-            pytest.xfail("Scalar __setitem__ not implemented for list")
-        else:
-            BaseSetitemTests.test_setitem_loc_scalar_single(self, data)
+        BaseSetitemTests.test_setitem_loc_scalar_single(self, data)
 
+    @xfail_list_setitem_not_implemented
     def test_setitem_loc_scalar_multiple_homogoneous(self, data):
-        if pa.types.is_list(data.dtype.arrow_dtype):
-            pytest.xfail("Scalar __setitem__ not implemented for list")
-        else:
-            BaseSetitemTests.test_setitem_loc_scalar_multiple_homogoneous(self, data)
+        BaseSetitemTests.test_setitem_loc_scalar_multiple_homogoneous(self, data)
 
+    @xfail_list_setitem_not_implemented
     def test_setitem_iloc_scalar_mixed(self, data):
-        if pa.types.is_list(data.dtype.arrow_dtype):
-            pytest.xfail("Scalar __setitem__ not implemented for list")
-        else:
-            BaseSetitemTests.test_setitem_iloc_scalar_mixed(self, data)
+        BaseSetitemTests.test_setitem_iloc_scalar_mixed(self, data)
 
+    @xfail_list_setitem_not_implemented
     def test_setitem_iloc_scalar_single(self, data):
-        if pa.types.is_list(data.dtype.arrow_dtype):
-            pytest.xfail("Scalar __setitem__ not implemented for list")
-        else:
-            BaseSetitemTests.test_setitem_iloc_scalar_single(self, data)
+        BaseSetitemTests.test_setitem_iloc_scalar_single(self, data)
 
+    @xfail_list_setitem_not_implemented
     def test_setitem_iloc_scalar_multiple_homogoneous(self, data):
-        if pa.types.is_list(data.dtype.arrow_dtype):
-            pytest.xfail("Scalar __setitem__ not implemented for list")
-        else:
-            BaseSetitemTests.test_setitem_iloc_scalar_multiple_homogoneous(self, data)
+        BaseSetitemTests.test_setitem_iloc_scalar_multiple_homogoneous(self, data)
 
     @pytest.mark.parametrize("as_callable", [True, False])
     @pytest.mark.parametrize("setter", ["loc", None])
+    @xfail_list_setitem_not_implemented
     def test_setitem_mask_aligned(self, data, as_callable, setter):
-        if pa.types.is_list(data.dtype.arrow_dtype):
-            pytest.xfail("Scalar __setitem__ not implemented for list")
-        else:
-            BaseSetitemTests.test_setitem_mask_aligned(self, data, as_callable, setter)
+        BaseSetitemTests.test_setitem_mask_aligned(self, data, as_callable, setter)
 
     @pytest.mark.parametrize("setter", ["loc", None])
+    @xfail_list_setitem_not_implemented
     def test_setitem_mask_broadcast(self, data, setter):
-        if pa.types.is_list(data.dtype.arrow_dtype):
-            pytest.xfail("Scalar __setitem__ not implemented for list")
-        else:
-            BaseSetitemTests.test_setitem_mask_broadcast(self, data, setter)
+        BaseSetitemTests.test_setitem_mask_broadcast(self, data, setter)
 
+    @xfail_list_setitem_not_implemented
     def test_setitem_slice_array(self, data):
-        if pa.types.is_list(data.dtype.arrow_dtype):
-            pytest.xfail("Scalar __setitem__ not implemented for list")
-        else:
-            BaseSetitemTests.test_setitem_slice_array(self, data)
+        BaseSetitemTests.test_setitem_slice_array(self, data)
 
 
 class TestBaseParsingTests(BaseParsingTests):
@@ -804,64 +773,29 @@ class TestBaseArithmeticOpsTests(BaseArithmeticOpsTests):
             with pytest.raises(exc):
                 op(s, other)
 
+    @skip_non_artithmetic_type
     def test_arith_series_with_scalar(self, data, all_arithmetic_operators):
-        arrow_dtype = data.dtype.arrow_dtype
-        if (
-            pa.types.is_integer(arrow_dtype)
-            or pa.types.is_floating(arrow_dtype)
-            or pa.types.is_decimal(arrow_dtype)
-        ):
-            BaseArithmeticOpsTests.test_arith_series_with_scalar(
-                self, data, all_arithmetic_operators
-            )
-        else:
-            pytest.skip("Arithmetic not implemented on non-numeric types")
+        BaseArithmeticOpsTests.test_arith_series_with_scalar(
+            self, data, all_arithmetic_operators
+        )
 
+    @skip_non_artithmetic_type
     def test_arith_series_with_array(self, data, all_arithmetic_operators):
-        arrow_dtype = data.dtype.arrow_dtype
-        if (
-            pa.types.is_integer(arrow_dtype)
-            or pa.types.is_floating(arrow_dtype)
-            or pa.types.is_decimal(arrow_dtype)
-        ):
-            BaseArithmeticOpsTests.test_arith_series_with_array(
-                self, data, all_arithmetic_operators
-            )
-        else:
-            pytest.skip("Arithmetic not implemented on non-numeric types")
+        BaseArithmeticOpsTests.test_arith_series_with_array(
+            self, data, all_arithmetic_operators
+        )
 
+    @skip_non_artithmetic_type
     def test_divmod(self, data):
-        arrow_dtype = data.dtype.arrow_dtype
-        if (
-            pa.types.is_integer(arrow_dtype)
-            or pa.types.is_floating(arrow_dtype)
-            or pa.types.is_decimal(arrow_dtype)
-        ):
-            BaseArithmeticOpsTests.test_divmod(self, data)
-        else:
-            pytest.skip("divmode not implemented on non-numeric types")
+        BaseArithmeticOpsTests.test_divmod(self, data)
 
+    @skip_non_artithmetic_type
     def test_divmod_series_array(self, data, data_for_twos):
-        arrow_dtype = data.dtype.arrow_dtype
-        if (
-            pa.types.is_integer(arrow_dtype)
-            or pa.types.is_floating(arrow_dtype)
-            or pa.types.is_decimal(arrow_dtype)
-        ):
-            BaseArithmeticOpsTests.test_divmod(self, data)
-        else:
-            pytest.skip("divmode not implemented on non-numeric types")
+        BaseArithmeticOpsTests.test_divmod(self, data)
 
+    @skip_non_artithmetic_type
     def test_add_series_with_extension_array(self, data):
-        arrow_dtype = data.dtype.arrow_dtype
-        if (
-            pa.types.is_integer(arrow_dtype)
-            or pa.types.is_floating(arrow_dtype)
-            or pa.types.is_decimal(arrow_dtype)
-        ):
-            BaseArithmeticOpsTests.test_add_series_with_extension_array(self, data)
-        else:
-            pytest.skip("not implemented on non-numeric types")
+        BaseArithmeticOpsTests.test_add_series_with_extension_array(self, data)
 
     def test_error(self, data, all_arithmetic_operators):
         arrow_dtype = data.dtype.arrow_dtype
