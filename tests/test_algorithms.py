@@ -34,7 +34,7 @@ def test_any_op(data, skipna):
     arrow = pa.array(data, type=pa.bool_())
     # TODO(pandas-0.26): Use pandas.BooleanArray
     # https://github.com/pandas-dev/pandas/issues/27709 / https://github.com/pandas-dev/pandas/issues/12863
-    pandas = pd.Series(data).astype(float)
+    pandas = pd.Series(data, dtype=float)
 
     assert any_op(arrow, skipna) == pandas.any(skipna=skipna)
 
@@ -55,7 +55,7 @@ def test_any_op(data, skipna):
 def test_all_op(data, skipna):
     arrow = pa.array(data, type=pa.bool_())
     # https://github.com/pandas-dev/pandas/issues/27709 / https://github.com/pandas-dev/pandas/issues/12863
-    pandas = pd.Series(data).astype(float)
+    pandas = pd.Series(data, dtype=float)
 
     assert all_op(arrow, skipna) == pandas.all(skipna=skipna)
 

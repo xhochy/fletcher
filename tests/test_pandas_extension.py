@@ -5,6 +5,7 @@ from distutils.version import LooseVersion
 from random import choices
 from typing import Optional, Type
 
+import numpy as np
 import pandas as pd
 import pyarrow as pa
 import pytest
@@ -79,6 +80,36 @@ test_types = [
         [True, False, False],
         [True, None, False],
         lambda: choices([True, False], k=10),
+    ),
+    FletcherTestType(
+        pa.int8(),
+        # Use small values here so that np.prod stays in int32
+        [2, 1, 1, 2, 1] * 20,
+        [None, 1],
+        [2, 2, None, None, -100, -100, 2, 100],
+        [2, 100, -10],
+        [2, None, -10],
+        lambda: choices(list(range(100)), k=10),
+    ),
+    FletcherTestType(
+        pa.int16(),
+        # Use small values here so that np.prod stays in int32
+        [2, 1, 3, 2, 1] * 20,
+        [None, 1],
+        [2, 2, None, None, -100, -100, 2, 100],
+        [2, 100, -10],
+        [2, None, -10],
+        lambda: choices(list(range(100)), k=10),
+    ),
+    FletcherTestType(
+        pa.int32(),
+        # Use small values here so that np.prod stays in int32
+        [2, 1, 3, 2, 1] * 20,
+        [None, 1],
+        [2, 2, None, None, -100, -100, 2, 100],
+        [2, 100, -10],
+        [2, None, -10],
+        lambda: choices(list(range(100)), k=10),
     ),
     FletcherTestType(
         pa.int64(),
@@ -277,12 +308,8 @@ class TestBaseGetitemTests(BaseGetitemTests):
 class TestBaseGroupbyTests(BaseGroupbyTests):
     @pytest.mark.parametrize("as_index", [True, False])
     def test_groupby_extension_agg(self, as_index, data_for_grouping):
-        if (
-            pa.types.is_integer(data_for_grouping.dtype.arrow_dtype)
-            or pa.types.is_floating(data_for_grouping.dtype.arrow_dtype)
-            or pa.types.is_boolean(data_for_grouping.dtype.arrow_dtype)
-        ):
-            pytest.mark.xfail(reason="ExtensionIndex is not yet implemented")
+        if pa.types.is_boolean(data_for_grouping.dtype.arrow_dtype):
+            pytest.mark.xfail("Test requires at least 3 unique values")
         elif pa.types.is_list(data_for_grouping.dtype.arrow_dtype):
             pytest.mark.xfail(
                 reason="ArrowNotImplementedError: dictionary-encode not implemented for list<item: string>"
@@ -293,12 +320,8 @@ class TestBaseGroupbyTests(BaseGroupbyTests):
             )
 
     def test_groupby_extension_no_sort(self, data_for_grouping):
-        if (
-            pa.types.is_integer(data_for_grouping.dtype.arrow_dtype)
-            or pa.types.is_floating(data_for_grouping.dtype.arrow_dtype)
-            or pa.types.is_boolean(data_for_grouping.dtype.arrow_dtype)
-        ):
-            pytest.mark.xfail(reasion="ExtensionIndex is not yet implemented")
+        if pa.types.is_boolean(data_for_grouping.dtype.arrow_dtype):
+            pytest.mark.xfail("Test requires at least 3 unique values")
         elif pa.types.is_list(data_for_grouping.dtype.arrow_dtype):
             pytest.mark.xfail(
                 reason="ArrowNotImplementedError: dictionary-encode not implemented for list<item: string>"
@@ -398,10 +421,6 @@ class TestBaseMethodsTests(BaseMethodsTests):
             )
         else:
             BaseMethodsTests.test_combine_add(self, data_repeated)
-
-    # @pytest.mark.parametrize("na_sentinel", [-1, -2])
-    # def test_factorize(self, data_for_grouping, na_sentinel):
-    #    BaseMethodsTests.test_factorize(self, data_for_grouping, na_sentinel)
 
     def test_argsort(self, data_for_sorting):
         if pa.types.is_boolean(data_for_sorting.dtype.arrow_dtype):
@@ -526,14 +545,12 @@ class TestBaseMissingTests(BaseMissingTests):
 
 class TestBaseReshapingTests(BaseReshapingTests):
     def test_concat_mixed_dtypes(self, data, dtype):
-        if dtype.name in [
-            "fletcher_chunked[int64]",
-            "fletcher_chunked[double]",
-            "fletcher_chunked[bool]",
-            "fletcher_continuous[int64]",
-            "fletcher_continuous[double]",
-            "fletcher_continuous[bool]",
-        ]:
+        arrow_dtype = data.dtype.arrow_dtype
+        if (
+            pa.types.is_integer(arrow_dtype)
+            or pa.types.is_floating(arrow_dtype)
+            or pa.types.is_boolean(arrow_dtype)
+        ):
             # https://github.com/pandas-dev/pandas/issues/21792
             pytest.skip("pd.concat(int64, fletcher_chunked[int64] yields int64")
         else:
@@ -756,6 +773,36 @@ class TestBaseArithmeticOpsTests(BaseArithmeticOpsTests):
     frame_scalar_exc: Optional[Type[TypeError]] = None
     series_array_exc: Optional[Type[TypeError]] = None
     divmod_exc: Optional[Type[TypeError]] = None
+
+    def _check_op(self, s, op, other, op_name, exc=NotImplementedError):
+        if exc is None:
+            result = op(s, other)
+            expected = s.combine(other, op)
+
+            # Combine always returns an int64 for integral arrays but for
+            # operations on smaller integer types, we expect also smaller int types
+            # in the result of the non-combine operations.
+            if hasattr(expected.dtype, "arrow_dtype"):
+                arrow_dtype = expected.dtype.arrow_dtype
+                if pa.types.is_integer(arrow_dtype):
+                    # In the case of an operand with a higher bytesize, we also expect the
+                    # output to be int64.
+                    other_is_np_int64 = (
+                        isinstance(other, pd.Series)
+                        and isinstance(other.values, np.ndarray)
+                        and other.dtype.char == "l"
+                    )
+                    if (
+                        pa.types.is_integer(arrow_dtype)
+                        and pa.types.is_integer(s.dtype.arrow_dtype)
+                        and not other_is_np_int64
+                    ):
+                        expected = expected.astype(s.dtype)
+
+            self.assert_series_equal(result, expected)
+        else:
+            with pytest.raises(exc):
+                op(s, other)
 
     def test_arith_series_with_scalar(self, data, all_arithmetic_operators):
         arrow_dtype = data.dtype.arrow_dtype

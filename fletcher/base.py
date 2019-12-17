@@ -775,11 +775,11 @@ class FletcherContinuousArray(FletcherBaseArray):
             return self
 
         if isinstance(dtype, FletcherContinuousDtype):
-            dtype = dtype.arrow_dtype.to_pandas_dtype()
             arrow_type = dtype.arrow_dtype
+            dtype = dtype.arrow_dtype.to_pandas_dtype()
         elif isinstance(dtype, pa.DataType):
-            dtype = dtype.to_pandas_dtype()
             arrow_type = dtype
+            dtype = dtype.to_pandas_dtype()
         else:
             dtype = np.dtype(dtype)
             arrow_type = None
@@ -1240,14 +1240,14 @@ class FletcherChunkedArray(FletcherBaseArray):
             return self
 
         if isinstance(dtype, FletcherChunkedDtype):
-            dtype = dtype.arrow_dtype.to_pandas_dtype()
             arrow_type = dtype.arrow_dtype
+            dtype = dtype.arrow_dtype.to_pandas_dtype()
         elif isinstance(dtype, pa.DataType):
-            dtype = dtype.to_pandas_dtype()
             arrow_type = dtype
+            dtype = dtype.to_pandas_dtype()
         else:
-            dtype = np.dtype(dtype)
             arrow_type = None
+            dtype = np.dtype(dtype)
         # NumPy's conversion of list->unicode is differently from Python's
         # default. We want to have the default Python output, so force it here.
         if pa.types.is_list(self.dtype.arrow_dtype) and dtype.kind == "U":
