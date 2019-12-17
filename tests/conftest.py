@@ -113,3 +113,12 @@ def na_cmp():
 def na_value():
     """Fixture for the scalar missing value for this type. Default 'None'."""
     return None
+
+
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers", "skip_by_type_filter: skip tests according to their Arrow type"
+    )
+    config.addinivalue_line(
+        "markers", "xfail_by_type_filter: xfail tests according to their Arrow type"
+    )
