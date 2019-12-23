@@ -1,23 +1,19 @@
 import datetime
 import string
-import sys
 from collections import namedtuple
 from distutils.version import LooseVersion
+from random import choices
+from typing import Optional, Type
 
+import numpy as np
 import pandas as pd
 import pyarrow as pa
 import pytest
-
-from fletcher import (
-    FletcherChunkedArray,
-    FletcherChunkedDtype,
-    FletcherContinuousArray,
-    FletcherContinuousDtype,
-)
-
-from pandas.tests.extension.base import (  # BaseArithmeticOpsTests,; BaseComparisonOpsTests,; BaseNumericReduceTests,
+from pandas.tests.extension.base import (
+    BaseArithmeticOpsTests,
     BaseBooleanReduceTests,
     BaseCastingTests,
+    BaseComparisonOpsTests,
     BaseConstructorsTests,
     BaseDtypeTests,
     BaseGetitemTests,
@@ -26,12 +22,20 @@ from pandas.tests.extension.base import (  # BaseArithmeticOpsTests,; BaseCompar
     BaseMethodsTests,
     BaseMissingTests,
     BaseNoReduceTests,
+    BaseNumericReduceTests,
     BaseParsingTests,
     BasePrintingTests,
     BaseReshapingTests,
     BaseSetitemTests,
 )
 
+from fletcher import (
+    FletcherBaseDtype,
+    FletcherChunkedArray,
+    FletcherChunkedDtype,
+    FletcherContinuousArray,
+    FletcherContinuousDtype,
+)
 
 if LooseVersion(pd.__version__) >= "0.25.0":
     # imports of pytest fixtures needed for derived unittest classes
@@ -57,18 +61,28 @@ FletcherTestType = namedtuple(
     ],
 )
 
-if sys.version_info >= (3, 6):
-    from random import choices
-else:
-    from random import choice
 
-    def choices(seq, k):
-        return [choice(seq) for i in range(k)]
+def is_arithmetic_type(arrow_dtype: pa.DataType) -> bool:
+    """Check whether this is a type that support arithmetics."""
+    return (
+        pa.types.is_integer(arrow_dtype)
+        or pa.types.is_floating(arrow_dtype)
+        or pa.types.is_decimal(arrow_dtype)
+    )
 
 
-fail_on_missing_dtype_in_from_sequence = pytest.mark.xfail(
-    LooseVersion(pa.__version__) >= "0.10.1dev0",
-    reason="Default return type of pa.array([datetime.date]) changed, Pandas tests don't pass the dtype to from_sequence",
+skip_non_artithmetic_type = pytest.mark.skip_by_type_filter(
+    [lambda x: not is_arithmetic_type(x)]
+)
+xfail_list_setitem_not_implemented = pytest.mark.xfail_by_type_filter(
+    [pa.types.is_list], "__setitem__ is not implemented for lists"
+)
+xfail_missing_list_dict_encode = pytest.mark.xfail_by_type_filter(
+    [pa.types.is_list],
+    "ArrowNotImplementedError: dictionary-encode not implemented for list<item: string>",
+)
+xfail_bool_too_few_uniques = pytest.mark.xfail_by_type_filter(
+    [pa.types.is_boolean], "Test requires at least 3 unique values"
 )
 
 
@@ -92,8 +106,39 @@ test_types = [
         lambda: choices([True, False], k=10),
     ),
     FletcherTestType(
+        pa.int8(),
+        # Use small values here so that np.prod stays in int32
+        [2, 1, 1, 2, 1] * 20,
+        [None, 1],
+        [2, 2, None, None, -100, -100, 2, 100],
+        [2, 100, -10],
+        [2, None, -10],
+        lambda: choices(list(range(100)), k=10),
+    ),
+    FletcherTestType(
+        pa.int16(),
+        # Use small values here so that np.prod stays in int32
+        [2, 1, 3, 2, 1] * 20,
+        [None, 1],
+        [2, 2, None, None, -100, -100, 2, 100],
+        [2, 100, -10],
+        [2, None, -10],
+        lambda: choices(list(range(100)), k=10),
+    ),
+    FletcherTestType(
+        pa.int32(),
+        # Use small values here so that np.prod stays in int32
+        [2, 1, 3, 2, 1] * 20,
+        [None, 1],
+        [2, 2, None, None, -100, -100, 2, 100],
+        [2, 100, -10],
+        [2, None, -10],
+        lambda: choices(list(range(100)), k=10),
+    ),
+    FletcherTestType(
         pa.int64(),
-        [2, 1, -1, 0, 66] * 20,
+        # Use small values here so that np.prod stays in int64
+        [2, 1, 3, 2, 1] * 20,
         [None, 1],
         [2, 2, None, None, -100, -100, 2, 100],
         [2, 100, -10],
@@ -102,7 +147,7 @@ test_types = [
     ),
     FletcherTestType(
         pa.float64(),
-        [2.5, 1.0, -1.0, 0, 66.6] * 20,
+        [2, 1.0, 1.0, 5.5, 6.6] * 20,
         [None, 1.1],
         [2.5, 2.5, None, None, -100.1, -100.1, 2.5, 100.1],
         [2.5, 100.99, -10.1],
@@ -120,8 +165,7 @@ test_types = [
             [["B"], ["C"], ["A"]],
             [["B"], None, ["A"]],
             lambda: choices([["B", "C"], ["A"], [None], ["A", "A"]], k=10),
-        ),
-        marks=pytest.mark.xfail,
+        )
     ),
     FletcherTestType(
         pa.date64(),
@@ -188,6 +232,24 @@ def fletcher_type(request):
     return request.param
 
 
+@pytest.fixture(autouse=True)
+def skip_by_type_filter(request, fletcher_type):
+    if request.node.get_closest_marker("skip_by_type_filter"):
+        for marker in request.node.iter_markers("skip_by_type_filter"):
+            for func in marker.args[0]:
+                if func(fletcher_type.dtype):
+                    pytest.skip(f"skipped for type: {fletcher_type}")
+
+
+@pytest.fixture(autouse=True)
+def xfail_by_type_filter(request, fletcher_type):
+    if request.node.get_closest_marker("xfail_by_type_filter"):
+        for marker in request.node.iter_markers("xfail_by_type_filter"):
+            for func in marker.args[0]:
+                if func(fletcher_type.dtype):
+                    pytest.xfail(f"XFAIL for type: {fletcher_type}")
+
+
 @pytest.fixture
 def dtype(fletcher_type, fletcher_dtype):
     return fletcher_dtype(fletcher_type.dtype)
@@ -196,6 +258,14 @@ def dtype(fletcher_type, fletcher_dtype):
 @pytest.fixture
 def data(fletcher_type, fletcher_array):
     return fletcher_array(fletcher_type.data, dtype=fletcher_type.dtype)
+
+
+@pytest.fixture
+def data_for_twos(dtype, fletcher_type, fletcher_array):
+    if dtype._is_numeric:
+        return fletcher_array([2] * 100, dtype=fletcher_type.dtype)
+    else:
+        return None
 
 
 @pytest.fixture
@@ -255,7 +325,6 @@ class TestBaseCasting(BaseCastingTests):
 
 
 class TestBaseConstructors(BaseConstructorsTests):
-    @pytest.mark.xfail(reason="Tries to construct dtypes with np.dtype")
     def test_from_dtype(self, data):
         if pa.types.is_string(data.dtype.arrow_dtype):
             pytest.xfail(
@@ -269,21 +338,6 @@ class TestBaseDtype(BaseDtypeTests):
 
 
 class TestBaseGetitemTests(BaseGetitemTests):
-    def test_take_non_na_fill_value(self, data_missing):
-        if pa.types.is_integer(data_missing.dtype.arrow_dtype):
-            pytest.mark.xfail(reasion="Take is not yet correctly implemented for ints")
-        else:
-            BaseGetitemTests.test_take_non_na_fill_value(self, data_missing)
-
-    def test_reindex_non_na_fill_value(self, data_missing):
-        if pa.types.is_integer(data_missing.dtype.arrow_dtype):
-            pytest.mark.xfail(reasion="Take is not yet correctly implemented for ints")
-        else:
-            BaseGetitemTests.test_reindex_non_na_fill_value(self, data_missing)
-
-    def test_take_series(self, data):
-        BaseGetitemTests.test_take_series(self, data)
-
     def test_loc_iloc_frame_single_dtype(self, data):
         if pa.types.is_string(data.dtype.arrow_dtype):
             pytest.mark.xfail(
@@ -292,45 +346,20 @@ class TestBaseGetitemTests(BaseGetitemTests):
         else:
             BaseGetitemTests.test_loc_iloc_frame_single_dtype(self, data)
 
-    @pytest.mark.skip
-    def test_reindex(self):
-        # No longer available in master and fails with pandas 0.23.1
-        # due to a dtype assumption that does not hold for Arrow
-        pass
-
 
 class TestBaseGroupbyTests(BaseGroupbyTests):
+    @xfail_bool_too_few_uniques
+    @xfail_missing_list_dict_encode
     @pytest.mark.parametrize("as_index", [True, False])
     def test_groupby_extension_agg(self, as_index, data_for_grouping):
-        if (
-            pa.types.is_integer(data_for_grouping.dtype.arrow_dtype)
-            or pa.types.is_floating(data_for_grouping.dtype.arrow_dtype)
-            or pa.types.is_boolean(data_for_grouping.dtype.arrow_dtype)
-        ):
-            pytest.mark.xfail(reason="ExtensionIndex is not yet implemented")
-        elif pa.types.is_list(data_for_grouping.dtype.arrow_dtype):
-            pytest.mark.xfail(
-                reason="ArrowNotImplementedError: dictionary-encode not implemented for list<item: string>"
-            )
-        else:
-            BaseGroupbyTests.test_groupby_extension_agg(
-                self, as_index, data_for_grouping
-            )
+        BaseGroupbyTests.test_groupby_extension_agg(self, as_index, data_for_grouping)
 
+    @xfail_bool_too_few_uniques
+    @xfail_missing_list_dict_encode
     def test_groupby_extension_no_sort(self, data_for_grouping):
-        if (
-            pa.types.is_integer(data_for_grouping.dtype.arrow_dtype)
-            or pa.types.is_floating(data_for_grouping.dtype.arrow_dtype)
-            or pa.types.is_boolean(data_for_grouping.dtype.arrow_dtype)
-        ):
-            pytest.mark.xfail(reasion="ExtensionIndex is not yet implemented")
-        elif pa.types.is_list(data_for_grouping.dtype.arrow_dtype):
-            pytest.mark.xfail(
-                reason="ArrowNotImplementedError: dictionary-encode not implemented for list<item: string>"
-            )
-        else:
-            BaseGroupbyTests.test_groupby_extension_no_sort(self, data_for_grouping)
+        BaseGroupbyTests.test_groupby_extension_no_sort(self, data_for_grouping)
 
+    @xfail_missing_list_dict_encode
     def test_groupby_extension_transform(self, data_for_grouping):
         if pa.types.is_boolean(data_for_grouping.dtype.arrow_dtype):
             valid = data_for_grouping[~data_for_grouping.isna()]
@@ -341,24 +370,16 @@ class TestBaseGroupbyTests(BaseGroupbyTests):
             expected = pd.Series([3, 3, 3, 3, 3, 3], name="A")
 
             self.assert_series_equal(result, expected)
-        elif pa.types.is_list(data_for_grouping.dtype.arrow_dtype):
-            pytest.mark.xfail(
-                reason="ArrowNotImplementedError: dictionary-encode not implemented for list<item: string>"
-            )
         else:
             BaseGroupbyTests.test_groupby_extension_transform(self, data_for_grouping)
 
+    @xfail_missing_list_dict_encode
     def test_groupby_extension_apply(
         self, data_for_grouping, groupby_apply_op  # noqa: F811
     ):
-        if pa.types.is_list(data_for_grouping.dtype.arrow_dtype):
-            pytest.mark.xfail(
-                reason="ArrowNotImplementedError: dictionary-encode not implemented for list<item: string>"
-            )
-        else:
-            BaseGroupbyTests.test_groupby_extension_apply(
-                self, data_for_grouping, groupby_apply_op
-            )
+        BaseGroupbyTests.test_groupby_extension_apply(
+            self, data_for_grouping, groupby_apply_op
+        )
 
 
 class TestBaseInterfaceTests(BaseInterfaceTests):
@@ -366,7 +387,17 @@ class TestBaseInterfaceTests(BaseInterfaceTests):
         reason="view or self[:] returns a shallow copy in-place edits are not backpropagated"
     )
     def test_view(self, data):
-        pass
+        BaseInterfaceTests.test_view(self, data)
+
+    def test_array_interface(self, data):
+        if pa.types.is_list(data.dtype.arrow_dtype):
+            pytest.xfail("Not sure whether this test really holds for list")
+        else:
+            BaseInterfaceTests.test_array_interface(self, data)
+
+    @xfail_list_setitem_not_implemented
+    def test_copy(self, data):
+        BaseInterfaceTests.test_array_interface(self, data)
 
 
 class TestBaseMethodsTests(BaseMethodsTests):
@@ -382,6 +413,8 @@ class TestBaseMethodsTests(BaseMethodsTests):
         # Test that combine works when doing a <= (le) comparison
         # Fletcher returns 'fletcher_chunked[bool]' instead of np.bool as dtype
         orig_data1, orig_data2 = data_repeated(2)
+        if pa.types.is_list(orig_data1.dtype.arrow_dtype):
+            return pytest.skip("__le__ not implemented for list scalars with None")
         s1 = pd.Series(orig_data1)
         s2 = pd.Series(orig_data2)
         result = s1.combine(s2, lambda x1, x2: x1 <= x2)
@@ -410,93 +443,195 @@ class TestBaseMethodsTests(BaseMethodsTests):
         else:
             BaseMethodsTests.test_combine_add(self, data_repeated)
 
-    # @pytest.mark.parametrize("na_sentinel", [-1, -2])
-    # def test_factorize(self, data_for_grouping, na_sentinel):
-    #    BaseMethodsTests.test_factorize(self, data_for_grouping, na_sentinel)
-
+    @xfail_bool_too_few_uniques
     def test_argsort(self, data_for_sorting):
-        if pa.types.is_boolean(data_for_sorting.dtype.arrow_dtype):
-            pytest.skip("Boolean has too few values for this test")
-        else:
-            BaseMethodsTests.test_argsort(self, data_for_sorting)
+        BaseMethodsTests.test_argsort(self, data_for_sorting)
 
     @pytest.mark.parametrize("ascending", [True, False])
+    @xfail_bool_too_few_uniques
     def test_sort_values(self, data_for_sorting, ascending):
-        if pa.types.is_boolean(data_for_sorting.dtype.arrow_dtype):
-            pytest.skip("Boolean has too few values for this test")
-        else:
-            BaseMethodsTests.test_sort_values(self, data_for_sorting, ascending)
+        BaseMethodsTests.test_sort_values(self, data_for_sorting, ascending)
 
     @pytest.mark.parametrize("na_sentinel", [-1, -2])
+    @xfail_bool_too_few_uniques
+    @xfail_missing_list_dict_encode
     def test_factorize(self, data_for_grouping, na_sentinel):
-        if pa.types.is_boolean(data_for_grouping.dtype.arrow_dtype):
-            pytest.skip("Boolean has too few values for this test")
-        else:
-            BaseMethodsTests.test_factorize(self, data_for_grouping, na_sentinel)
+        BaseMethodsTests.test_factorize(self, data_for_grouping, na_sentinel)
 
     @pytest.mark.parametrize("na_sentinel", [-1, -2])
+    @xfail_bool_too_few_uniques
+    @xfail_missing_list_dict_encode
     def test_factorize_equivalence(self, data_for_grouping, na_sentinel):
-        if pa.types.is_boolean(data_for_grouping.dtype.arrow_dtype):
-            pytest.skip("Boolean has too few values for this test")
-        else:
-            BaseMethodsTests.test_factorize_equivalence(
-                self, data_for_grouping, na_sentinel
-            )
+        BaseMethodsTests.test_factorize_equivalence(
+            self, data_for_grouping, na_sentinel
+        )
 
+    @pytest.mark.parametrize("ascending", [True, False])
+    @xfail_missing_list_dict_encode
+    def test_sort_values_frame(self, data_for_sorting, ascending):
+        BaseMethodsTests.test_sort_values_frame(self, data_for_sorting, ascending)
+
+    @xfail_bool_too_few_uniques
     def test_searchsorted(self, data_for_sorting, as_series):  # noqa: F811
-        if pa.types.is_boolean(data_for_sorting.dtype.arrow_dtype):
-            pytest.skip("Boolean has too few values for this test")
+        BaseMethodsTests.test_searchsorted(self, data_for_sorting, as_series)
+
+    @pytest.mark.parametrize("box", [pd.Series, lambda x: x])
+    @pytest.mark.parametrize("method", [lambda x: x.unique(), pd.unique])
+    @xfail_missing_list_dict_encode
+    def test_unique(self, data, box, method):
+        BaseMethodsTests.test_unique(self, data, box, method)
+
+    @xfail_missing_list_dict_encode
+    def test_factorize_empty(self, data):
+        BaseMethodsTests.test_factorize_empty(self, data)
+
+    def test_fillna_copy_frame(self, data_missing):
+        if pa.types.is_list(data_missing.dtype.arrow_dtype):
+            pytest.xfail("pandas' fillna cannot cope with lists as a scalar")
         else:
-            BaseMethodsTests.test_searchsorted(self, data_for_sorting, as_series)
+            BaseMethodsTests.test_fillna_copy_frame(self, data_missing)
+
+    def test_fillna_copy_series(self, data_missing):
+        if pa.types.is_list(data_missing.dtype.arrow_dtype):
+            pytest.xfail("pandas' fillna cannot cope with lists as a scalar")
+        else:
+            BaseMethodsTests.test_fillna_copy_series(self, data_missing)
+
+    @xfail_list_setitem_not_implemented
+    def test_combine_first(self, data):
+        BaseMethodsTests.test_combine_first(self, data)
+
+    def test_shift_fill_value(self, data):
+        if pa.types.is_list(data.dtype.arrow_dtype):
+            pytest.xfail("pandas' isna cannot cope with lists")
+        else:
+            BaseMethodsTests.test_shift_fill_value(self, data)
+
+    def test_hash_pandas_object_works(self, data, as_frame):  # noqa: F811
+        if pa.types.is_list(data.dtype.arrow_dtype):
+            pytest.xfail("Fails on hashing ndarrays")
+        else:
+            BaseMethodsTests.test_hash_pandas_object_works(self, data, as_frame)
+
+    @xfail_list_setitem_not_implemented
+    def test_where_series(self, data, na_value, as_frame):  # noqa: F811
+        BaseMethodsTests.test_where_series(self, data, na_value, as_frame)
 
 
 class TestBaseMissingTests(BaseMissingTests):
-    @fail_on_missing_dtype_in_from_sequence
-    def test_fillna_series(self, data_missing):
-        BaseMissingTests.test_fillna_series(self, data_missing)
-
-    @fail_on_missing_dtype_in_from_sequence
     @pytest.mark.parametrize("method", ["ffill", "bfill"])
     def test_fillna_series_method(self, data_missing, method):
         BaseMissingTests.test_fillna_series_method(self, data_missing, method)
 
     def test_fillna_frame(self, data_missing):
-        BaseMissingTests.test_fillna_frame(self, data_missing)
+        if pa.types.is_list(data_missing.dtype.arrow_dtype):
+            pytest.xfail("pandas' fillna cannot cope with lists as a scalar")
+        else:
+            BaseMissingTests.test_fillna_frame(self, data_missing)
+
+    def test_fillna_scalar(self, data_missing):
+        if pa.types.is_list(data_missing.dtype.arrow_dtype):
+            pytest.xfail("pandas' fillna cannot cope with lists as a scalar")
+        else:
+            BaseMissingTests.test_fillna_scalar(self, data_missing)
+
+    def test_fillna_series(self, data_missing):
+        if pa.types.is_list(data_missing.dtype.arrow_dtype):
+            pytest.xfail("pandas' fillna cannot cope with lists as a scalar")
+        else:
+            BaseMissingTests.test_fillna_series(self, data_missing)
 
 
 class TestBaseReshapingTests(BaseReshapingTests):
     def test_concat_mixed_dtypes(self, data, dtype):
-        if dtype.name in [
-            "fletcher_chunked[int64]",
-            "fletcher_chunked[double]",
-            "fletcher_chunked[bool]",
-            "fletcher_continuous[int64]",
-            "fletcher_continuous[double]",
-            "fletcher_continuous[bool]",
-        ]:
+        arrow_dtype = data.dtype.arrow_dtype
+        if (
+            pa.types.is_integer(arrow_dtype)
+            or pa.types.is_floating(arrow_dtype)
+            or pa.types.is_boolean(arrow_dtype)
+        ):
             # https://github.com/pandas-dev/pandas/issues/21792
             pytest.skip("pd.concat(int64, fletcher_chunked[int64] yields int64")
         else:
             BaseReshapingTests.test_concat_mixed_dtypes(self, data)
 
-    def test_concat_columns(self, data, na_value):
-        BaseReshapingTests.test_concat_columns(self, data, na_value)
+    def test_merge_on_extension_array(self, data):
+        if pa.types.is_list(data.dtype.arrow_dtype):
+            pytest.xfail("pandas tries to hash scalar lists")
+        else:
+            BaseReshapingTests.test_merge_on_extension_array(self, data)
 
-    def test_align(self, data, na_value):
-        BaseReshapingTests.test_align(self, data, na_value)
+    def test_merge_on_extension_array_duplicates(self, data):
+        if pa.types.is_list(data.dtype.arrow_dtype):
+            pytest.xfail("pandas tries to hash scalar lists")
+        else:
+            BaseReshapingTests.test_merge_on_extension_array_duplicates(self, data)
 
-    def test_align_frame(self, data, na_value):
-        BaseReshapingTests.test_align_frame(self, data, na_value)
-
-    def test_align_series_frame(self, data, na_value):
-        BaseReshapingTests.test_align_series_frame(self, data, na_value)
-
-    def test_merge(self, data, na_value):
-        BaseReshapingTests.test_merge(self, data, na_value)
+    @xfail_list_setitem_not_implemented
+    def test_ravel(self, data):
+        BaseReshapingTests.test_ravel(self, data)
 
 
 class TestBaseSetitemTests(BaseSetitemTests):
-    pass
+    @xfail_list_setitem_not_implemented
+    def test_setitem_scalar_series(self, data, box_in_series):
+        BaseSetitemTests.test_setitem_scalar_series(self, data, box_in_series)
+
+    @xfail_list_setitem_not_implemented
+    def test_setitem_sequence(self, data, box_in_series):
+        BaseSetitemTests.test_setitem_sequence(self, data, box_in_series)
+
+    @xfail_list_setitem_not_implemented
+    def test_setitem_empty_indxer(self, data, box_in_series):
+        BaseSetitemTests.test_setitem_empty_indxer(self, data, box_in_series)
+
+    @xfail_list_setitem_not_implemented
+    def test_setitem_sequence_broadcasts(self, data, box_in_series):
+        BaseSetitemTests.test_setitem_sequence_broadcasts(self, data, box_in_series)
+
+    @pytest.mark.parametrize("setter", ["loc", "iloc"])
+    @xfail_list_setitem_not_implemented
+    def test_setitem_scalar(self, data, setter):
+        BaseSetitemTests.test_setitem_scalar(self, data, setter)
+
+    @xfail_list_setitem_not_implemented
+    def test_setitem_loc_scalar_mixed(self, data):
+        BaseSetitemTests.test_setitem_loc_scalar_mixed(self, data)
+
+    @xfail_list_setitem_not_implemented
+    def test_setitem_loc_scalar_single(self, data):
+        BaseSetitemTests.test_setitem_loc_scalar_single(self, data)
+
+    @xfail_list_setitem_not_implemented
+    def test_setitem_loc_scalar_multiple_homogoneous(self, data):
+        BaseSetitemTests.test_setitem_loc_scalar_multiple_homogoneous(self, data)
+
+    @xfail_list_setitem_not_implemented
+    def test_setitem_iloc_scalar_mixed(self, data):
+        BaseSetitemTests.test_setitem_iloc_scalar_mixed(self, data)
+
+    @xfail_list_setitem_not_implemented
+    def test_setitem_iloc_scalar_single(self, data):
+        BaseSetitemTests.test_setitem_iloc_scalar_single(self, data)
+
+    @xfail_list_setitem_not_implemented
+    def test_setitem_iloc_scalar_multiple_homogoneous(self, data):
+        BaseSetitemTests.test_setitem_iloc_scalar_multiple_homogoneous(self, data)
+
+    @pytest.mark.parametrize("as_callable", [True, False])
+    @pytest.mark.parametrize("setter", ["loc", None])
+    @xfail_list_setitem_not_implemented
+    def test_setitem_mask_aligned(self, data, as_callable, setter):
+        BaseSetitemTests.test_setitem_mask_aligned(self, data, as_callable, setter)
+
+    @pytest.mark.parametrize("setter", ["loc", None])
+    @xfail_list_setitem_not_implemented
+    def test_setitem_mask_broadcast(self, data, setter):
+        BaseSetitemTests.test_setitem_mask_broadcast(self, data, setter)
+
+    @xfail_list_setitem_not_implemented
+    def test_setitem_slice_array(self, data):
+        BaseSetitemTests.test_setitem_slice_array(self, data)
 
 
 class TestBaseParsingTests(BaseParsingTests):
@@ -525,10 +660,17 @@ class TestBaseBooleanReduceTests(BaseBooleanReduceTests):
 class TestBaseNoReduceTests(BaseNoReduceTests):
     @pytest.mark.parametrize("skipna", [True, False])
     def test_reduce_series_numeric(self, data, all_numeric_reductions, skipna):
-        # TODO: Implement for numeric types and then skip this test
-        BaseNoReduceTests.test_reduce_series_numeric(
-            self, data, all_numeric_reductions, skipna
-        )
+        arrow_dtype = data.dtype.arrow_dtype
+        if (
+            pa.types.is_integer(arrow_dtype)
+            or pa.types.is_floating(arrow_dtype)
+            or pa.types.is_decimal(arrow_dtype)
+        ):
+            pytest.skip("Numeric arrays implement reductions, so don't raise")
+        else:
+            BaseNoReduceTests.test_reduce_series_numeric(
+                self, data, all_numeric_reductions, skipna
+            )
 
     @pytest.mark.parametrize("skipna", [True, False])
     def test_reduce_series_boolean(self, data, all_boolean_reductions, skipna):
@@ -540,15 +682,131 @@ class TestBaseNoReduceTests(BaseNoReduceTests):
             )
 
 
-# TODO: Implement
-# class TestBaseNumericReduceTests(BaseNumericReduceTests):
-#    pass
+class TestBaseNumericReduceTests(BaseNumericReduceTests):
+    @pytest.mark.parametrize("skipna", [True, False])
+    def test_reduce_series(self, data, all_numeric_reductions, skipna):
+        if all_numeric_reductions == "prod":
+            # Shorten in the case of prod to avoid overflows
+            data = data[:2]
+        arrow_dtype = data.dtype.arrow_dtype
+        if (
+            pa.types.is_integer(arrow_dtype)
+            or pa.types.is_floating(arrow_dtype)
+            or pa.types.is_decimal(arrow_dtype)
+        ):
+            BaseNumericReduceTests.test_reduce_series(
+                self, data, all_numeric_reductions, skipna
+            )
+        else:
+            pytest.skip("Reduce not implemented on non-numeric types")
 
 
-# TODO: Implement
-# class TestBaseComparisonOpsTests(BaseComparisonOpsTests):
-#    pass
+class TestBaseComparisonOpsTests(BaseComparisonOpsTests):
+    def check_opname(self, s, op_name, other, exc=None):
+        super().check_opname(s, op_name, other, exc=None)
 
-# TODO: Implement
-# class TestBaseArithmeticOpsTests(BaseArithmeticOpsTests):
-#     pass
+    def _compare_other(self, s, data, op_name, other):
+        self.check_opname(s, op_name, other)
+
+    def test_compare_scalar(self, data, all_compare_operators):
+        if pa.types.is_list(data.dtype.arrow_dtype):
+            pytest.xfail("pandas cannot cope with lists as scalar")
+        else:
+            # FIXME: Upstream always compares againt 0
+            op_name = all_compare_operators
+            s = pd.Series(data)
+            self._compare_other(s, data, op_name, data[0])
+
+    def test_compare_array(self, data, all_compare_operators):
+        if pa.types.is_list(data.dtype.arrow_dtype):
+            pytest.xfail("Comparision of list not implemented yet")
+        else:
+            BaseComparisonOpsTests.test_compare_array(self, data, all_compare_operators)
+
+    def _check_op(self, s, op, other, op_name, exc=NotImplementedError):
+        if exc is None:
+            result = op(s, other)
+            # We return fletcher booleans to support nulls
+            expected = s.combine(other, op)
+            if not isinstance(expected.dtype, FletcherBaseDtype):
+                expected = pd.Series(type(s.values)(expected.values))
+            self.assert_series_equal(result, expected)
+        else:
+            with pytest.raises(exc):
+                op(s, other)
+
+
+class TestBaseArithmeticOpsTests(BaseArithmeticOpsTests):
+    # TODO: Instead of skipping other types, we should set the correct exceptions here
+    series_scalar_exc: Optional[Type[TypeError]] = None
+    frame_scalar_exc: Optional[Type[TypeError]] = None
+    series_array_exc: Optional[Type[TypeError]] = None
+    divmod_exc: Optional[Type[TypeError]] = None
+
+    def _check_op(self, s, op, other, op_name, exc=NotImplementedError):
+        if exc is None:
+            result = op(s, other)
+            expected = s.combine(other, op)
+
+            # Combine always returns an int64 for integral arrays but for
+            # operations on smaller integer types, we expect also smaller int types
+            # in the result of the non-combine operations.
+            if hasattr(expected.dtype, "arrow_dtype"):
+                arrow_dtype = expected.dtype.arrow_dtype
+                if pa.types.is_integer(arrow_dtype):
+                    # In the case of an operand with a higher bytesize, we also expect the
+                    # output to be int64.
+                    other_is_np_int64 = (
+                        isinstance(other, pd.Series)
+                        and isinstance(other.values, np.ndarray)
+                        and other.dtype.char == "l"
+                    )
+                    if (
+                        pa.types.is_integer(arrow_dtype)
+                        and pa.types.is_integer(s.dtype.arrow_dtype)
+                        and not other_is_np_int64
+                    ):
+                        expected = expected.astype(s.dtype)
+
+            self.assert_series_equal(result, expected)
+        else:
+            with pytest.raises(exc):
+                op(s, other)
+
+    @skip_non_artithmetic_type
+    def test_arith_series_with_scalar(self, data, all_arithmetic_operators):
+        BaseArithmeticOpsTests.test_arith_series_with_scalar(
+            self, data, all_arithmetic_operators
+        )
+
+    @skip_non_artithmetic_type
+    def test_arith_series_with_array(self, data, all_arithmetic_operators):
+        BaseArithmeticOpsTests.test_arith_series_with_array(
+            self, data, all_arithmetic_operators
+        )
+
+    @skip_non_artithmetic_type
+    def test_divmod(self, data):
+        BaseArithmeticOpsTests.test_divmod(self, data)
+
+    @skip_non_artithmetic_type
+    def test_divmod_series_array(self, data, data_for_twos):
+        BaseArithmeticOpsTests.test_divmod(self, data)
+
+    @skip_non_artithmetic_type
+    def test_add_series_with_extension_array(self, data):
+        BaseArithmeticOpsTests.test_add_series_with_extension_array(self, data)
+
+    def test_error(self, data, all_arithmetic_operators):
+        arrow_dtype = data.dtype.arrow_dtype
+        if (
+            pa.types.is_integer(arrow_dtype)
+            or pa.types.is_floating(arrow_dtype)
+            or pa.types.is_decimal(arrow_dtype)
+        ):
+            pytest.skip("Numeric does not error on ops")
+        else:
+            pytest.xfail("Should error here")
+
+    def _check_divmod_op(self, s, op, other, exc=None):
+        super()._check_divmod_op(s, op, other, None)

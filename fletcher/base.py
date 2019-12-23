@@ -1,7 +1,9 @@
 import datetime
+import operator
 from collections import OrderedDict
 from collections.abc import Iterable
-from typing import Any, List, Optional, Sequence, Tuple, Union
+from functools import partialmethod
+from typing import Any, Callable, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -14,9 +16,24 @@ from pandas.api.types import (
     is_integer_dtype,
 )
 from pandas.core.arrays import ExtensionArray
-from pandas.core.dtypes.dtypes import ExtensionDtype
+from pandas.core.dtypes.dtypes import ExtensionDtype, register_extension_dtype
 
-from ._algorithms import all_op, any_op, extract_isnull_bytemap
+from ._algorithms import (
+    _calculate_chunk_offsets,
+    all_op,
+    any_op,
+    extract_isnull_bytemap,
+    kurt_op,
+    max_op,
+    median_op,
+    min_op,
+    np_ufunc_op,
+    prod_op,
+    skew_op,
+    std_op,
+    sum_op,
+    var_op,
+)
 
 _python_type_map = {
     pa.null().id: str,
@@ -42,6 +59,14 @@ _python_type_map = {
 }
 
 _string_type_map = {"date64[ms]": pa.date64(), "string": pa.string()}
+
+
+def _is_numeric(arrow_dtype: pa.DataType) -> bool:
+    return (
+        pa.types.is_integer(arrow_dtype)
+        or pa.types.is_floating(arrow_dtype)
+        or pa.types.is_decimal(arrow_dtype)
+    )
 
 
 class FletcherBaseDtype(ExtensionDtype):
@@ -111,7 +136,16 @@ class FletcherBaseDtype(ExtensionDtype):
         """
         return str(self)
 
+    @property
+    def _is_boolean(self):
+        return pa.types.is_boolean(self.arrow_dtype)
 
+    @property
+    def _is_numeric(self):
+        return _is_numeric(self.arrow_dtype)
+
+
+@register_extension_dtype
 class FletcherContinuousDtype(FletcherBaseDtype):
     """Dtype for a pandas ExtensionArray backed by Apache Arrow's pyarrow.Array."""
 
@@ -155,6 +189,10 @@ class FletcherContinuousDtype(FletcherBaseDtype):
         # Remove fletcher specific naming from the arrow type string.
         if string.startswith("fletcher_continuous["):
             string = string[len("fletcher_continuous[") : -1]
+        else:
+            raise TypeError(
+                f"Cannot construct a 'FletcherContinuousDtype' from '{string}'"
+            )
 
         if string == "list<item: string>":
             return cls(pa.list_(pa.string()))
@@ -181,6 +219,7 @@ class FletcherContinuousDtype(FletcherBaseDtype):
         return FletcherContinuousArray
 
 
+@register_extension_dtype
 class FletcherChunkedDtype(FletcherBaseDtype):
     """Dtype for a pandas ExtensionArray backed by Apache Arrow's pyarrow.ChunkedArray."""
 
@@ -224,6 +263,10 @@ class FletcherChunkedDtype(FletcherBaseDtype):
         # Remove fletcher specific naming from the arrow type string.
         if string.startswith("fletcher_chunked["):
             string = string[len("fletcher_chunked[") : -1]
+        else:
+            raise TypeError(
+                f"Cannot construct a 'FletcherChunkedDtype' from '{string}'"
+            )
 
         if string == "list<item: string>":
             return cls(pa.list_(pa.string()))
@@ -310,6 +353,153 @@ class FletcherBaseArray(ExtensionArray):
         """Return base object of the underlying data."""
         return self.data
 
+    def _reduce(self, name, skipna=True, **kwargs):
+        """
+        Return a scalar result of performing the reduction operation.
+
+        Parameters
+        ----------
+        name : str
+            Name of the function, supported values are:
+            { any, all, min, max, sum, mean, median, prod,
+            std, var, sem, kurt, skew }.
+        skipna : bool, default True
+            If True, skip NaN values.
+        **kwargs
+            Additional keyword arguments passed to the reduction function.
+            Currently, `ddof` is the only supported kwarg.
+
+        Returns
+        -------
+        scalar
+
+        Raises
+        ------
+        TypeError : subclass does not define reductions
+        """
+        if name == "any" and pa.types.is_boolean(self.dtype.arrow_dtype):
+            return any_op(self.data, skipna=skipna)
+        elif name == "all" and pa.types.is_boolean(self.dtype.arrow_dtype):
+            return all_op(self.data, skipna=skipna)
+        elif name == "sum" and self.dtype._is_numeric:
+            return sum_op(self.data, skipna=skipna)
+        elif name == "max" and self.dtype._is_numeric:
+            return max_op(self.data, skipna=skipna)
+        elif name == "min" and self.dtype._is_numeric:
+            return min_op(self.data, skipna=skipna)
+        elif name == "mean" and self.dtype._is_numeric:
+            return sum_op(self.data, skipna=skipna) / len(self.data)
+        elif name == "prod" and self.dtype._is_numeric:
+            return prod_op(self.data, skipna=skipna)
+        elif name == "std" and self.dtype._is_numeric:
+            return std_op(self.data, skipna=skipna)
+        elif name == "skew" and self.dtype._is_numeric:
+            return skew_op(self.data, skipna=skipna)
+        elif name == "kurt" and self.dtype._is_numeric:
+            return kurt_op(self.data, skipna=skipna)
+        elif name == "var" and self.dtype._is_numeric:
+            return var_op(self.data, skipna=skipna)
+        elif name == "median" and self.dtype._is_numeric:
+            return median_op(self.data, skipna=skipna)
+
+        raise TypeError(
+            "cannot perform {name} with type {dtype}".format(
+                name=name, dtype=self.dtype
+            )
+        )
+
+    def __array_ufunc__(self, ufunc, method, *inputs, **kwargs):
+        """Apply a NumPy ufunc on the ExtensionArray."""
+        if method != "__call__":
+            if (
+                method == "reduce"
+                and getattr(ufunc, "__name__") == "logical_or"
+                and self.dtype.arrow_dtype.id == 1
+            ):
+                return any_op(self.data, skipna=False)
+            else:
+                raise NotImplementedError(
+                    f"Only method == '__call__' is supported in ufuncs, not '{method}'"
+                )
+        if len(inputs) != 2:
+            raise NotImplementedError("Only ufuncs with a second input are supported")
+        if len(kwargs) > 0:
+            raise NotImplementedError("ufuncs with kwargs aren't supported")
+        if isinstance(inputs[0], FletcherBaseArray):
+            left = inputs[0].data
+        else:
+            left = inputs[0]
+        if isinstance(inputs[1], FletcherBaseArray):
+            right = inputs[1].data
+        else:
+            right = inputs[1]
+        return type(self)(np_ufunc_op(left, right, ufunc))
+
+    def _np_ufunc_op(self, op: Callable, other):
+        """Apply a NumPy ufunc on the instance and any other object."""
+        if isinstance(other, pd.Series):
+            return NotImplemented
+        if isinstance(other, FletcherBaseArray):
+            other = other.data
+        return type(self)(np_ufunc_op(self.data, other, op))
+
+    def _np_compare_op(self, op: Callable, np_op: Callable, other):
+        """Apply a NumPy-based comparison on the instance and any other object."""
+        if isinstance(other, pd.Series):
+            return NotImplemented
+        # TODO: Only numeric comparisons are fast currently
+        if not self.dtype._is_numeric:
+            if isinstance(other, FletcherBaseArray):
+                other = other.data.to_pandas()
+            return type(self)(op(self.data.to_pandas(), other))
+        return self._np_ufunc_op(np_op, other)
+
+    __eq__ = partialmethod(  # type: ignore
+        _np_compare_op, operator.eq, np.ndarray.__eq__
+    )
+    __ne__ = partialmethod(  # type: ignore
+        _np_compare_op, operator.ne, np.ndarray.__ne__
+    )
+    __le__ = partialmethod(_np_compare_op, operator.le, np.ndarray.__le__)
+    __lt__ = partialmethod(_np_compare_op, operator.lt, np.ndarray.__lt__)
+    __ge__ = partialmethod(_np_compare_op, operator.ge, np.ndarray.__ge__)
+    __gt__ = partialmethod(_np_compare_op, operator.gt, np.ndarray.__gt__)
+
+    __add__ = partialmethod(_np_ufunc_op, np.ndarray.__add__)
+    __radd__ = partialmethod(_np_ufunc_op, np.ndarray.__radd__)
+    __sub__ = partialmethod(_np_ufunc_op, np.ndarray.__sub__)
+    __rsub__ = partialmethod(_np_ufunc_op, np.ndarray.__rsub__)
+    __mul__ = partialmethod(_np_ufunc_op, np.ndarray.__mul__)
+    __rmul__ = partialmethod(_np_ufunc_op, np.ndarray.__rmul__)
+    __floordiv__ = partialmethod(_np_ufunc_op, np.ndarray.__floordiv__)
+    __rfloordiv__ = partialmethod(_np_ufunc_op, np.ndarray.__rfloordiv__)
+    __truediv__ = partialmethod(_np_ufunc_op, np.ndarray.__truediv__)
+    __rtruediv__ = partialmethod(_np_ufunc_op, np.ndarray.__rtruediv__)
+    __pow__ = partialmethod(_np_ufunc_op, np.ndarray.__pow__)
+    __rpow__ = partialmethod(_np_ufunc_op, np.ndarray.__rpow__)
+    __mod__ = partialmethod(_np_ufunc_op, np.ndarray.__mod__)
+    __rmod__ = partialmethod(_np_ufunc_op, np.ndarray.__rmod__)
+
+    def __divmod__(self, other):
+        """Compute divmod via floordiv and mod."""
+        return (self.__floordiv__(other), self.__mod__(other))
+
+    def unique(self):
+        """
+        Compute the ExtensionArray of unique values.
+
+        It relies on the Pyarrow.ChunkedArray.unique and if
+        it fails, comes back to the naive implementation.
+
+        Returns
+        -------
+        uniques : ExtensionArray
+        """
+        try:
+            return type(self)(self.data.unique())
+        except NotImplementedError:
+            return super().unique()
+
 
 class FletcherContinuousArray(FletcherBaseArray):
     """Pandas ExtensionArray implementation backed by Apache Arrow's pyarrow.Array."""
@@ -352,41 +542,6 @@ class FletcherContinuousArray(FletcherBaseArray):
         """
         return cls(pa.concat_arrays([array.data for array in to_concat]))
 
-    def _reduce(self, name, skipna=True, **kwargs):
-        """
-        Return a scalar result of performing the reduction operation.
-
-        Parameters
-        ----------
-        name : str
-            Name of the function, supported values are:
-            { any, all, min, max, sum, mean, median, prod,
-            std, var, sem, kurt, skew }.
-        skipna : bool, default True
-            If True, skip NaN values.
-        **kwargs
-            Additional keyword arguments passed to the reduction function.
-            Currently, `ddof` is the only supported kwarg.
-
-        Returns
-        -------
-        scalar
-
-        Raises
-        ------
-        TypeError : subclass does not define reductions
-        """
-        if name == "any" and pa.types.is_boolean(self.dtype.arrow_dtype):
-            return any_op(self.data, skipna=skipna)
-        elif name == "all" and pa.types.is_boolean(self.dtype.arrow_dtype):
-            return all_op(self.data, skipna=skipna)
-
-        raise TypeError(
-            "cannot perform {name} with type {dtype}".format(
-                name=name, dtype=self.dtype
-            )
-        )
-
     def __setitem__(self, key, value):
         # type: (Union[int, np.ndarray], Any) -> None
         """Set one or more values inplace.
@@ -409,6 +564,14 @@ class FletcherContinuousArray(FletcherBaseArray):
         -------
         None
         """
+        if pa.types.is_list(self.data.type):
+            # TODO: We can probably implement this for the scalar case?
+            # TODO: Implement a list accessor and then the three mentioned methods
+            raise ValueError(
+                "__setitem__ is not supported for list types "
+                "due to the ambiguity of the arguments, use .fr_list.setvalue, "
+                ".fr_list.setslice or fr_list.setmask instead."
+            )
         # Convert all possible input key types to an array of integers
         if is_bool_dtype(key):
             key_array = np.argwhere(key).flatten()
@@ -444,9 +607,9 @@ class FletcherContinuousArray(FletcherBaseArray):
         ):
             nan_values = pd.isna(value)
             if any(nan_values):
-                nan_index = key_array & nan_values
-                mask = np.ones_like(arr, dtype=bool)
-                mask[nan_index] = False
+                nan_index = key_array[nan_values]
+                mask = np.zeros_like(arr, dtype=bool)
+                mask[nan_index] = True
         self.data = pa.array(arr, self.dtype.arrow_dtype, mask=mask)
 
     def __getitem__(self, item):
@@ -607,11 +770,11 @@ class FletcherContinuousArray(FletcherBaseArray):
             return self
 
         if isinstance(dtype, FletcherContinuousDtype):
-            dtype = dtype.arrow_dtype.to_pandas_dtype()
             arrow_type = dtype.arrow_dtype
+            dtype = dtype.arrow_dtype.to_pandas_dtype()
         elif isinstance(dtype, pa.DataType):
-            dtype = dtype.to_pandas_dtype()
             arrow_type = dtype
+            dtype = dtype.to_pandas_dtype()
         else:
             dtype = np.dtype(dtype)
             arrow_type = None
@@ -763,22 +926,6 @@ class FletcherContinuousArray(FletcherBaseArray):
         result = take(data, indices, fill_value=fill_value, allow_fill=allow_fill)
         return self._from_sequence(result, dtype=self.data.type)
 
-    def unique(self):
-        """
-        Compute the ExtensionArray of unique values.
-
-        It relies on the Pyarrow.ChunkedArray.unique and if
-        it fails, comes back to the naive implementation.
-
-        Returns
-        -------
-        uniques : ExtensionArray
-        """
-        try:
-            return type(self)(self.data.unique())
-        except NotImplementedError:
-            return super().unique()
-
 
 class FletcherChunkedArray(FletcherBaseArray):
     """Pandas ExtensionArray implementation backed by Apache Arrow."""
@@ -827,55 +974,15 @@ class FletcherChunkedArray(FletcherBaseArray):
             )
         )
 
-    def _calculate_chunk_offsets(self):
+    def _calculate_chunk_offsets(self) -> np.ndarray:
         """Return an array holding the indices pointing to the first element of each chunk."""
-        offset = 0
-        offsets = []
-        for chunk in self.data.iterchunks():
-            offsets.append(offset)
-            offset += len(chunk)
-        return np.array(offsets)
+        return _calculate_chunk_offsets(self.data)
 
     def _get_chunk_indexer(self, array):
         """Return an array with the chunk number for each index."""
         if self.data.num_chunks == 1:
             return np.broadcast_to(0, len(array))
         return np.digitize(array, self.offsets[1:])
-
-    def _reduce(self, name, skipna=True, **kwargs):
-        """
-        Return a scalar result of performing the reduction operation.
-
-        Parameters
-        ----------
-        name : str
-            Name of the function, supported values are:
-            { any, all, min, max, sum, mean, median, prod,
-            std, var, sem, kurt, skew }.
-        skipna : bool, default True
-            If True, skip NaN values.
-        **kwargs
-            Additional keyword arguments passed to the reduction function.
-            Currently, `ddof` is the only supported kwarg.
-
-        Returns
-        -------
-        scalar
-
-        Raises
-        ------
-        TypeError : subclass does not define reductions
-        """
-        if name == "any" and pa.types.is_boolean(self.dtype.arrow_dtype):
-            return any_op(self.data, skipna=skipna)
-        elif name == "all" and pa.types.is_boolean(self.dtype.arrow_dtype):
-            return all_op(self.data, skipna=skipna)
-
-        raise TypeError(
-            "cannot perform {name} with type {dtype}".format(
-                name=name, dtype=self.dtype
-            )
-        )
 
     def __setitem__(self, key, value):
         # type: (Union[int, np.ndarray], Any) -> None
@@ -899,6 +1006,14 @@ class FletcherChunkedArray(FletcherBaseArray):
         -------
         None
         """
+        if pa.types.is_list(self.data.type):
+            # TODO: We can probably implement this for the scalar case?
+            # TODO: Implement a list accessor and then the three mentioned methods
+            raise ValueError(
+                "__setitem__ is not supported for list types "
+                "due to the ambiguity of the arguments, use .fr_list.setvalue, "
+                ".fr_list.setslice or fr_list.setmask instead."
+            )
         # Convert all possible input key types to an array of integers
         if is_bool_dtype(key):
             key_array = np.argwhere(key).flatten()
@@ -948,9 +1063,9 @@ class FletcherChunkedArray(FletcherBaseArray):
             ):
                 nan_values = pd.isna(value[key_chunk_indices])
                 if any(nan_values):
-                    nan_index = key_chunk_indices & nan_values
-                    mask = np.ones_like(arr, dtype=bool)
-                    mask[nan_index] = False
+                    nan_index = array_chunk_indices[nan_values]
+                    mask = np.zeros_like(arr, dtype=bool)
+                    mask[nan_index] = True
             pa_arr = pa.array(arr, self.dtype.arrow_dtype, mask=mask)
             all_chunks[ix] = pa_arr
 
@@ -1120,14 +1235,14 @@ class FletcherChunkedArray(FletcherBaseArray):
             return self
 
         if isinstance(dtype, FletcherChunkedDtype):
-            dtype = dtype.arrow_dtype.to_pandas_dtype()
             arrow_type = dtype.arrow_dtype
+            dtype = dtype.arrow_dtype.to_pandas_dtype()
         elif isinstance(dtype, pa.DataType):
-            dtype = dtype.to_pandas_dtype()
             arrow_type = dtype
+            dtype = dtype.to_pandas_dtype()
         else:
-            dtype = np.dtype(dtype)
             arrow_type = None
+            dtype = np.dtype(dtype)
         # NumPy's conversion of list->unicode is differently from Python's
         # default. We want to have the default Python output, so force it here.
         if pa.types.is_list(self.dtype.arrow_dtype) and dtype.kind == "U":

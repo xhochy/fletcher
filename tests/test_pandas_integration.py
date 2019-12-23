@@ -166,7 +166,6 @@ def test_series_attributes():
     assert s.ndim == 1
     assert s.size == 3
     assert s.values is not None
-    assert (s.T == s).all()
     assert s.memory_usage() > 8
 
 
@@ -275,3 +274,19 @@ def test_setitem_chunked_int_index(indices, test_array_chunked):
     ser[integer_index] = ["int", "index"]
     assert ser[indices[0]] == "int"
     assert ser[indices[1]] == "index"
+
+
+def test_bool_np_any():
+    arr = fr.FletcherChunkedArray([True, False, None])
+    assert np.any(arr)
+
+    arr = fr.FletcherChunkedArray([True, False, True])
+    assert np.any(arr)
+
+    # TODO(pandas-0.26): Uncomment this when BooleanArray landed.
+    #   Then we change the behaviour.
+    # arr = fr.FletcherChunkedArray([False, False, None])
+    # assert np.any(arr) is pd.NA
+
+    arr = fr.FletcherChunkedArray([False, False, False])
+    assert not np.any(arr)

@@ -1,4 +1,6 @@
 from .base import (
+    FletcherBaseArray,
+    FletcherBaseDtype,
     FletcherChunkedArray,
     FletcherChunkedDtype,
     FletcherContinuousArray,
@@ -8,6 +10,8 @@ from .base import (
 from .string_array import TextAccessor
 
 __all__ = [
+    "FletcherBaseArray",
+    "FletcherBaseDtype",
     "FletcherChunkedArray",
     "FletcherChunkedDtype",
     "FletcherContinuousArray",
