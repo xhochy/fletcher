@@ -3,7 +3,7 @@ import operator
 from collections import OrderedDict
 from collections.abc import Iterable
 from functools import partialmethod
-from typing import Any, Callable, List, Optional, Sequence, Tuple, Union
+from typing import Any, Callable, List, Optional, Sequence, Tuple, Type, Union
 
 import numpy as np
 import pandas as pd
@@ -232,7 +232,7 @@ class FletcherChunkedDtype(FletcherBaseDtype):
         return "FletcherChunkedDtype({})".format(str(self.arrow_dtype))
 
     @classmethod
-    def construct_from_string(cls, string):
+    def construct_from_string(cls, string: str) -> "FletcherChunkedDtype":
         """Attempt to construct this type from a string.
 
         Parameters
@@ -280,7 +280,7 @@ class FletcherChunkedDtype(FletcherBaseDtype):
         return cls(type_for_alias)
 
     @classmethod
-    def construct_array_type(cls, *args):
+    def construct_array_type(cls, *args) -> "Type[FletcherChunkedArray]":
         """
         Return the array type associated with this dtype.
 
@@ -339,8 +339,7 @@ class FletcherBaseArray(ExtensionArray):
         """
         return self.shape[0]
 
-    def isna(self):
-        # type: () -> np.ndarray
+    def isna(self) -> np.ndarray:
         """
         Boolean NumPy array indicating if each value is missing.
 
@@ -349,11 +348,11 @@ class FletcherBaseArray(ExtensionArray):
         return extract_isnull_bytemap(self.data)
 
     @property
-    def base(self):
+    def base(self) -> Union[pa.Array, pa.ChunkedArray]:
         """Return base object of the underlying data."""
         return self.data
 
-    def _reduce(self, name, skipna=True, **kwargs):
+    def _reduce(self, name: str, skipna: bool = True, **kwargs):
         """
         Return a scalar result of performing the reduction operation.
 
@@ -408,7 +407,7 @@ class FletcherBaseArray(ExtensionArray):
             )
         )
 
-    def __array_ufunc__(self, ufunc, method, *inputs, **kwargs):
+    def __array_ufunc__(self, ufunc, method: str, *inputs, **kwargs):
         """Apply a NumPy ufunc on the ExtensionArray."""
         if method != "__call__":
             if (
@@ -504,7 +503,7 @@ class FletcherBaseArray(ExtensionArray):
 class FletcherContinuousArray(FletcherBaseArray):
     """Pandas ExtensionArray implementation backed by Apache Arrow's pyarrow.Array."""
 
-    def __init__(self, array, dtype=None, copy=None):
+    def __init__(self, array, dtype=None, copy: Optional[bool] = None):
         # Copy is not used at the moment. It's only affect will be when we
         # allow array to be a FletcherContinuousArray
         if is_array_like(array) or isinstance(array, list):
