@@ -642,7 +642,7 @@ class FletcherContinuousArray(FletcherBaseArray):
         to the values where ``item`` is True.
         """
         if PANDAS_GE_0_26_0 and is_bool_dtype(item):
-            check_bool_array_indexer(self, item)
+            item = check_bool_array_indexer(self, item)
 
         # Workaround for Arrow bug that segfaults on empty slice.
         # This is fixed in Arrow master, will be released in 0.10
