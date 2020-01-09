@@ -7,6 +7,7 @@ from .base import (
     FletcherContinuousDtype,
     pandas_from_arrow,
 )
+from .io import read_parquet
 from .string_array import TextAccessor
 
 __all__ = [
@@ -18,4 +19,5 @@ __all__ = [
     "FletcherContinuousDtype",
     "TextAccessor",
     "pandas_from_arrow",
+    "read_parquet",
 ]

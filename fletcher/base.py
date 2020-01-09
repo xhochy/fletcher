@@ -2,6 +2,7 @@ import datetime
 import operator
 from collections import OrderedDict
 from collections.abc import Iterable
+from distutils.version import LooseVersion
 from functools import partialmethod
 from typing import Any, Callable, List, Optional, Sequence, Tuple, Type, Union
 
@@ -34,6 +35,10 @@ from ._algorithms import (
     sum_op,
     var_op,
 )
+
+PANDAS_GE_0_26_0 = LooseVersion(pd.__version__) >= "0.26.0"
+if PANDAS_GE_0_26_0:
+    from pandas.core.indexers import check_bool_array_indexer
 
 _python_type_map = {
     pa.null().id: str,
@@ -636,6 +641,9 @@ class FletcherContinuousArray(FletcherBaseArray):
         For a boolean mask, return an instance of ``ExtensionArray``, filtered
         to the values where ``item`` is True.
         """
+        if PANDAS_GE_0_26_0 and is_bool_dtype(item):
+            check_bool_array_indexer(self, item)
+
         # Workaround for Arrow bug that segfaults on empty slice.
         # This is fixed in Arrow master, will be released in 0.10
         if isinstance(item, slice):
@@ -1095,6 +1103,9 @@ class FletcherChunkedArray(FletcherBaseArray):
         For a boolean mask, return an instance of ``ExtensionArray``, filtered
         to the values where ``item`` is True.
         """
+        if PANDAS_GE_0_26_0 and is_bool_dtype(item):
+            check_bool_array_indexer(self, item)
+
         # Workaround for Arrow bug that segfaults on empty slice.
         # This is fixed in Arrow master, will be released in 0.10
         if isinstance(item, slice):
@@ -1392,7 +1403,8 @@ class FletcherChunkedArray(FletcherBaseArray):
 
 
 def pandas_from_arrow(
-    arrow_object: Union[pa.RecordBatch, pa.Table, pa.Array, pa.ChunkedArray]
+    arrow_object: Union[pa.RecordBatch, pa.Table, pa.Array, pa.ChunkedArray],
+    continuous: bool = False,
 ):
     """
     Convert Arrow object instance to their Pandas equivalent by using Fletcher.
@@ -1400,20 +1412,31 @@ def pandas_from_arrow(
     The conversion rules are:
       * {RecordBatch, Table} -> DataFrame
       * {Array, ChunkedArray} -> Series
+
+    Parameters
+    ----------
+    arrow_object : RecordBatch, Table, Array or ChunkedArray
+        object to be converted
+    continuous : bool
+        Use FletcherContinuousArray instead of FletcherChunkedArray
     """
+    if continuous:
+        array_type = FletcherContinuousArray
+    else:
+        array_type = FletcherChunkedArray
     if isinstance(arrow_object, pa.RecordBatch):
         data: OrderedDict = OrderedDict()
         for ix, arr in enumerate(arrow_object):
             col_name = arrow_object.schema.names[ix]
-            data[col_name] = FletcherChunkedArray(arr)
+            data[col_name] = array_type(arr)
         return pd.DataFrame(data)
     elif isinstance(arrow_object, pa.Table):
         data = OrderedDict()
         for name, col in zip(arrow_object.column_names, arrow_object.itercolumns()):
-            data[name] = FletcherChunkedArray(col)
+            data[name] = array_type(col)
         return pd.DataFrame(data)
     elif isinstance(arrow_object, (pa.ChunkedArray, pa.Array)):
-        return pd.Series(FletcherChunkedArray(arrow_object))
+        return pd.Series(array_type(arrow_object))
     else:
         raise NotImplementedError(
             "Objects of type {} are not supported".format(type(arrow_object))
