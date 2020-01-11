@@ -2,8 +2,9 @@ import datetime
 import operator
 from collections import OrderedDict
 from collections.abc import Iterable
+from distutils.version import LooseVersion
 from functools import partialmethod
-from typing import Any, Callable, List, Optional, Sequence, Tuple, Union
+from typing import Any, Callable, List, Optional, Sequence, Tuple, Type, Union
 
 import numpy as np
 import pandas as pd
@@ -34,6 +35,10 @@ from ._algorithms import (
     sum_op,
     var_op,
 )
+
+PANDAS_GE_0_26_0 = LooseVersion(pd.__version__) >= "0.26.0"
+if PANDAS_GE_0_26_0:
+    from pandas.core.indexers import check_bool_array_indexer
 
 _python_type_map = {
     pa.null().id: str,
@@ -232,7 +237,7 @@ class FletcherChunkedDtype(FletcherBaseDtype):
         return "FletcherChunkedDtype({})".format(str(self.arrow_dtype))
 
     @classmethod
-    def construct_from_string(cls, string):
+    def construct_from_string(cls, string: str) -> "FletcherChunkedDtype":
         """Attempt to construct this type from a string.
 
         Parameters
@@ -280,7 +285,7 @@ class FletcherChunkedDtype(FletcherBaseDtype):
         return cls(type_for_alias)
 
     @classmethod
-    def construct_array_type(cls, *args):
+    def construct_array_type(cls, *args) -> "Type[FletcherChunkedArray]":
         """
         Return the array type associated with this dtype.
 
@@ -339,8 +344,7 @@ class FletcherBaseArray(ExtensionArray):
         """
         return self.shape[0]
 
-    def isna(self):
-        # type: () -> np.ndarray
+    def isna(self) -> np.ndarray:
         """
         Boolean NumPy array indicating if each value is missing.
 
@@ -349,11 +353,11 @@ class FletcherBaseArray(ExtensionArray):
         return extract_isnull_bytemap(self.data)
 
     @property
-    def base(self):
+    def base(self) -> Union[pa.Array, pa.ChunkedArray]:
         """Return base object of the underlying data."""
         return self.data
 
-    def _reduce(self, name, skipna=True, **kwargs):
+    def _reduce(self, name: str, skipna: bool = True, **kwargs):
         """
         Return a scalar result of performing the reduction operation.
 
@@ -408,7 +412,7 @@ class FletcherBaseArray(ExtensionArray):
             )
         )
 
-    def __array_ufunc__(self, ufunc, method, *inputs, **kwargs):
+    def __array_ufunc__(self, ufunc, method: str, *inputs, **kwargs):
         """Apply a NumPy ufunc on the ExtensionArray."""
         if method != "__call__":
             if (
@@ -504,7 +508,7 @@ class FletcherBaseArray(ExtensionArray):
 class FletcherContinuousArray(FletcherBaseArray):
     """Pandas ExtensionArray implementation backed by Apache Arrow's pyarrow.Array."""
 
-    def __init__(self, array, dtype=None, copy=None):
+    def __init__(self, array, dtype=None, copy: Optional[bool] = None):
         # Copy is not used at the moment. It's only affect will be when we
         # allow array to be a FletcherContinuousArray
         if is_array_like(array) or isinstance(array, list):
@@ -637,6 +641,9 @@ class FletcherContinuousArray(FletcherBaseArray):
         For a boolean mask, return an instance of ``ExtensionArray``, filtered
         to the values where ``item`` is True.
         """
+        if PANDAS_GE_0_26_0 and is_bool_dtype(item):
+            item = check_bool_array_indexer(self, item)
+
         # Workaround for Arrow bug that segfaults on empty slice.
         # This is fixed in Arrow master, will be released in 0.10
         if isinstance(item, slice):
@@ -1096,6 +1103,9 @@ class FletcherChunkedArray(FletcherBaseArray):
         For a boolean mask, return an instance of ``ExtensionArray``, filtered
         to the values where ``item`` is True.
         """
+        if PANDAS_GE_0_26_0 and is_bool_dtype(item):
+            item = check_bool_array_indexer(self, item)
+
         # Workaround for Arrow bug that segfaults on empty slice.
         # This is fixed in Arrow master, will be released in 0.10
         if isinstance(item, slice):
@@ -1393,7 +1403,8 @@ class FletcherChunkedArray(FletcherBaseArray):
 
 
 def pandas_from_arrow(
-    arrow_object: Union[pa.RecordBatch, pa.Table, pa.Array, pa.ChunkedArray]
+    arrow_object: Union[pa.RecordBatch, pa.Table, pa.Array, pa.ChunkedArray],
+    continuous: bool = False,
 ):
     """
     Convert Arrow object instance to their Pandas equivalent by using Fletcher.
@@ -1401,20 +1412,31 @@ def pandas_from_arrow(
     The conversion rules are:
       * {RecordBatch, Table} -> DataFrame
       * {Array, ChunkedArray} -> Series
+
+    Parameters
+    ----------
+    arrow_object : RecordBatch, Table, Array or ChunkedArray
+        object to be converted
+    continuous : bool
+        Use FletcherContinuousArray instead of FletcherChunkedArray
     """
+    if continuous:
+        array_type = FletcherContinuousArray
+    else:
+        array_type = FletcherChunkedArray
     if isinstance(arrow_object, pa.RecordBatch):
         data: OrderedDict = OrderedDict()
         for ix, arr in enumerate(arrow_object):
             col_name = arrow_object.schema.names[ix]
-            data[col_name] = FletcherChunkedArray(arr)
+            data[col_name] = array_type(arr)
         return pd.DataFrame(data)
     elif isinstance(arrow_object, pa.Table):
         data = OrderedDict()
         for name, col in zip(arrow_object.column_names, arrow_object.itercolumns()):
-            data[name] = FletcherChunkedArray(col)
+            data[name] = array_type(col)
         return pd.DataFrame(data)
     elif isinstance(arrow_object, (pa.ChunkedArray, pa.Array)):
-        return pd.Series(FletcherChunkedArray(arrow_object))
+        return pd.Series(array_type(arrow_object))
     else:
         raise NotImplementedError(
             "Objects of type {} are not supported".format(type(arrow_object))

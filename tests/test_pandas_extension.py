@@ -633,6 +633,10 @@ class TestBaseSetitemTests(BaseSetitemTests):
     def test_setitem_slice_array(self, data):
         BaseSetitemTests.test_setitem_slice_array(self, data)
 
+    @pytest.mark.xfail(reason="Views don't update their parent #96")
+    def test_setitem_preserves_views(self, data):
+        pass
+
 
 class TestBaseParsingTests(BaseParsingTests):
     @pytest.mark.parametrize("engine", ["c", "python"])

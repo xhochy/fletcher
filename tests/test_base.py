@@ -44,9 +44,18 @@ def test_pandas_from_arrow():
     expected_series_woutname = pd.Series(fr.FletcherChunkedArray(arr))
     pdt.assert_series_equal(expected_series_woutname, fr.pandas_from_arrow(arr))
 
+    expected_series_woutname = pd.Series(fr.FletcherContinuousArray(arr))
+    pdt.assert_series_equal(
+        expected_series_woutname, fr.pandas_from_arrow(arr, continuous=True)
+    )
+
     rb = pa.RecordBatch.from_arrays([arr], ["column"])
     expected_df = pd.DataFrame({"column": fr.FletcherChunkedArray(arr)})
-    pdt.assert_frame_equal(expected_df, fr.pandas_from_arrow(rb))
-
     table = pa.Table.from_arrays([arr], ["column"])
+    pdt.assert_frame_equal(expected_df, fr.pandas_from_arrow(rb))
     pdt.assert_frame_equal(expected_df, fr.pandas_from_arrow(table))
+
+    expected_df = pd.DataFrame({"column": fr.FletcherContinuousArray(arr)})
+    table = pa.Table.from_arrays([arr], ["column"])
+    pdt.assert_frame_equal(expected_df, fr.pandas_from_arrow(rb, continuous=True))
+    pdt.assert_frame_equal(expected_df, fr.pandas_from_arrow(table, continuous=True))
