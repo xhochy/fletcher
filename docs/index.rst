@@ -6,6 +6,7 @@ fletcher
    :caption: Contents:
 
    API Reference <api/modules>
+   Motivation <motivation>
 
 Use Apache Arrow backed columns in Pandas 0.23+ using the ExtensionArray interface.
 
