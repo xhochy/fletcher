@@ -17,7 +17,7 @@ def generate_test_array(n):
 
 class TimeSuite:
     def setup(self):
-        array = generate_test_array(2 ** 15)
+        array = generate_test_array(2 ** 17)
         self.df = pd.DataFrame({"str": array})
         self.df_ext = pd.DataFrame(
             {"str": fr.FletcherChunkedArray(pa.array(array, pa.string()))}
@@ -46,6 +46,12 @@ class TimeSuite:
 
     def time_endswith_na_ext(self):
         self.df_ext["str"].text.endswith("10", na=False)
+
+    def time_cat(self):
+        self.df["str"].str.cat(self.df["str"])
+
+    def time_cat_ext(self):
+        self.df_ext["str"].text.cat(self.df_ext["str"])
 
     def time_concat(self):
         pd.concat([self.df["str"]] * 2)
