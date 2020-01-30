@@ -4,6 +4,7 @@ from typing import Any, Callable, List, Optional, Tuple, Union
 import numba
 import numpy as np
 import pyarrow as pa
+from numba import njit
 from pandas.core import nanops
 
 from ._numba_compat import NumbaStringArray
@@ -27,7 +28,7 @@ def _extract_data_buffer_as_np_array(array: pa.Array) -> np.ndarray:
     return np.asanyarray(array.buffers()[1]).view(dtype)[start:end]
 
 
-@numba.jit(nogil=True, nopython=True)
+@njit
 def _extract_isnull_bytemap(
     bitmap: bytes,
     bitmap_length: int,
@@ -100,20 +101,20 @@ def extract_isnull_bytemap(array: Union[pa.ChunkedArray, pa.Array]) -> np.ndarra
     return result
 
 
-@numba.jit(nogil=True, nopython=True)
+@njit
 def isnull(sa):
     result = np.empty(sa.size, np.uint8)
     _isnull(sa, 0, result)
     return result
 
 
-@numba.jit(nogil=True, nopython=True)
+@njit
 def _isnull(sa, offset, out):
     for i in range(sa.size):
         out[offset + i] = sa.isnull(i)
 
 
-@numba.jit(nogil=True, nopython=True)
+@njit
 def _startswith(sa, needle, na, offset, out):
     for i in range(sa.size):
         if sa.isnull(i):
@@ -133,7 +134,7 @@ def _startswith(sa, needle, na, offset, out):
             out[offset + i] = 1
 
 
-@numba.jit(nogil=True, nopython=True)
+@njit
 def _endswith(sa, needle, na, offset, out):
     for i in range(sa.size):
         if sa.isnull(i):
@@ -155,7 +156,7 @@ def _endswith(sa, needle, na, offset, out):
             out[offset + i] = 1
 
 
-@numba.jit(nogil=True, nopython=True)
+@njit
 def str_length(sa):
     result = np.empty(sa.size, np.uint32)
 
@@ -165,7 +166,7 @@ def str_length(sa):
     return result
 
 
-@numba.jit(nogil=True, nopython=True)
+@njit
 def str_concat(sa1, sa2):
     # TODO: check overflow of size
     assert sa1.size == sa2.size
@@ -195,7 +196,7 @@ def str_concat(sa1, sa2):
     return NumbaStringArray(result_missing, result_offsets, result_data, 0)
 
 
-@numba.njit(locals={"valid": numba.bool_, "value": numba.bool_})
+@njit(locals={"valid": numba.bool_, "value": numba.bool_})
 def _any_op(length: int, valid_bits: bytes, data: bytes) -> int:
     for i in range(length):
         byte_offset = i // 8
@@ -209,7 +210,7 @@ def _any_op(length: int, valid_bits: bytes, data: bytes) -> int:
     return False
 
 
-@numba.njit(locals={"valid": numba.bool_, "value": numba.bool_})
+@njit(locals={"valid": numba.bool_, "value": numba.bool_})
 def _any_op_skipna(length: int, valid_bits: bytes, data: bytes) -> bool:
     for i in range(length):
         byte_offset = i // 8
@@ -223,7 +224,7 @@ def _any_op_skipna(length: int, valid_bits: bytes, data: bytes) -> bool:
     return False
 
 
-@numba.njit(locals={"value": numba.bool_})
+@njit(locals={"value": numba.bool_})
 def _any_op_nonnull(length: int, data: bytes) -> bool:
     for i in range(length):
         byte_offset = i // 8
@@ -247,7 +248,7 @@ def any_op(arr: Union[pa.ChunkedArray, pa.Array], skipna: bool) -> bool:
     return _any_op(len(arr), *arr.buffers())
 
 
-@numba.njit(locals={"valid": numba.bool_, "value": numba.bool_})
+@njit(locals={"valid": numba.bool_, "value": numba.bool_})
 def _all_op(length: int, valid_bits: bytes, data: bytes) -> bool:
     # This may be specific to Pandas but we return True as long as there is not False in the data.
     for i in range(length):
@@ -261,7 +262,7 @@ def _all_op(length: int, valid_bits: bytes, data: bytes) -> bool:
     return True
 
 
-@numba.njit(locals={"value": numba.bool_})
+@njit(locals={"value": numba.bool_})
 def _all_op_nonnull(length: int, data: bytes) -> bool:
     for i in range(length):
         byte_offset = i // 8
@@ -345,6 +346,16 @@ median_op = partial(pd_nanop, nanops.nanmedian)
 def _in_chunk_offsets(
     arr: pa.ChunkedArray, offsets: List[int]
 ) -> List[Tuple[int, int, int]]:
+    """Calculate the access ranges for a given list of offsets.
+
+    All chunk start indices must be included as offsets and the offsets must be
+    unique.
+
+    Returns a list of tuples that contain:
+     * The index of the given chunk
+     * The position inside the chunk
+     * The length of the current range
+    """
     new_offsets = []
     pos = 0
     chunk = 0
@@ -353,12 +364,12 @@ def _in_chunk_offsets(
         diff = offset - pos
         chunk_remains = len(arr.chunk(chunk)) - chunk_pos
         step = offset_next - offset
-        if diff == chunk_remains:
+        if diff == 0:  # The first offset
+            new_offsets.append((chunk, chunk_pos, step))
+        elif diff == chunk_remains:
             chunk += 1
             chunk_pos = 0
             pos += chunk_remains
-            new_offsets.append((chunk, chunk_pos, step))
-        elif diff == 0:  # The first offset
             new_offsets.append((chunk, chunk_pos, step))
         else:  # diff < chunk_remains
             chunk_pos += diff
@@ -474,3 +485,189 @@ def _2(a: pa.Array, b: Any, op: Callable):
         new_arr = op(np_arr, b)
         # Don't set type as we might have valid casts like int->float in truediv
         return pa.array(new_arr, mask=mask)
+
+
+@njit
+def _merge_non_aligned_bitmaps(
+    valid_a: np.ndarray,
+    inner_offset_a: int,
+    valid_b: np.ndarray,
+    inner_offset_b: int,
+    length: int,
+    result: np.ndarray,
+) -> None:
+    for i in range(length):
+        a_pos = inner_offset_a + i
+        byte_offset_a = a_pos // 8
+        bit_offset_a = a_pos % 8
+        mask_a = np.uint8(1 << bit_offset_a)
+        value_a = valid_a[byte_offset_a] & mask_a
+
+        b_pos = inner_offset_b + i
+        byte_offset_b = b_pos // 8
+        bit_offset_b = b_pos % 8
+        mask_b = np.uint8(1 << bit_offset_b)
+        value_b = valid_b[byte_offset_b] & mask_b
+
+        byte_offset_result = i // 8
+        bit_offset_result = i % 8
+        mask_result = np.uint8(1 << bit_offset_result)
+
+        current = result[byte_offset_result]
+        if (
+            value_a and value_b
+        ):  # must be logical, not bit-wise as different bits may be flagged
+            result[byte_offset_result] = current | mask_result
+        else:
+            result[byte_offset_result] = current & ~mask_result
+
+
+def _merge_valid_bitmaps(a: pa.Array, b: pa.Array) -> np.ndarray:
+    """Merge two valid masks of pyarrow.Array instances.
+
+    This method already assumes that both array are of the same length.
+    This property is not checked again.
+    """
+    length = len(a) // 8
+    if len(a) % 8 != 0:
+        length += 1
+
+    offset_a = a.offset // 8
+    if a.offset % 8 != 0:
+        pad_a = 1
+    else:
+        pad_a = 0
+    valid_a = np.asanyarray(a.buffers()[0]).view(np.uint8)[
+        offset_a : offset_a + length + pad_a
+    ]
+
+    offset_b = b.offset // 8
+    if b.offset % 8 != 0:
+        pad_b = 1
+    else:
+        pad_b = 0
+    valid_b = np.asanyarray(b.buffers()[0]).view(np.uint8)[
+        offset_b : offset_b + length + pad_b
+    ]
+
+    if a.offset % 8 == 0 and b.offset % 8 == 0:
+        result = valid_a & valid_b
+
+        # Mark trailing bits with 0
+        if len(a) % 8 != 0:
+            result[-1] = result[-1] & (2 ** (len(a) % 8) - 1)
+        return result
+    else:
+        # Allocate result
+        result = np.zeros(length, dtype=np.uint8)
+
+        inner_offset_a = a.offset % 8
+        inner_offset_b = b.offset % 8
+        # TODO: We can optimite this when inner_offset_a == inner_offset_b
+        _merge_non_aligned_bitmaps(
+            valid_a, inner_offset_a, valid_b, inner_offset_b, len(a), result
+        )
+
+        return result
+
+
+def _extract_string_buffers(arr: pa.Array) -> Tuple[np.ndarray, np.ndarray]:
+    start = arr.offset
+    end = arr.offset + len(arr)
+
+    offsets = np.asanyarray(arr.buffers()[1]).view(np.int32)[start : end + 1]
+    data = np.asanyarray(arr.buffers()[2]).view(np.uint8)
+
+    return offsets, data
+
+
+@njit
+def _merge_string_data(
+    length: int,
+    valid_bits: np.ndarray,
+    offsets_a: np.ndarray,
+    data_a: np.ndarray,
+    offsets_b: np.ndarray,
+    data_b: np.ndarray,
+    result_offsets: np.ndarray,
+    result_data: np.ndarray,
+) -> None:
+    for i in range(length):
+        byte_offset = i // 8
+        bit_offset = i % 8
+        mask = np.uint8(1 << bit_offset)
+        valid = valid_bits[byte_offset] & mask
+
+        if not valid:
+            result_offsets[i + 1] = result_offsets[i]
+        else:
+            len_a = offsets_a[i + 1] - offsets_a[i]
+            len_b = offsets_b[i + 1] - offsets_b[i]
+            result_offsets[i + 1] = result_offsets[i] + len_a + len_b
+            for j in range(len_a):
+                result_data[result_offsets[i] + j] = data_a[offsets_a[i] + j]
+            for j in range(len_b):
+                result_data[result_offsets[i] + len_a + j] = data_b[offsets_b[i] + j]
+
+
+@singledispatch
+def _text_cat_chunked(a: Any, b: pa.ChunkedArray) -> pa.ChunkedArray:
+    raise NotImplementedError(
+        "_text_cat_chunked is only implemented for pa.Array and pa.ChunkedArray"
+    )
+
+
+@_text_cat_chunked.register(pa.ChunkedArray)
+def _text_cat_chunked_1(a: pa.ChunkedArray, b: pa.ChunkedArray) -> pa.ChunkedArray:
+    in_a_offsets, in_b_offsets = _combined_in_chunk_offsets(a, b)
+
+    new_chunks: List[pa.Array] = []
+    for a_offset, b_offset in zip(in_a_offsets, in_b_offsets):
+        a_slice = a.chunk(a_offset[0])[a_offset[1] : a_offset[1] + a_offset[2]]
+        b_slice = b.chunk(b_offset[0])[b_offset[1] : b_offset[1] + b_offset[2]]
+        new_chunks.append(_text_cat(a_slice, b_slice))
+    return pa.chunked_array(new_chunks)
+
+
+@_text_cat_chunked.register(pa.Array)
+def _text_cat_chunked_2(a: pa.Array, b: pa.ChunkedArray) -> pa.ChunkedArray:
+    new_chunks = []
+    offsets = _calculate_chunk_offsets(b)
+    for chunk, offset in zip(b.iterchunks(), offsets):
+        new_chunks.append(_text_cat(a[offset : offset + len(chunk)], chunk))
+    return pa.chunked_array(new_chunks)
+
+
+def _text_cat_chunked_mixed(a: pa.ChunkedArray, b: pa.Array) -> pa.ChunkedArray:
+    new_chunks = []
+    offsets = _calculate_chunk_offsets(a)
+    for chunk, offset in zip(a.iterchunks(), offsets):
+        new_chunks.append(_text_cat(chunk, b[offset : offset + len(chunk)]))
+    return pa.chunked_array(new_chunks)
+
+
+def _text_cat(a: pa.Array, b: pa.Array) -> pa.Array:
+    if len(a) != len(b):
+        raise ValueError("Lengths of arrays don't match")
+
+    offsets_a, data_a = _extract_string_buffers(a)
+    offsets_b, data_b = _extract_string_buffers(b)
+    if len(a) > 0:
+        valid = _merge_valid_bitmaps(a, b)
+        result_offsets = np.empty(len(a) + 1, dtype=np.int32)
+        result_offsets[0] = 0
+        total_size = (offsets_a[-1] - offsets_a[0]) + (offsets_b[-1] - offsets_b[0])
+        result_data = np.empty(total_size, dtype=np.uint8)
+        _merge_string_data(
+            len(a),
+            valid,
+            offsets_a,
+            data_a,
+            offsets_b,
+            data_b,
+            result_offsets,
+            result_data,
+        )
+        buffers = [pa.py_buffer(x) for x in [valid, result_offsets, result_data]]
+        return pa.Array.from_buffers(pa.string(), len(a), buffers)
+    return a
