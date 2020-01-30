@@ -38,7 +38,7 @@ from ._algorithms import (
 
 PANDAS_GE_0_26_0 = LooseVersion(pd.__version__) >= "0.26.0"
 if PANDAS_GE_0_26_0:
-    from pandas.core.indexers import check_bool_array_indexer
+    from pandas.core.indexers import check_array_indexer
 
 _python_type_map = {
     pa.null().id: str,
@@ -641,8 +641,8 @@ class FletcherContinuousArray(FletcherBaseArray):
         For a boolean mask, return an instance of ``ExtensionArray``, filtered
         to the values where ``item`` is True.
         """
-        if PANDAS_GE_0_26_0 and is_bool_dtype(item):
-            item = check_bool_array_indexer(self, item)
+        if PANDAS_GE_0_26_0:
+            item = check_array_indexer(self, item)
 
         # Workaround for Arrow bug that segfaults on empty slice.
         # This is fixed in Arrow master, will be released in 0.10
@@ -668,7 +668,7 @@ class FletcherContinuousArray(FletcherBaseArray):
         elif isinstance(item, Iterable):
             if not is_array_like(item):
                 item = np.array(item)
-            if is_integer_dtype(item):
+            if is_integer_dtype(item) or len(item) == 0:
                 return self.take(item)
             elif is_bool_dtype(item):
                 indices = np.array(item)
@@ -1103,8 +1103,8 @@ class FletcherChunkedArray(FletcherBaseArray):
         For a boolean mask, return an instance of ``ExtensionArray``, filtered
         to the values where ``item`` is True.
         """
-        if PANDAS_GE_0_26_0 and is_bool_dtype(item):
-            item = check_bool_array_indexer(self, item)
+        if PANDAS_GE_0_26_0:
+            item = check_array_indexer(self, item)
 
         # Workaround for Arrow bug that segfaults on empty slice.
         # This is fixed in Arrow master, will be released in 0.10
@@ -1130,7 +1130,7 @@ class FletcherChunkedArray(FletcherBaseArray):
         elif isinstance(item, Iterable):
             if not is_array_like(item):
                 item = np.array(item)
-            if is_integer_dtype(item):
+            if is_integer_dtype(item) or (len(item) == 0):
                 return self.take(item)
             elif is_bool_dtype(item):
                 indices = np.array(item)
