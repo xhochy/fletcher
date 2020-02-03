@@ -276,6 +276,15 @@ def fletcher_variant(request):
     return request.param
 
 
+@pytest.fixture(params=["chunked", "continuous"])
+def fletcher_variant_2(request):
+    """Whether to test the chunked or continuous implementation.
+
+    2nd fixture to support the cross-product of the possible implementations.
+    """
+    return request.param
+
+
 def test_merge_valid_bitmaps():
     a = pa.array([1, 1, 1, 1, 1, 1, 1, 1, 1])
     b = pa.array([1, 1, 1, None, None, None, 1, 1, 1])
@@ -322,7 +331,7 @@ def test_merge_valid_bitmaps():
 
 @settings(deadline=timedelta(milliseconds=1000))
 @given(data=st.lists(st.one_of(st.text(), st.none())))
-def test_text_cat(data, fletcher_variant):
+def test_text_cat(data, fletcher_variant, fletcher_variant_2):
     if any("\x00" in x for x in data if x):
         # pytest.skip("pandas cannot handle \\x00 characters in tests")
         # Skip is not working properly with hypothesis
@@ -334,25 +343,14 @@ def test_text_cat(data, fletcher_variant):
     else:
         fr_array = fr.FletcherContinuousArray(arrow_data)
     ser_fr = pd.Series(fr_array)
+    if fletcher_variant_2 == "chunked":
+        fr_other_array = fr.FletcherChunkedArray(arrow_data)
+    else:
+        fr_other_array = fr.FletcherContinuousArray(arrow_data)
+    ser_fr_other = pd.Series(fr_other_array)
 
     result_pd = ser_pd.str.cat(ser_pd)
-    result_fr = ser_fr.fr_text.cat(ser_fr)
-    result_fr = result_fr.astype(object)
-    # Pandas returns np.nan for NA values in cat, keep this in line
-    result_fr[result_fr.isna()] = np.nan
-    tm.assert_series_equal(result_fr, result_pd)
-
-    # It should always work with continuous/chunked input independent of the
-    # base type.
-    fr_array_cont = fr.FletcherContinuousArray(arrow_data)
-    ser_fr_cont = pd.Series(fr_array_cont)
-    result_fr = ser_fr.fr_text.cat(ser_fr_cont)
-    result_fr = result_fr.astype(object)
-    # Pandas returns np.nan for NA values in cat, keep this in line
-    result_fr[result_fr.isna()] = np.nan
-    fr_array_chunked = fr.FletcherChunkedArray(arrow_data)
-    ser_fr_chunked = pd.Series(fr_array_chunked)
-    result_fr = ser_fr.fr_text.cat(ser_fr_chunked)
+    result_fr = ser_fr.fr_text.cat(ser_fr_other)
     result_fr = result_fr.astype(object)
     # Pandas returns np.nan for NA values in cat, keep this in line
     result_fr[result_fr.isna()] = np.nan
