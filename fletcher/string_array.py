@@ -3,14 +3,9 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 
-from ._algorithms import (
-    _endswith,
-    _startswith,
-    _text_cat,
-    _text_cat_chunked,
-    _text_cat_chunked_mixed,
-)
+from ._algorithms import _endswith, _startswith
 from ._numba_compat import NumbaString, NumbaStringArray
+from .algorithms.string import _text_cat, _text_cat_chunked, _text_cat_chunked_mixed
 from .base import FletcherBaseArray, FletcherChunkedArray, FletcherContinuousArray
 
 
@@ -47,7 +42,7 @@ class TextAccessor:
         elif not isinstance(others.values, FletcherContinuousArray):
             raise NotImplementedError("other needs to be FletcherContinuousArray")
 
-        if isinstance(self.obj, FletcherChunkedArray):
+        if isinstance(self.obj.values, FletcherChunkedArray):
             return pd.Series(
                 FletcherChunkedArray(
                     _text_cat_chunked_mixed(self.data, others.values.data)

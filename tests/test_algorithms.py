@@ -341,3 +341,19 @@ def test_text_cat(data, fletcher_variant):
     # Pandas returns np.nan for NA values in cat, keep this in line
     result_fr[result_fr.isna()] = np.nan
     tm.assert_series_equal(result_fr, result_pd)
+
+    # It should always work with continuous/chunked input independent of the
+    # base type.
+    fr_array_cont = fr.FletcherContinuousArray(arrow_data)
+    ser_fr_cont = pd.Series(fr_array_cont)
+    result_fr = ser_fr.fr_text.cat(ser_fr_cont)
+    result_fr = result_fr.astype(object)
+    # Pandas returns np.nan for NA values in cat, keep this in line
+    result_fr[result_fr.isna()] = np.nan
+    fr_array_chunked = fr.FletcherChunkedArray(arrow_data)
+    ser_fr_chunked = pd.Series(fr_array_chunked)
+    result_fr = ser_fr.fr_text.cat(ser_fr_chunked)
+    result_fr = result_fr.astype(object)
+    # Pandas returns np.nan for NA values in cat, keep this in line
+    result_fr[result_fr.isna()] = np.nan
+    tm.assert_series_equal(result_fr, result_pd)
