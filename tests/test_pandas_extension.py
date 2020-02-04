@@ -48,6 +48,9 @@ if LooseVersion(pd.__version__) >= "0.25.0":
     )
 
 
+PANDAS_GE_1_1_0 = LooseVersion(pd.__version__) >= "1.1.0"
+
+
 FletcherTestType = namedtuple(
     "FletcherTestType",
     [
@@ -632,6 +635,11 @@ class TestBaseSetitemTests(BaseSetitemTests):
     @xfail_list_setitem_not_implemented
     def test_setitem_slice_array(self, data):
         BaseSetitemTests.test_setitem_slice_array(self, data)
+
+    @xfail_list_setitem_not_implemented
+    def test_setitem_nullable_mask(self, data):
+        if PANDAS_GE_1_1_0:
+            BaseSetitemTests.test_setitem_nullable_mask(self, data)
 
     @pytest.mark.xfail(reason="Views don't update their parent #96")
     def test_setitem_preserves_views(self, data):
