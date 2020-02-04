@@ -1,7 +1,0 @@
-python-3.6:
-  script:
-    - ./ci/circle_build_linux.sh 3.6
-
-python-3.7:
-  script:
-    - ./ci/circle_build_linux.sh 3.7
