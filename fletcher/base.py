@@ -191,6 +191,11 @@ class FletcherContinuousDtype(FletcherBaseDtype):
         ...         raise TypeError("Cannot construct a '{}' from "
         ...                         "'{}'".format(cls, string))
         """
+        if not isinstance(string, str):
+            raise TypeError(
+                "'construct_from_string' expects a string, got <class 'int'>"
+            )
+
         # Remove fletcher specific naming from the arrow type string.
         if string.startswith("fletcher_continuous["):
             string = string[len("fletcher_continuous[") : -1]
@@ -265,6 +270,11 @@ class FletcherChunkedDtype(FletcherBaseDtype):
         ...         raise TypeError("Cannot construct a '{}' from "
         ...                         "'{}'".format(cls, string))
         """
+        if not isinstance(string, str):
+            raise TypeError(
+                "'construct_from_string' expects a string, got <class 'int'>"
+            )
+
         # Remove fletcher specific naming from the arrow type string.
         if string.startswith("fletcher_chunked["):
             string = string[len("fletcher_chunked[") : -1]
