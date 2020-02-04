@@ -881,8 +881,12 @@ class FletcherContinuousArray(FletcherBaseArray):
             new_values = self.copy()
         return new_values
 
-    def take(self, indices, allow_fill=False, fill_value=None):
-        # type: (Sequence[int], bool, Optional[Any]) -> ExtensionArray
+    def take(
+        self,
+        indices: Union[Sequence[int], np.ndarray],
+        allow_fill: bool = False,
+        fill_value: Optional[Any] = None,
+    ) -> ExtensionArray:
         """
         Take elements from an array.
 
@@ -1349,8 +1353,12 @@ class FletcherChunkedArray(FletcherBaseArray):
             new_values = self.copy()
         return new_values
 
-    def take(self, indices, allow_fill=False, fill_value=None):
-        # type: (Sequence[int], bool, Optional[Any]) -> ExtensionArray
+    def take(
+        self,
+        indices: Union[Sequence[int], np.ndarray],
+        allow_fill: bool = False,
+        fill_value: Optional[Any] = None,
+    ) -> ExtensionArray:
         """
         Take elements from an array.
 
