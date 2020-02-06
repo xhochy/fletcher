@@ -514,6 +514,125 @@ class FletcherBaseArray(ExtensionArray):
         except NotImplementedError:
             return super().unique()
 
+    def _pd_object_take(
+        self,
+        indices: Union[Sequence[int], np.ndarray],
+        allow_fill: bool = False,
+        fill_value: Optional[Any] = None,
+    ) -> ExtensionArray:
+        """Run take using object dtype and pandas' built-in algorithm.
+
+        This is slow and should be avoided in future but is kept here as not all
+        special cases are yet supported.
+        """
+        from pandas.core.algorithms import take
+
+        data = self.astype(object)
+        if allow_fill and fill_value is None:
+            fill_value = self.dtype.na_value
+        # fill value should always be translated from the scalar
+        # type for the array, to the physical storage type for
+        # the data, before passing to take.
+        result = take(data, indices, fill_value=fill_value, allow_fill=allow_fill)
+        return self._from_sequence(result, dtype=self.data.type)
+
+    def _take_array(
+        self,
+        array: pa.Array,
+        indices: Union[Sequence[int], np.ndarray],
+        allow_fill: bool = False,
+        fill_value: Optional[Any] = None,
+    ) -> ExtensionArray:
+        """
+        Take elements from a pyarrow.Array.
+
+        Parameters
+        ----------
+        indices : sequence of integers
+            Indices to be taken.
+        allow_fill : bool, default False
+            How to handle negative values in `indices`.
+            * False: negative values in `indices` indicate positional indices
+              from the right (the default). This is similar to
+              :func:`numpy.take`.
+            * True: negative values in `indices` indicate
+              missing values. These values are set to `fill_value`. Any other
+              other negative values raise a ``ValueError``.
+        fill_value : any, optional
+            Fill value to use for NA-indices when `allow_fill` is True.
+            This may be ``None``, in which case the default NA value for
+            the type, ``self.dtype.na_value``, is used.
+            For many ExtensionArrays, there will be two representations of
+            `fill_value`: a user-facing "boxed" scalar, and a low-level
+            physical NA value. `fill_value` should be the user-facing version,
+            and the implementation should handle translating that to the
+            physical version for processing the take if nescessary.
+
+        Returns
+        -------
+        ExtensionArray
+
+        Raises
+        ------
+        IndexError
+            When the indices are out of bounds for the array.
+        ValueError
+            When `indices` contains negative values other than ``-1``
+            and `allow_fill` is True.
+
+        Notes
+        -----
+        ExtensionArray.take is called by ``Series.__getitem__``, ``.loc``,
+        ``iloc``, when `indices` is a sequence of values. Additionally,
+        it's called by :meth:`Series.reindex`, or any other method
+        that causes realignemnt, with a `fill_value`.
+
+        See Also
+        --------
+        numpy.take
+        pandas.api.extensions.take
+        """
+        if isinstance(indices, pa.Array) and pa.types.is_integer(indices):
+            # TODO: handle allow_fill, fill_value
+            if allow_fill or fill_value is not None:
+                raise NotImplementedError(
+                    "Cannot use allow_fill or fill_value with a pa.Array"
+                )
+            indices_array = indices
+        elif isinstance(indices, Iterable):
+            # Why is np.ndarray inferred as Iterable[Any]?
+            if len(indices) == 0:  # type: ignore
+                return type(self)(pa.array([], type=array.type))
+            elif not is_array_like(indices):
+                indices = np.array(indices)
+            if not is_integer_dtype(indices):
+                raise ValueError("Only integer dtyped indices are supported")
+            # TODO: handle fill_value
+            mask = indices < 0
+            if allow_fill and indices.min() < -1:
+                raise ValueError(
+                    "Invalid value in 'indices'. Must be between -1 "
+                    "and the length of the array."
+                )
+            if len(self) == 0 and (~mask).any():
+                raise IndexError("cannot do a non-empty take")
+            if indices.max() >= len(self):
+                raise IndexError("out of bounds value in 'indices'.")
+            if not allow_fill:
+                indices[mask] = len(array) + indices[mask]
+                mask = None
+            elif not pd.isna(fill_value):
+                # TODO: Needs fillna on pa.Array
+                return self._pd_object_take(
+                    indices, allow_fill=True, fill_value=fill_value
+                )
+            indices_array = pa.array(indices, mask=mask)
+        elif is_array_like(indices) and len(indices) == 0:
+            indices_array = pa.array([], type=pa.int64())
+        else:
+            raise NotImplementedError(f"take is not implemented for {type(indices)}")
+        return type(self)(array.take(indices_array))
+
 
 class FletcherContinuousArray(FletcherBaseArray):
     """Pandas ExtensionArray implementation backed by Apache Arrow's pyarrow.Array."""
@@ -528,7 +647,10 @@ class FletcherContinuousArray(FletcherBaseArray):
             self.data = array
         elif isinstance(array, pa.ChunkedArray):
             # TODO: Assert dtype
-            self.data = pa.concat_arrays(array.iterchunks())
+            if array.num_chunks == 1:
+                self.data = array.chunk(0)
+            else:
+                self.data = pa.concat_arrays(array.iterchunks())
         else:
             raise ValueError(
                 "Unsupported type passed for {}: {}".format(
@@ -881,8 +1003,12 @@ class FletcherContinuousArray(FletcherBaseArray):
             new_values = self.copy()
         return new_values
 
-    def take(self, indices, allow_fill=False, fill_value=None):
-        # type: (Sequence[int], bool, Optional[Any]) -> ExtensionArray
+    def take(
+        self,
+        indices: Union[Sequence[int], np.ndarray],
+        allow_fill: bool = False,
+        fill_value: Optional[Any] = None,
+    ) -> ExtensionArray:
         """
         Take elements from an array.
 
@@ -932,16 +1058,7 @@ class FletcherContinuousArray(FletcherBaseArray):
         numpy.take
         pandas.api.extensions.take
         """
-        from pandas.core.algorithms import take
-
-        data = self.astype(object)
-        if allow_fill and fill_value is None:
-            fill_value = self.dtype.na_value
-        # fill value should always be translated from the scalar
-        # type for the array, to the physical storage type for
-        # the data, before passing to take.
-        result = take(data, indices, fill_value=fill_value, allow_fill=allow_fill)
-        return self._from_sequence(result, dtype=self.data.type)
+        return self._take_array(self.data, indices, allow_fill, fill_value)
 
 
 class FletcherChunkedArray(FletcherBaseArray):
@@ -1349,8 +1466,12 @@ class FletcherChunkedArray(FletcherBaseArray):
             new_values = self.copy()
         return new_values
 
-    def take(self, indices, allow_fill=False, fill_value=None):
-        # type: (Sequence[int], bool, Optional[Any]) -> ExtensionArray
+    def take(
+        self,
+        indices: Union[Sequence[int], np.ndarray],
+        allow_fill: bool = False,
+        fill_value: Optional[Any] = None,
+    ) -> ExtensionArray:
         """
         Take elements from an array.
 
@@ -1400,6 +1521,9 @@ class FletcherChunkedArray(FletcherBaseArray):
         numpy.take
         pandas.api.extensions.take
         """
+        if self.data.num_chunks == 1:
+            return self._take_array(self.data.chunk(0), indices, allow_fill, fill_value)
+
         from pandas.core.algorithms import take
 
         data = self.astype(object)

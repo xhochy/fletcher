@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
@@ -72,7 +72,7 @@ class TextAccessor:
 
         if isinstance(na, bool):
             result = np.zeros(len(self.data), dtype=np.bool)
-            na_arg = np.bool_(na)
+            na_arg: Any = np.bool_(na)
 
         else:
             result = np.zeros(len(self.data), dtype=np.uint8)
