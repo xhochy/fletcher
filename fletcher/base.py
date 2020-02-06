@@ -528,7 +528,10 @@ class FletcherContinuousArray(FletcherBaseArray):
             self.data = array
         elif isinstance(array, pa.ChunkedArray):
             # TODO: Assert dtype
-            self.data = pa.concat_arrays(array.iterchunks())
+            if array.num_chunks == 1:
+                self.data = array.chunk(0)
+            else:
+                self.data = pa.concat_arrays(array.iterchunks())
         else:
             raise ValueError(
                 "Unsupported type passed for {}: {}".format(
@@ -881,6 +884,28 @@ class FletcherContinuousArray(FletcherBaseArray):
             new_values = self.copy()
         return new_values
 
+    def _pd_object_take(
+        self,
+        indices: Union[Sequence[int], np.ndarray],
+        allow_fill: bool = False,
+        fill_value: Optional[Any] = None,
+    ) -> ExtensionArray:
+        """Run take using object dtype and pandas' built-in algorithm.
+
+        This is slow and should be avoided in future but is kept here as not all
+        special cases are yet supported.
+        """
+        from pandas.core.algorithms import take
+
+        data = self.astype(object)
+        if allow_fill and fill_value is None:
+            fill_value = self.dtype.na_value
+        # fill value should always be translated from the scalar
+        # type for the array, to the physical storage type for
+        # the data, before passing to take.
+        result = take(data, indices, fill_value=fill_value, allow_fill=allow_fill)
+        return self._from_sequence(result, dtype=self.data.type)
+
     def take(
         self,
         indices: Union[Sequence[int], np.ndarray],
@@ -936,16 +961,46 @@ class FletcherContinuousArray(FletcherBaseArray):
         numpy.take
         pandas.api.extensions.take
         """
-        from pandas.core.algorithms import take
-
-        data = self.astype(object)
-        if allow_fill and fill_value is None:
-            fill_value = self.dtype.na_value
-        # fill value should always be translated from the scalar
-        # type for the array, to the physical storage type for
-        # the data, before passing to take.
-        result = take(data, indices, fill_value=fill_value, allow_fill=allow_fill)
-        return self._from_sequence(result, dtype=self.data.type)
+        if isinstance(indices, pa.Array) and pa.types.is_integer(indices):
+            # TODO: handle allow_fill, fill_value
+            if allow_fill or fill_value is not None:
+                raise NotImplementedError(
+                    "Cannot use allow_fill or fill_value with a pa.Array"
+                )
+            indices_array = indices
+        elif isinstance(indices, Iterable):
+            # Why is np.ndarray inferred as Iterable[Any]?
+            if len(indices) == 0:  # type: ignore
+                return type(self)(pa.array([], type=self.data.type))
+            elif not is_array_like(indices):
+                indices = np.array(indices)
+            if not is_integer_dtype(indices):
+                raise ValueError("Only integer dtyped indices are supported")
+            # TODO: handle fill_value
+            mask = indices < 0
+            if allow_fill and indices.min() < -1:
+                raise ValueError(
+                    "Invalid value in 'indices'. Must be between -1 "
+                    "and the length of the array."
+                )
+            if len(self) == 0 and (~mask).any():
+                raise IndexError("cannot do a non-empty take")
+            if indices.max() >= len(self):
+                raise IndexError("out of bounds value in 'indices'.")
+            if not allow_fill:
+                indices[mask] = len(self.data) + indices[mask]
+                mask = None
+            elif not pd.isna(fill_value):
+                # TODO: Needs fillna on pa.Array
+                return self._pd_object_take(
+                    indices, allow_fill=True, fill_value=fill_value
+                )
+            indices_array = pa.array(indices, mask=mask)
+        elif is_array_like(indices) and len(indices) == 0:
+            indices_array = pa.array([], type=pa.int64())
+        else:
+            raise NotImplementedError(f"take is not implemented for {type(indices)}")
+        return type(self)(self.data.take(indices_array))
 
 
 class FletcherChunkedArray(FletcherBaseArray):
