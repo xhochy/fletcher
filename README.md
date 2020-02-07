@@ -41,16 +41,14 @@ using a `conda` based development setup with packages from `conda-forge`.
 ```
 # Create the conda environment with all necessary dependencies
 conda create -y -q -n fletcher python=3.6 \
-    black=18.5b0 \
-    codecov \
-    flake8 \
+    pre-commit \
+    asv \
     numba \
     pandas \
     pip \
     pyarrow \
     pytest \
     pytest-cov \
-    pytest-flake8 \
     six \
     -c conda-forge
 
@@ -62,6 +60,11 @@ pip install -e .
 
 # Run the unit tests (you should do this several times during development)
 py.test
+
+# Install pre-commit hooks
+# These will then be automatically run on every commit and ensure that files
+# are black formatted, have no flake8 issues and mypy checks the type consistency.
+pre-commit install
 ```
 
 Code formatting is done using black. This should keep everything in a
@@ -69,6 +72,13 @@ consistent styling and the formatting can be automatically adjusted using
 `black .`. Note that we have pinned the version of `black` to ensure that
 the formatting is reproducible.
 
+### Benchmarks
 
-## License
-[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fxhochy%2Ffletcher.svg?type=large)](https://app.fossa.io/projects/git%2Bgithub.com%2Fxhochy%2Ffletcher?ref=badge_large)
+In `benchmarks/` we provide a set of benchmarks to compare the performance of
+`fletcher` against `pandas` and ensure that `fletcher` itself stays performant.
+The benchmarks are written using
+[airspeed velocity](https://asv.readthedocs.io/en/stable/). When developing
+the benchmarks you can run them using `asv dev` (use `-b <pattern>` to only
+run a selection of them) only once. To get real benchmark values, you should
+use `asv run --python=same` to run the benchmarks multiple times and get
+meaningful average runtimes.
