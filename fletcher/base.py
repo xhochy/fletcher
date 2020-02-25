@@ -429,17 +429,16 @@ class FletcherArray(ExtensionArray):
         """
         if is_integer(item):
             return self.data[item].as_py()
-        if (
-            not isinstance(item, slice)
-            and len(item) > 0
-            and np.asarray(item[:1]).dtype.kind == "b"
-        ):
-            item = np.argwhere(item).flatten()
-        elif isinstance(item, slice):
+        if isinstance(item, slice):
             if item.step == 1 or item.step is None:
                 return FletcherArray(self.data[item])
             else:
                 item = np.arange(len(self), dtype=self._indices_dtype)[item]
+        elif (
+            len(item) > 0
+            and is_bool_dtype(item) 
+        ):
+            item = np.argwhere(item).flatten()
         return self.take(item)
 
     def isna(self):
