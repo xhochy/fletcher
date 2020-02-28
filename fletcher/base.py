@@ -150,6 +150,10 @@ class FletcherBaseDtype(ExtensionDtype):
     def _is_numeric(self):
         return _is_numeric(self.arrow_dtype)
 
+    def __from_arrow__(self, data):
+        """Construct a FletcherArray from an arrow array."""
+        return self.construct_array_type()(data)
+
 
 @register_extension_dtype
 class FletcherContinuousDtype(FletcherBaseDtype):
@@ -322,6 +326,10 @@ class FletcherBaseArray(ExtensionArray):
     def __array__(self, copy: Optional[bool] = None) -> np.ndarray:
         """Correctly construct numpy arrays when passed to `np.asarray()`."""
         return self.data.to_pandas().values
+
+    def __arrow_array__(self, type=None):
+        """Convert myself to a pyarrow Array or ChunkedArray."""
+        return self.data
 
     @property
     def size(self) -> int:
@@ -666,10 +674,6 @@ class FletcherContinuousArray(FletcherBaseArray):
                 )
             )
         self._dtype = FletcherContinuousDtype(self.data.type)
-
-    def __arrow_array__(self, type=None):
-        """Convert myself to a pyarrow Array or ChunkedArray."""
-        return self.data
 
     @classmethod
     def _concat_same_type(cls, to_concat):
