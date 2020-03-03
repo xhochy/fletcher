@@ -16,7 +16,6 @@ wget --no-verbose -O miniconda.sh $MINICONDA_URL
 bash miniconda.sh -b -p $MINICONDA
 export PATH="$MINICONDA/bin:$PATH"
 
-conda update -y -q conda
 conda config --set auto_update_conda false
 conda config --add channels https://repo.continuum.io/pkgs/free
 conda config --add channels conda-forge
@@ -42,7 +41,7 @@ if [ "${PYTHON_VERSION}" = "3.7" ]; then
   pre-commit run -a
 fi
 
-if [[ ${USE_DEV_WHEELS} ]]; then
+if [ "${USE_DEV_WHEELS}" = "nightlies" ]; then
     echo "Installing NumPy and Pandas dev"
     conda uninstall -y --force numpy pandas
     PRE_WHEELS="https://7933911d6844c6c53a7d-47bd50c35cd79bd838daf386af554a83.ssl.cf2.rackcdn.com"
@@ -59,7 +58,7 @@ if [ "${PYTHON_VERSION}" = "3.6" ]; then
   NUMBA_DISABLE_JIT=1 py.test --junitxml=test-reports/junit.xml --cov=./
 fi
 # Upload coverage in each build, codecov.io merges the reports
-codecov
+codecov --token ${CODECOV_TOKEN}
 
 # Check documentation build only in one job
 if [ "${PYTHON_VERSION}" = "3.7" ]; then
