@@ -49,16 +49,14 @@ if [ "${USE_DEV_WHEELS}" = "nightlies" ]; then
 fi
 
 pip install --no-deps -e .
-py.test --junitxml=test-reports/junit.xml --cov=./
+py.test --junitxml=test-reports/junit.xml --cov=./ --cov-report=xml
 
 # Do a second run with JIT disabled to produce coverage and check that the
 # code works also as expected in Python.
 if [ "${PYTHON_VERSION}" = "3.6" ]; then
   # These don't work with Python 2.7 as it supports less operators than 3.6
-  NUMBA_DISABLE_JIT=1 py.test --junitxml=test-reports/junit.xml --cov=./
+  NUMBA_DISABLE_JIT=1 py.test --junitxml=test-reports/junit.xml --cov=./ --cov-report=xml
 fi
-# Upload coverage in each build, codecov.io merges the reports
-codecov --token ${CODECOV_TOKEN}
 
 # Check documentation build only in one job
 if [ "${PYTHON_VERSION}" = "3.7" ]; then

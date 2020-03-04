@@ -20,3 +20,7 @@ jobs:
         - name: Run CI
           shell: bash -l {0}
           run: ./ci/circle_build_linux.sh ${{ matrix.PYTHON_VERSION }} ${{ matrix.UPSTREAM_DEV }}
+        - uses: codecov/codecov-action@v1
+          with:
+            token: ${{ secrets.CODECOV_TOKEN }}
+            file: ./coverage.xml
