@@ -621,6 +621,11 @@ class TestBaseSetitemTests(BaseSetitemTests):
     def test_setitem_iloc_scalar_multiple_homogoneous(self, data):
         BaseSetitemTests.test_setitem_iloc_scalar_multiple_homogoneous(self, data)
 
+    @xfail_list_setitem_not_implemented
+    def test_setitem_nullable_mask(self, data):
+        if not PANDAS_GE_1_1_0:
+            BaseSetitemTests.test_setitem_nullable_mask(self, data)
+
     @pytest.mark.parametrize("as_callable", [True, False])
     @pytest.mark.parametrize("setter", ["loc", None])
     @xfail_list_setitem_not_implemented
@@ -633,17 +638,53 @@ class TestBaseSetitemTests(BaseSetitemTests):
         BaseSetitemTests.test_setitem_mask_broadcast(self, data, setter)
 
     @xfail_list_setitem_not_implemented
+    def test_setitem_slice(self, data, box_in_series):
+        if PANDAS_GE_1_1_0:
+            BaseSetitemTests.test_setitem_slice(self, data, box_in_series)
+
+    @xfail_list_setitem_not_implemented
+    def test_setitem_loc_iloc_slice(self, data):
+        if PANDAS_GE_1_1_0:
+            BaseSetitemTests.test_setitem_loc_iloc_slice(self, data)
+
+    @xfail_list_setitem_not_implemented
     def test_setitem_slice_array(self, data):
         BaseSetitemTests.test_setitem_slice_array(self, data)
 
     @xfail_list_setitem_not_implemented
-    def test_setitem_nullable_mask(self, data):
+    @pytest.mark.parametrize(
+        "mask",
+        [
+            np.array([True, True, True, False, False]),
+            pd.array([True, True, True, False, False], dtype="boolean"),
+            pd.array([True, True, True, pd.NA, pd.NA], dtype="boolean"),
+        ],
+        ids=["numpy-array", "boolean-array", "boolean-array-na"],
+    )
+    def test_setitem_mask(self, data, mask, box_in_series):
         if PANDAS_GE_1_1_0:
-            BaseSetitemTests.test_setitem_nullable_mask(self, data)
+            BaseSetitemTests.test_setitem_mask(self, data, mask, box_in_series)
 
     @pytest.mark.xfail(reason="Views don't update their parent #96")
     def test_setitem_preserves_views(self, data):
         pass
+
+    @xfail_list_setitem_not_implemented
+    def test_setitem_mask_boolean_array_with_na(self, data, box_in_series):
+        if PANDAS_GE_1_1_0:
+            BaseSetitemTests.test_setitem_mask_boolean_array_with_na(
+                self, data, box_in_series
+            )
+
+    @pytest.mark.parametrize(
+        "idx",
+        [[0, 1, 2], pd.array([0, 1, 2], dtype="Int64"), np.array([0, 1, 2])],
+        ids=["list", "integer-array", "numpy-array"],
+    )
+    @pytest.mark.xfail(reason="https://github.com/xhochy/fletcher/issues/110")
+    def test_setitem_integer_array(self, data, idx, box_in_series):
+        if PANDAS_GE_1_1_0:
+            BaseSetitemTests.test_setitem_integer_array(self, data, idx, box_in_series)
 
 
 class TestBaseParsingTests(BaseParsingTests):

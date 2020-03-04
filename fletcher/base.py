@@ -367,6 +367,13 @@ class FletcherBaseArray(ExtensionArray):
         """Return base object of the underlying data."""
         return self.data
 
+    def all(self, skipna: bool = False) -> Optional[bool]:
+        """Compute whether all boolean values are True."""
+        if pa.types.is_boolean(self.data.type):
+            return all_op(self.data, skipna=skipna)
+        else:
+            raise TypeError("Can only execute all on boolean arrays")
+
     def _reduce(self, name: str, skipna: bool = True, **kwargs):
         """
         Return a scalar result of performing the reduction operation.
@@ -700,6 +707,9 @@ class FletcherContinuousArray(FletcherBaseArray):
         -------
         None
         """
+        if PANDAS_GE_0_26_0:
+            key = check_array_indexer(self, key)
+
         if pa.types.is_list(self.data.type):
             # TODO: We can probably implement this for the scalar case?
             # TODO: Implement a list accessor and then the three mentioned methods
@@ -1140,6 +1150,9 @@ class FletcherChunkedArray(FletcherBaseArray):
         -------
         None
         """
+        if PANDAS_GE_0_26_0:
+            key = check_array_indexer(self, key)
+
         if pa.types.is_list(self.data.type):
             # TODO: We can probably implement this for the scalar case?
             # TODO: Implement a list accessor and then the three mentioned methods
