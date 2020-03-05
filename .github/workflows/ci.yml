@@ -1,0 +1,26 @@
+name: CI
+on: [pull_request]
+
+jobs:
+    linux:
+      name: "Linux Py${{ matrix.PYTHON_VERSION }} - ${{ matrix.UPSTREAM_DEV }}"
+      runs-on: ubuntu-latest
+      env:
+        CI: True
+        PYTHON_VERSION: ${{ matrix.PYTHON_VERSION }}
+        CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+      strategy:
+        fail-fast: false
+        matrix:
+          PYTHON_VERSION: ['3.6', '3.7', '3.8']
+          UPSTREAM_DEV: ['default', 'nightlies']
+      steps:
+        - name: Checkout branch
+          uses: actions/checkout@v1.2.0
+        - name: Run CI
+          shell: bash -l {0}
+          run: ./ci/circle_build_linux.sh ${{ matrix.PYTHON_VERSION }} ${{ matrix.UPSTREAM_DEV }}
+        - uses: codecov/codecov-action@v1
+          with:
+            token: ${{ secrets.CODECOV_TOKEN }}
+            file: ./coverage.xml
