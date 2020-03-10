@@ -7,10 +7,10 @@ Changelog
 Major changes:
  * We now provide two different extension array implementations.
    There now is the more simpler `FletcherContinuousArray` which is backed by a `pyarrow.Array` instance and thus is always a continuous memory segments.
-   The initial `FlectherArray` which is backed by a `pyarrow.ChunkedArray` is now renamed to `FletcherChunkedArray`.
+   The initial `FletcherArray` which is backed by a `pyarrow.ChunkedArray` is now renamed to `FletcherChunkedArray`.
    While `pyarrow.ChunkedArray` allows for more flexibility on how the data is stored, the implementation of algorithms is more complex for it.
    As this hinders contributions and also the adoption in downstream libraries, we now provide both implementations with an equal level of support.
-   We don't provide the more general named class `FlectherArray` anymore as there is not a clear opinion on whether this should point to `FletcherContinuousArray` or `FletcherChunkedArray`.
+   We don't provide the more general named class `FletcherArray` anymore as there is not a clear opinion on whether this should point to `FletcherContinuousArray` or `FletcherChunkedArray`.
    As usage increases, we might provide such an alias class in future again.
  * Support for `ArithmeticOps` and `ComparisonOps` on numerical data as well as numeric reductions such as `sum`.
    This should allow the use of nullable int and float type for many use cases.
