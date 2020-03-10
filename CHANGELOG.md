@@ -1,6 +1,12 @@
 Changelog
 =========
 
+0.3.1
+-----
+
+* Support roundtrips of `pandas.DataFrame` instances with `fletcher` columns through `pyarrow` data structures.
+* Move CI to Github Actions
+
 0.3.0
 -----
 
