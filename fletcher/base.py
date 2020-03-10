@@ -61,6 +61,7 @@ _python_type_map = {
     pa.string().id: str,
     # Use any list type here, only LIST is important
     pa.list_(pa.string()).id: list,
+    pa.duration("ns").id: datetime.timedelta,
 }
 
 _string_type_map = {"date64[ms]": pa.date64(), "string": pa.string()}
