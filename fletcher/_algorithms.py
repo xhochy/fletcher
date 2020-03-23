@@ -23,7 +23,18 @@ def _extract_data_buffer_as_np_array(array: pa.Array) -> np.ndarray:
     dtype = array.type.to_pandas_dtype()
     start = array.offset
     end = array.offset + len(array)
-    return np.asanyarray(array.buffers()[1]).view(dtype)[start:end]
+    return _buffer_to_view(array.buffers()[1]).view(dtype)[start:end]
+
+
+EMPTY_BUFFER_VIEW = np.array([], dtype=np.uint8)
+
+
+def _buffer_to_view(buf: Optional[pa.Buffer]) -> np.ndarray:
+    """Extract the pyarrow.Buffer as np.ndarray[np.uint8]."""
+    if buf is None:
+        return EMPTY_BUFFER_VIEW
+    else:
+        return np.asanyarray(buf).view(np.uint8)
 
 
 @njit
@@ -490,6 +501,20 @@ def _merge_non_aligned_bitmaps(
             result[byte_offset_result] = current & ~mask_result
 
 
+def _extract_isnull_bitmap(arr: pa.Array, offset: int, length: int):
+    """
+    Extract isnull bitmap with offset and padding.
+
+    Ensures that even when pyarrow does return an empty bitmap that a filled
+    one will be returned.
+    """
+    buf = _buffer_to_view(arr.buffers()[0])
+    if len(buf) > 0:
+        return buf[offset : offset + length]
+    else:
+        return np.full(length, fill_value=255, dtype=np.uint8)
+
+
 def _merge_valid_bitmaps(a: pa.Array, b: pa.Array) -> np.ndarray:
     """Merge two valid masks of pyarrow.Array instances.
 
@@ -505,18 +530,14 @@ def _merge_valid_bitmaps(a: pa.Array, b: pa.Array) -> np.ndarray:
         pad_a = 1
     else:
         pad_a = 0
-    valid_a = np.asanyarray(a.buffers()[0]).view(np.uint8)[
-        offset_a : offset_a + length + pad_a
-    ]
+    valid_a = _extract_isnull_bitmap(a, offset_a, length + pad_a)
 
     offset_b = b.offset // 8
     if b.offset % 8 != 0:
         pad_b = 1
     else:
         pad_b = 0
-    valid_b = np.asanyarray(b.buffers()[0]).view(np.uint8)[
-        offset_b : offset_b + length + pad_b
-    ]
+    valid_b = _extract_isnull_bitmap(b, offset_b, length + pad_b)
 
     if a.offset % 8 == 0 and b.offset % 8 == 0:
         result = valid_a & valid_b

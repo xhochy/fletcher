@@ -118,6 +118,5 @@ def test_string_builder_simple(data):
     expected = pa.array(data, pa.string())
     missing, offsets, data = buffers_as_arrays(expected)
 
-    np.testing.assert_array_equal(builder.missing, missing)
     np.testing.assert_array_equal(builder.offsets, offsets)
     np.testing.assert_array_equal(builder.data, data)

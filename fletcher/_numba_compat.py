@@ -5,13 +5,17 @@ import numba
 import numpy as np
 import pyarrow as pa
 
+from fletcher._algorithms import _extract_isnull_bitmap
+
 _string_buffer_types = np.uint8, np.uint32, np.uint8
 
 
 def buffers_as_arrays(sa):
-    return tuple(
-        np.asarray(b).view(t) if b is not None else None
-        for b, t in zip(sa.buffers(), _string_buffer_types)
+    buffers = sa.buffers()
+    return (
+        _extract_isnull_bitmap(sa, 0, len(sa)),
+        np.asarray(buffers[1]).view(np.uint32),
+        np.asarray(buffers[2]).view(np.uint8),
     )
 
 
