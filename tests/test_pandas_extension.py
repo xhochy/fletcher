@@ -555,6 +555,9 @@ class TestBaseReshapingTests(BaseReshapingTests):
         ):
             # https://github.com/pandas-dev/pandas/issues/21792
             pytest.skip("pd.concat(int64, fletcher_chunked[int64] yields int64")
+        elif pa.types.is_temporal(arrow_dtype):
+            # https://github.com/pandas-dev/pandas/issues/33331
+            pytest.xfail("pd.concat(temporal, categorical) mangles dates")
         else:
             BaseReshapingTests.test_concat_mixed_dtypes(self, data)
 

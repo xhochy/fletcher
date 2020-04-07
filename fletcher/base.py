@@ -323,9 +323,9 @@ class FletcherBaseArray(ExtensionArray):
         """Return the ExtensionDtype of this array."""
         return self._dtype
 
-    def __array__(self, copy: Optional[bool] = None) -> np.ndarray:
+    def __array__(self, *args, **kwargs) -> np.ndarray:
         """Correctly construct numpy arrays when passed to `np.asarray()`."""
-        return self.data.to_pandas().values
+        return self.data.__array__(*args, **kwargs)
 
     def __arrow_array__(self, type=None):
         """Convert myself to a pyarrow Array or ChunkedArray."""
