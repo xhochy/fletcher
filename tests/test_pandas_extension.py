@@ -353,9 +353,10 @@ class TestBaseConstructors(BaseConstructorsTests):
 
     @xfail_list_scalar_constuctor_not_implemented
     def test_series_constructor_scalar_with_index(self, data, dtype):
-        BaseConstructorsTests.test_series_constructor_scalar_with_index(
-            self, data, dtype
-        )
+        if PANDAS_GE_1_1_0:
+            BaseConstructorsTests.test_series_constructor_scalar_with_index(
+                self, data, dtype
+            )
 
 
 class TestBaseDtype(BaseDtypeTests):
@@ -436,11 +437,13 @@ class TestBaseMethodsTests(BaseMethodsTests):
     @xfail_list_equals_not_implemented
     @pytest.mark.parametrize("box", [pd.array, pd.Series, pd.DataFrame])
     def test_equals(self, data, na_value, as_series, box):  # noqa: F811
-        BaseMethodsTests.test_equals(self, data, na_value, as_series, box)
+        if PANDAS_GE_1_1_0:
+            BaseMethodsTests.test_equals(self, data, na_value, as_series, box)
 
     @xfail_missing_list_dict_encode
     def test_value_counts_with_normalize(self, data):
-        BaseMethodsTests.test_value_counts_with_normalize(self, data)
+        if PANDAS_GE_1_1_0:
+            BaseMethodsTests.test_value_counts_with_normalize(self, data)
 
     def test_combine_le(self, data_repeated):
         # GH 20825
@@ -484,9 +487,12 @@ class TestBaseMethodsTests(BaseMethodsTests):
     @pytest.mark.parametrize("ascending", [True, False])
     @xfail_bool_too_few_uniques
     def test_sort_values(self, data_for_sorting, ascending, sort_by_key):
-        BaseMethodsTests.test_sort_values(
-            self, data_for_sorting, ascending, sort_by_key
-        )
+        if PANDAS_GE_1_1_0:
+            BaseMethodsTests.test_sort_values(
+                self, data_for_sorting, ascending, sort_by_key
+            )
+        else:
+            BaseMethodsTests.test_sort_values(self, data_for_sorting, ascending)
 
     @pytest.mark.parametrize("na_sentinel", [-1, -2])
     @xfail_bool_too_few_uniques
@@ -539,7 +545,8 @@ class TestBaseMethodsTests(BaseMethodsTests):
 
     @xfail_list_setitem_not_implemented
     def test_shift_0_periods(self, data):
-        BaseMethodsTests.test_shift_0_periods(self, data)
+        if PANDAS_GE_1_1_0:
+            BaseMethodsTests.test_shift_0_periods(self, data)
 
     def test_shift_fill_value(self, data):
         if pa.types.is_list(data.dtype.arrow_dtype):
