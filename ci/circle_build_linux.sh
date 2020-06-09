@@ -51,8 +51,8 @@ fi
 if [ "${USE_DEV_WHEELS}" = "nightlies" ]; then
     echo "Installing NumPy and Pandas dev"
     conda uninstall -y --force numpy pandas
-    PRE_WHEELS="https://anaconda.org/scipy-wheels-nightly"
-    pip install --pre --no-deps --upgrade --timeout=60 -f $PRE_WHEELS numpy pandas
+    PRE_WHEELS="https://pypi.anaconda.org/scipy-wheels-nightly/simple"
+    pip install --pre --no-deps --upgrade --timeout=60 -i $PRE_WHEELS numpy pandas
 fi
 
 pip install --no-deps -e .
