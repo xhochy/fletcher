@@ -1,7 +1,8 @@
-from typing import Any, Optional
+from typing import Optional
 
 import numpy as np
 import pandas as pd
+import pyarrow as pa
 
 from ._algorithms import _endswith, _startswith
 from ._numba_compat import NumbaString, NumbaStringArray
@@ -59,32 +60,28 @@ class TextAccessor:
         # This will require a StringBuilder class or a run where we pre-compute the size of the final array
         raise NotImplementedError("zfill")
 
-    def startswith(self, needle, na=None):
+    def startswith(self, needle):
         """Check whether a row starts with a certain pattern."""
-        return self._call_x_with(_startswith, needle, na)
+        return self._call_x_with(_startswith, needle)
 
-    def endswith(self, needle, na=None):
+    def endswith(self, needle):
         """Check whether a row ends with a certain pattern."""
-        return self._call_x_with(_endswith, needle, na)
+        return self._call_x_with(_endswith, needle)
 
     def _call_x_with(self, impl, needle, na=None):
         needle = NumbaString.make(needle)  # type: ignore
+        result = np.zeros(len(self.data), dtype=np.uint8)
 
-        if isinstance(na, bool):
-            result = np.zeros(len(self.data), dtype=np.bool)
-            na_arg: Any = np.bool_(na)
-
+        if isinstance(self.data, pa.ChunkedArray):
+            offset = 0
+            for chunk in self.data.chunks:
+                str_arr = NumbaStringArray.make(chunk)  # type: ignore
+                impl(str_arr, needle, 2, offset, result)
+                offset += len(chunk)
         else:
-            result = np.zeros(len(self.data), dtype=np.uint8)
-            na_arg = 2
+            str_arr = NumbaStringArray.make(self.data)  # type: ignore
+            impl(str_arr, needle, 2, 0, result)
 
-        offset = 0
-        for chunk in self.data.chunks:
-            str_arr = NumbaStringArray.make(chunk)  # type: ignore
-            impl(str_arr, needle, na_arg, offset, result)
-            offset += len(chunk)
-
-        result = pd.Series(result, index=self.obj.index, name=self.obj.name)
-        return (
-            result if isinstance(na, bool) else result.map({0: False, 1: True, 2: na})
+        return pd.Series(
+            type(self.obj.values)(pa.array(result.astype(bool), mask=(result == 2)))
         )
