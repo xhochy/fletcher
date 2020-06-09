@@ -23,7 +23,12 @@ def _extract_data_buffer_as_np_array(array: pa.Array) -> np.ndarray:
     dtype = array.type.to_pandas_dtype()
     start = array.offset
     end = array.offset + len(array)
-    return _buffer_to_view(array.buffers()[1]).view(dtype)[start:end]
+    if pa.types.is_boolean(array.type):
+        return np.unpackbits(
+            _buffer_to_view(array.buffers()[1]).view(np.uint8), bitorder="little"
+        )[start:end].astype(bool)
+    else:
+        return _buffer_to_view(array.buffers()[1]).view(dtype)[start:end]
 
 
 EMPTY_BUFFER_VIEW = np.array([], dtype=np.uint8)

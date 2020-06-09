@@ -20,8 +20,14 @@ conda config --set auto_update_conda false
 conda config --add channels https://repo.continuum.io/pkgs/free
 conda config --add channels conda-forge
 
+if [ "${USE_DEV_WHEELS}" = "nightlies" ]; then
+    export CONDA_ARROW="arrow-nightlies::pyarrow arrow-nightlies::arrow-cpp -c arrow-nightlies"
+else
+    export CONDA_ARROW="pyarrow arrow-cpp"
+fi
+
 conda create -y -q -n fletcher python=${PYTHON_VERSION} \
-    pandas pyarrow pytest pytest-cov \
+    pandas pytest pytest-cov \
     hypothesis \
     setuptools_scm \
     pip \
@@ -33,6 +39,7 @@ conda create -y -q -n fletcher python=${PYTHON_VERSION} \
     numpydoc \
     sphinxcontrib-apidoc \
     pre_commit \
+    $CONDA_ARROW \
     -c conda-forge
 source activate fletcher
 
@@ -42,11 +49,9 @@ if [ "${PYTHON_VERSION}" = "3.7" ]; then
 fi
 
 if [ "${USE_DEV_WHEELS}" = "nightlies" ]; then
-    echo "Installing Arrow dev"
-    conda install -c arrow-nightlies pyarrow arrow-cpp
     echo "Installing NumPy and Pandas dev"
     conda uninstall -y --force numpy pandas
-    PRE_WHEELS="https://7933911d6844c6c53a7d-47bd50c35cd79bd838daf386af554a83.ssl.cf2.rackcdn.com"
+    PRE_WHEELS="https://anaconda.org/scipy-wheels-nightly"
     pip install --pre --no-deps --upgrade --timeout=60 -f $PRE_WHEELS numpy pandas
 fi
 
