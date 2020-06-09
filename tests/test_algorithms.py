@@ -1,16 +1,14 @@
 from datetime import timedelta
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 
 import hypothesis.strategies as st
 import numpy as np
 import numpy.testing as npt
 import pandas as pd
-import pandas.testing as tm
 import pyarrow as pa
 import pytest
 from hypothesis import example, given, settings
 
-import fletcher as fr
 from fletcher._algorithms import (
     _calculate_chunk_offsets,
     _combined_in_chunk_offsets,
@@ -270,21 +268,6 @@ def test_np_ufunc_op_flat_scalar():
     check_np_ufunc(a, b, expected)
 
 
-@pytest.fixture(params=["chunked", "continuous"])
-def fletcher_variant(request):
-    """Whether to test the chunked or continuous implementation."""
-    return request.param
-
-
-@pytest.fixture(params=["chunked", "continuous"])
-def fletcher_variant_2(request):
-    """Whether to test the chunked or continuous implementation.
-
-    2nd fixture to support the cross-product of the possible implementations.
-    """
-    return request.param
-
-
 def test_merge_valid_bitmaps():
     a = pa.array([1, 1, 1, 1, 1, 1, 1, 1, 1])
     b = pa.array([1, 1, 1, None, None, None, 1, 1, 1])
@@ -327,65 +310,3 @@ def test_merge_valid_bitmaps():
     expected = np.array([0x0], dtype=np.uint8)
     result = _merge_valid_bitmaps(a.slice(5, 2), b.slice(3, 2))
     npt.assert_array_equal(result, expected)
-
-
-@settings(deadline=timedelta(milliseconds=1000))
-@given(data=st.lists(st.one_of(st.text(), st.none())))
-def test_text_cat(data, fletcher_variant, fletcher_variant_2):
-    if any("\x00" in x for x in data if x):
-        # pytest.skip("pandas cannot handle \\x00 characters in tests")
-        # Skip is not working properly with hypothesis
-        return
-    ser_pd = pd.Series(data, dtype=str)
-    arrow_data = pa.array(data, type=pa.string())
-    if fletcher_variant == "chunked":
-        fr_array = fr.FletcherChunkedArray(arrow_data)
-    else:
-        fr_array = fr.FletcherContinuousArray(arrow_data)
-    ser_fr = pd.Series(fr_array)
-    if fletcher_variant_2 == "chunked":
-        fr_other_array = fr.FletcherChunkedArray(arrow_data)
-    else:
-        fr_other_array = fr.FletcherContinuousArray(arrow_data)
-    ser_fr_other = pd.Series(fr_other_array)
-
-    result_pd = ser_pd.str.cat(ser_pd)
-    result_fr = ser_fr.fr_text.cat(ser_fr_other)
-    result_fr = result_fr.astype(object)
-    # Pandas returns np.nan for NA values in cat, keep this in line
-    result_fr[result_fr.isna()] = np.nan
-    tm.assert_series_equal(result_fr, result_pd)
-
-
-def _optional_len(x: Optional[str]) -> int:
-    if x is not None:
-        return len(x)
-    else:
-        return 0
-
-
-@settings(deadline=timedelta(milliseconds=1000))
-@given(data=st.lists(st.one_of(st.text(), st.none())))
-@pytest.mark.xfail(reason="Not implemented")
-def test_text_zfill(data, fletcher_variant):
-    if any("\x00" in x for x in data if x):
-        # pytest.skip("pandas cannot handle \\x00 characters in tests")
-        # Skip is not working properly with hypothesis
-        return
-    ser_pd = pd.Series(data, dtype=str)
-    max_str_len = ser_pd.map(_optional_len).max()
-    if pd.isna(max_str_len):
-        max_str_len = 0
-    arrow_data = pa.array(data, type=pa.string())
-    if fletcher_variant == "chunked":
-        fr_array = fr.FletcherChunkedArray(arrow_data)
-    else:
-        fr_array = fr.FletcherContinuousArray(arrow_data)
-    ser_fr = pd.Series(fr_array)
-
-    result_pd = ser_pd.str.zfill(max_str_len + 1)
-    result_fr = ser_fr.fr_text.zfill(max_str_len + 1)
-    result_fr = result_fr.astype(object)
-    # Pandas returns np.nan for NA values in cat, keep this in line
-    result_fr[result_fr.isna()] = np.nan
-    tm.assert_series_equal(result_fr, result_pd)

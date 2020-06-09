@@ -122,3 +122,18 @@ def pytest_configure(config):
     config.addinivalue_line(
         "markers", "xfail_by_type_filter: xfail tests according to their Arrow type"
     )
+
+
+@pytest.fixture(params=["chunked", "continuous"], scope="session")
+def fletcher_variant(request):
+    """Whether to test the chunked or continuous implementation."""
+    return request.param
+
+
+@pytest.fixture(params=["chunked", "continuous"], scope="session")
+def fletcher_variant_2(request):
+    """Whether to test the chunked or continuous implementation.
+
+    2nd fixture to support the cross-product of the possible implementations.
+    """
+    return request.param

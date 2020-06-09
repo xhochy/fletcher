@@ -161,13 +161,11 @@ def _endswith(sa, needle, na, offset, out):
             out[offset + i] = 0
             continue
 
+        out[offset + i] = 1
         for j in range(needle_length):
             if sa.get_byte(i, string_length - needle_length + j) != needle.get_byte(j):
                 out[offset + i] = 0
                 break
-
-        else:
-            out[offset + i] = 1
 
 
 @njit
