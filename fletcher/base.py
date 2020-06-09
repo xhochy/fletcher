@@ -383,6 +383,10 @@ class FletcherBaseArray(ExtensionArray):
         else:
             raise TypeError("Can only execute all on boolean arrays")
 
+    def sum(self, skipna: bool = True):
+        """Return the sum of the values."""
+        return self._reduce("sum", skipna=skipna)
+
     def _reduce(self, name: str, skipna: bool = True, **kwargs):
         """
         Return a scalar result of performing the reduction operation.
@@ -649,6 +653,101 @@ class FletcherBaseArray(ExtensionArray):
             raise NotImplementedError(f"take is not implemented for {type(indices)}")
         return type(self)(array.take(indices_array))
 
+    def astype(self, dtype, copy=True):
+        """
+        Cast to a NumPy array with 'dtype'.
+
+        Parameters
+        ----------
+        dtype : str or dtype
+            Typecode or data-type to which the array is cast.
+        copy : bool, default True
+            Whether to copy the data, even if not necessary. If False,
+            a copy is made only if the old dtype does not match the
+            new dtype.
+
+        Returns
+        -------
+        array : ndarray
+            NumPy ndarray with 'dtype' for its dtype.
+        """
+        if self.dtype == dtype:
+            return self
+
+        arrow_type = None
+        arrow_class = None
+        pandas_type = None
+        if isinstance(dtype, FletcherChunkedDtype):
+            arrow_type = dtype.arrow_dtype
+            dtype = dtype.arrow_dtype.to_pandas_dtype()
+            if isinstance(self, FletcherChunkedArray):
+                arrow_class = type(self)
+            else:
+                arrow_class = FletcherChunkedArray
+        elif isinstance(dtype, FletcherContinuousDtype):
+            arrow_type = dtype.arrow_dtype
+            dtype = dtype.arrow_dtype.to_pandas_dtype()
+            if isinstance(self, FletcherContinuousArray):
+                arrow_class = type(self)
+            else:
+                arrow_class = FletcherContinuousArray
+        elif isinstance(dtype, pa.DataType):
+            arrow_type = dtype
+            dtype = dtype.to_pandas_dtype()
+            arrow_class = type(self)
+        elif isinstance(dtype, pd.StringDtype):
+            pandas_type = dtype
+            dtype = np.dtype(str)
+        else:
+            dtype = np.dtype(dtype)
+
+        # NumPy's conversion of list->unicode is differently from Python's
+        # default. We want to have the default Python output, so force it here.
+        if pa.types.is_list(self.dtype.arrow_dtype) and dtype.kind == "U":
+            result = np.array([str(x) for x in self.data.to_pylist()])
+            if pandas_type is not None:
+                return pd.array(result, dtype=pandas_type)
+            else:
+                return result
+
+        if arrow_type is not None and arrow_class is not None:
+            return arrow_class(np.asarray(self).astype(dtype), dtype=arrow_type)
+        else:
+            result = np.asarray(self).astype(dtype)
+            if pandas_type is not None:
+                return pd.array(result, dtype=pandas_type)
+            else:
+                return result
+
+    def value_counts(self, dropna: bool = True) -> "pd.Series":
+        """
+        Return a Series containing counts of each unique value.
+
+        Parameters
+        ----------
+        dropna : bool, default True
+            Don't include counts of missing values.
+
+        Returns
+        -------
+        counts : Series
+
+        See Also
+        --------
+        Series.value_counts
+        """
+        vc = self.data.value_counts()
+
+        # Index cannot hold ExtensionArrays yet
+        index = pd.Index(type(self)(vc.field(0)).astype(object))
+        # No missings, so we can adhere to the interface and return a numpy array.
+        counts = np.array(vc.field(1))
+
+        if dropna and self.data.null_count > 0:
+            raise NotImplementedError("yo")
+
+        return pd.Series(counts, index=index)
+
 
 class FletcherContinuousArray(FletcherBaseArray):
     """Pandas ExtensionArray implementation backed by Apache Arrow's pyarrow.Array."""
@@ -901,47 +1000,6 @@ class FletcherContinuousArray(FletcherBaseArray):
             if not is_int64_dtype(indices):
                 indices = indices.astype(np.int64)
             return indices.values, type(self)(encoded.dictionary)
-
-    def astype(self, dtype, copy=True):
-        """
-        Cast to a NumPy array with 'dtype'.
-
-        Parameters
-        ----------
-        dtype : str or dtype
-            Typecode or data-type to which the array is cast.
-        copy : bool, default True
-            Whether to copy the data, even if not necessary. If False,
-            a copy is made only if the old dtype does not match the
-            new dtype.
-
-        Returns
-        -------
-        array : ndarray
-            NumPy ndarray with 'dtype' for its dtype.
-        """
-        if self.dtype == dtype:
-            return self
-
-        if isinstance(dtype, FletcherContinuousDtype):
-            arrow_type = dtype.arrow_dtype
-            dtype = dtype.arrow_dtype.to_pandas_dtype()
-        elif isinstance(dtype, pa.DataType):
-            arrow_type = dtype
-            dtype = dtype.to_pandas_dtype()
-        else:
-            dtype = np.dtype(dtype)
-            arrow_type = None
-        # NumPy's conversion of list->unicode is differently from Python's
-        # default. We want to have the default Python output, so force it here.
-        if pa.types.is_list(self.dtype.arrow_dtype) and dtype.kind == "U":
-            return np.vectorize(str)(np.asarray(self))
-        if arrow_type is not None:
-            return FletcherContinuousArray(
-                np.asarray(self).astype(dtype), dtype=arrow_type
-            )
-        else:
-            return np.asarray(self).astype(dtype)
 
     @classmethod
     def _from_sequence(cls, scalars, dtype=None, copy=None):
@@ -1367,47 +1425,6 @@ class FletcherChunkedArray(FletcherBaseArray):
         else:
             np_array = self.data.to_pandas().values
             return pd.factorize(np_array, na_sentinel=na_sentinel)
-
-    def astype(self, dtype, copy=True):
-        """
-        Cast to a NumPy array with 'dtype'.
-
-        Parameters
-        ----------
-        dtype : str or dtype
-            Typecode or data-type to which the array is cast.
-        copy : bool, default True
-            Whether to copy the data, even if not necessary. If False,
-            a copy is made only if the old dtype does not match the
-            new dtype.
-
-        Returns
-        -------
-        array : ndarray
-            NumPy ndarray with 'dtype' for its dtype.
-        """
-        if self.dtype == dtype:
-            return self
-
-        if isinstance(dtype, FletcherChunkedDtype):
-            arrow_type = dtype.arrow_dtype
-            dtype = dtype.arrow_dtype.to_pandas_dtype()
-        elif isinstance(dtype, pa.DataType):
-            arrow_type = dtype
-            dtype = dtype.to_pandas_dtype()
-        else:
-            arrow_type = None
-            dtype = np.dtype(dtype)
-        # NumPy's conversion of list->unicode is differently from Python's
-        # default. We want to have the default Python output, so force it here.
-        if pa.types.is_list(self.dtype.arrow_dtype) and dtype.kind == "U":
-            return np.vectorize(str)(np.asarray(self))
-        if arrow_type is not None:
-            return FletcherChunkedArray(
-                np.asarray(self).astype(dtype), dtype=arrow_type
-            )
-        else:
-            return np.asarray(self).astype(dtype)
 
     @classmethod
     def _from_sequence(cls, scalars, dtype=None, copy=None):
