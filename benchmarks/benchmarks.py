@@ -53,6 +53,30 @@ class TimeSuite:
     def time_zfill_ext(self):
         self.df_ext["str"].text.zfill(10)
 
+    def time_contains_no_regex(self):
+        self.df["str"].str.contains("0", regex=False)
+
+    def time_contains_no_regex_ext(self):
+        self.df_ext["str"].text.contains("0", regex=False)
+
+    def time_contains_no_regex_ignore_cast(self):
+        self.df["str"].str.contains("0", regex=False, case=False)
+
+    def time_contains_no_regex_ignore_case_ext(self):
+        self.df_ext["str"].text.contains("0", regex=False, case=False)
+
+    def time_contains_regex(self):
+        self.df["str"].str.contains("[0-3]", regex=True)
+
+    def time_contains_regex_ext(self):
+        self.df_ext["str"].text.contains("[0-3]", regex=True)
+
+    def time_contains_regex_ignore_case(self):
+        self.df["str"].str.contains("[0-3]", regex=True, case=False)
+
+    def time_contains_regex_ignore_case_ext(self):
+        self.df_ext["str"].text.contains("[0-3]", regex=True, case=False)
+
     def time_concat(self):
         pd.concat([self.df["str"]] * 2)
 
