@@ -103,7 +103,6 @@ def _optional_len(x: Optional[str]) -> int:
 
 @settings(deadline=timedelta(milliseconds=1000))
 @given(data=st.lists(st.one_of(st.text(), st.none())))
-@pytest.mark.xfail(reason="Not implemented")
 def test_text_zfill(data, fletcher_variant):
     if any("\x00" in x for x in data if x):
         # pytest.skip("pandas cannot handle \\x00 characters in tests")
