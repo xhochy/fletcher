@@ -47,6 +47,12 @@ class TimeSuite:
     def time_cat_ext(self):
         self.df_ext["str"].text.cat(self.df_ext["str"])
 
+    def time_zfill(self):
+        self.df["str"].str.zfill(10)
+
+    def time_zfill_ext(self):
+        self.df_ext["str"].text.zfill(10)
+
     def time_concat(self):
         pd.concat([self.df["str"]] * 2)
 

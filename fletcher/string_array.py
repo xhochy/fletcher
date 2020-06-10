@@ -54,11 +54,14 @@ class TextAccessor:
                 FletcherContinuousArray(_text_cat(self.data, others.values.data))
             )
 
+    def _call_str_accessor(self, func, *args, **kwargs) -> pd.Series:
+        pd_series = self.data.to_pandas()
+        result = pa.array(getattr(pd_series.str, func)(*args, **kwargs).values)
+        return pd.Series(type(self.obj)(result))
+
     def zfill(self, width: int) -> pd.Series:
         """Pad strings in the Series/Index by prepending '0' characters."""
-        # TODO: This will extend all strings to be at least width wide but we need to take uncode into account where the length could be smaller due to multibyte characters
-        # This will require a StringBuilder class or a run where we pre-compute the size of the final array
-        raise NotImplementedError("zfill")
+        return self._call_str_accessor("zfill", width)
 
     def startswith(self, needle):
         """Check whether a row starts with a certain pattern."""
