@@ -57,19 +57,52 @@ class TextAccessor:
     def _call_str_accessor(self, func, *args, **kwargs) -> pd.Series:
         pd_series = self.data.to_pandas()
         result = pa.array(getattr(pd_series.str, func)(*args, **kwargs).values)
-        return pd.Series(type(self.obj)(result))
+        return pd.Series(
+            type(self.obj.values)(result), dtype=type(self.obj.dtype)(result.type)
+        )
+
+    def contains(self, pat, case=True, regex=True):
+        """
+        Test if pattern or regex is contained within a string of a Series or Index.
+
+        Return boolean Series or Index based on whether a given pattern or regex is
+        contained within a string of a Series or Index.
+
+        This implementation differs to the one in ``pandas``:
+         * We always return a missing for missing data.
+         * You cannot pass flags for the regular expression module.
+
+        Parameters
+        ----------
+        pat : str
+            Character sequence or regular expression.
+        case : bool, default True
+            If True, case sensitive.
+        regex : bool, default True
+            If True, assumes the pat is a regular expression.
+
+            If False, treats the pat as a literal string.
+
+        Returns
+        -------
+        Series or Index of boolean values
+            A Series or Index of boolean values indicating whether the
+            given pattern is contained within the string of each element
+            of the Series or Index.
+        """
+        return self._call_str_accessor("contains", pat=pat, case=case, regex=regex)
 
     def zfill(self, width: int) -> pd.Series:
         """Pad strings in the Series/Index by prepending '0' characters."""
         return self._call_str_accessor("zfill", width)
 
-    def startswith(self, needle):
+    def startswith(self, pat):
         """Check whether a row starts with a certain pattern."""
-        return self._call_x_with(_startswith, needle)
+        return self._call_x_with(_startswith, pat)
 
-    def endswith(self, needle):
+    def endswith(self, pat):
         """Check whether a row ends with a certain pattern."""
-        return self._call_x_with(_endswith, needle)
+        return self._call_x_with(_endswith, pat)
 
     def _call_x_with(self, impl, needle, na=None):
         needle = NumbaString.make(needle)  # type: ignore
