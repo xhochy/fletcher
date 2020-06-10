@@ -6,9 +6,11 @@ import pyarrow as pa
 from numba import njit
 
 from fletcher._algorithms import (
+    _buffer_to_view,
     _calculate_chunk_offsets,
     _combined_in_chunk_offsets,
     _merge_valid_bitmaps,
+    apply_per_chunk,
 )
 
 
@@ -112,3 +114,131 @@ def _text_cat(a: pa.Array, b: pa.Array) -> pa.Array:
         buffers = [pa.py_buffer(x) for x in [valid, result_offsets, result_data]]
         return pa.Array.from_buffers(pa.string(), len(a), buffers)
     return a
+
+
+@njit
+def _text_contains_case_sensitive_nonnull(length, offsets, data, pat, output):
+    for row_idx in range(length):
+        str_len = offsets[row_idx + 1] - offsets[row_idx]
+
+        contains = False
+        for str_idx in range(max(0, str_len - len(pat) + 1)):
+            pat_found = True
+            for pat_idx in range(len(pat)):
+                if data[offsets[row_idx] + str_idx + pat_idx] != pat[pat_idx]:
+                    pat_found = False
+                    break
+            if pat_found:
+                contains = True
+                break
+
+        # TODO: Set word-wise for better performance
+        byte_offset_result = row_idx // 8
+        bit_offset_result = row_idx % 8
+        mask_result = np.uint8(1 << bit_offset_result)
+        current = output[byte_offset_result]
+        if contains:  # must be logical, not bit-wise as different bits may be flagged
+            output[byte_offset_result] = current | mask_result
+        else:
+            output[byte_offset_result] = current & ~mask_result
+
+
+@njit
+def _text_contains_case_sensitive_nulls(
+    length, valid_bits, valid_offset, offsets, data, pat, output
+):
+    for row_idx in range(length):
+        byte_offset = (row_idx + valid_offset) // 8
+        bit_offset = (row_idx + valid_offset) % 8
+        mask = np.uint8(1 << bit_offset)
+        valid = valid_bits[byte_offset] & mask
+
+        if not valid:
+            continue
+
+        str_len = offsets[row_idx + 1] - offsets[row_idx]
+
+        contains = False
+        for str_idx in range(max(0, str_len - len(pat) + 1)):
+            pat_found = True
+            for pat_idx in range(len(pat)):
+                if data[offsets[row_idx] + str_idx + pat_idx] != pat[pat_idx]:
+                    pat_found = False
+                    break
+            if pat_found:
+                contains = True
+                break
+
+        # TODO: Set word-wise for better performance
+        byte_offset_result = row_idx // 8
+        bit_offset_result = row_idx % 8
+        mask_result = np.uint8(1 << bit_offset_result)
+        current = output[byte_offset_result]
+        if contains:  # must be logical, not bit-wise as different bits may be flagged
+            output[byte_offset_result] = current | mask_result
+        else:
+            output[byte_offset_result] = current & ~mask_result
+
+
+@njit
+def _shift_unaligned_bitmap(valid_bits, valid_offset, length, output):
+    for i in range(length):
+        byte_offset = (i + valid_offset) // 8
+        bit_offset = (i + valid_offset) % 8
+        mask = np.uint8(1 << bit_offset)
+        valid = valid_bits[byte_offset] & mask
+
+        byte_offset_result = i // 8
+        bit_offset_result = i % 8
+        mask_result = np.uint8(1 << bit_offset_result)
+        current = output[byte_offset_result]
+        if valid:
+            output[byte_offset_result] = current | mask_result
+
+
+def shift_unaligned_bitmap(valid_buffer, offset, length):
+    """Shift an unaligned bitmap to be offsetted at 0."""
+    output_size = length // 8
+    if length % 8 > 0:
+        output_size += 1
+    output = np.zeros(output_size, dtype=np.uint8)
+
+    _shift_unaligned_bitmap(valid_buffer, offset, length, output)
+
+    return pa.py_buffer(output)
+
+
+@apply_per_chunk
+def _text_contains_case_sensitive(data: pa.Array, pat: str) -> pa.Array:
+
+    output_size = len(data) // 8
+    if len(data) % 8 > 0:
+        output_size += 1
+    output = np.empty(output_size, dtype=np.uint8)
+    if len(data) % 8 > 0:
+        # Zero trailing bits
+        output[-1] = 0
+
+    offsets, data_buffer = _extract_string_buffers(data)
+    # Convert to UTF-8 bytes
+    pat_bytes = pat.encode()
+
+    if data.null_count == 0:
+        valid_buffer = None
+        _text_contains_case_sensitive_nonnull(
+            len(data), offsets, data_buffer, pat_bytes, output
+        )
+    else:
+        valid = _buffer_to_view(data.buffers()[0])
+        _text_contains_case_sensitive_nulls(
+            len(data), valid, data.offset, offsets, data_buffer, pat_bytes, output
+        )
+        valid_buffer = data.buffers()[0].slice(data.offset // 8)
+        if data.offset % 8 != 0:
+            valid_buffer = shift_unaligned_bitmap(
+                valid_buffer, data.offset % 8, len(data)
+            )
+
+    return pa.Array.from_buffers(
+        pa.bool_(), len(data), [valid_buffer, pa.py_buffer(output)], data.null_count
+    )
