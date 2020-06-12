@@ -156,19 +156,24 @@ def _text_contains_case_sensitive_nulls(
     output: np.ndarray,
 ) -> None:
     for row_idx in range(length):
+        # Check whether the current entry is null.
         byte_offset = (row_idx + valid_offset) // 8
         bit_offset = (row_idx + valid_offset) % 8
         mask = np.uint8(1 << bit_offset)
         valid = valid_bits[byte_offset] & mask
 
+        # We don't need to set the result for nulls, the calling code is
+        # already dealing with them by zero'ing the output.
         if not valid:
             continue
 
         str_len = offsets[row_idx + 1] - offsets[row_idx]
 
         contains = False
+        # Try to find the pattern at each starting position
         for str_idx in range(max(0, str_len - len(pat) + 1)):
             pat_found = True
+            # Compare at the current position byte-by-byte
             for pat_idx in range(len(pat)):
                 if data[offsets[row_idx] + str_idx + pat_idx] != pat[pat_idx]:
                     pat_found = False
@@ -177,7 +182,7 @@ def _text_contains_case_sensitive_nulls(
                 contains = True
                 break
 
-        # TODO: Set word-wise for better performance
+        # Write out the result into the bit-mask
         byte_offset_result = row_idx // 8
         bit_offset_result = row_idx % 8
         mask_result = np.uint8(1 << bit_offset_result)
@@ -222,7 +227,16 @@ def shift_unaligned_bitmap(
 
 @apply_per_chunk
 def _text_contains_case_sensitive(data: pa.Array, pat: str) -> pa.Array:
+    """
+    Check for each element in the data whether it contains the pattern ``pat``.
 
+    This implementation does basic byte-by-byte comparison and is independent
+    of any locales or encodings.
+    """
+    # Convert to UTF-8 bytes
+    pat_bytes: bytes = pat.encode()
+
+    # Initialise boolean (bit-packaed) output array.
     output_size = len(data) // 8
     if len(data) % 8 > 0:
         output_size += 1
@@ -232,8 +246,6 @@ def _text_contains_case_sensitive(data: pa.Array, pat: str) -> pa.Array:
         output[-1] = 0
 
     offsets, data_buffer = _extract_string_buffers(data)
-    # Convert to UTF-8 bytes
-    pat_bytes = pat.encode()
 
     if data.null_count == 0:
         valid_buffer = None
