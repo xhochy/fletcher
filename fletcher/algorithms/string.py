@@ -151,7 +151,7 @@ def _text_contains_case_sensitive_nulls(
     valid_bits: np.ndarray,
     valid_offset: int,
     offsets: np.ndarray,
-    data: np.ndarry,
+    data: np.ndarray,
     pat: bytes,
     output: np.ndarray,
 ) -> None:
