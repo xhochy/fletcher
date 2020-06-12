@@ -579,7 +579,7 @@ def apply_per_chunk(func):
 
 
 @apply_per_chunk
-def all_true_like(arr: pa.Array):
+def all_true_like(arr: pa.Array) -> pa.Array:
     """Return a boolean array with all-True with the same size as the input."""
     valid_buffer = arr.buffers()[0]
     if valid_buffer:

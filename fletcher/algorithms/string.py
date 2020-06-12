@@ -117,7 +117,9 @@ def _text_cat(a: pa.Array, b: pa.Array) -> pa.Array:
 
 
 @njit
-def _text_contains_case_sensitive_nonnull(length, offsets, data, pat, output):
+def _text_contains_case_sensitive_nonnull(
+    length: int, offsets: np.ndarray, data: np.ndarray, pat, output: np.ndarray
+) -> None:
     for row_idx in range(length):
         str_len = offsets[row_idx + 1] - offsets[row_idx]
 
@@ -145,8 +147,14 @@ def _text_contains_case_sensitive_nonnull(length, offsets, data, pat, output):
 
 @njit
 def _text_contains_case_sensitive_nulls(
-    length, valid_bits, valid_offset, offsets, data, pat, output
-):
+    length: int,
+    valid_bits: np.ndarray,
+    valid_offset: int,
+    offsets: np.ndarray,
+    data: np.ndarry,
+    pat: bytes,
+    output: np.ndarray,
+) -> None:
     for row_idx in range(length):
         byte_offset = (row_idx + valid_offset) // 8
         bit_offset = (row_idx + valid_offset) % 8
@@ -181,7 +189,9 @@ def _text_contains_case_sensitive_nulls(
 
 
 @njit
-def _shift_unaligned_bitmap(valid_bits, valid_offset, length, output):
+def _shift_unaligned_bitmap(
+    valid_bits: np.ndarray, valid_offset: int, length: int, output: np.ndarray
+) -> None:
     for i in range(length):
         byte_offset = (i + valid_offset) // 8
         bit_offset = (i + valid_offset) % 8
@@ -196,7 +206,9 @@ def _shift_unaligned_bitmap(valid_bits, valid_offset, length, output):
             output[byte_offset_result] = current | mask_result
 
 
-def shift_unaligned_bitmap(valid_buffer, offset, length):
+def shift_unaligned_bitmap(
+    valid_buffer: pa.Buffer, offset: int, length: int
+) -> pa.Buffer:
     """Shift an unaligned bitmap to be offsetted at 0."""
     output_size = length // 8
     if length % 8 > 0:

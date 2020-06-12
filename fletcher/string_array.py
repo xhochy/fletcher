@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -65,7 +65,7 @@ class TextAccessor:
             pa.array(getattr(pd_series.str, func)(*args, **kwargs).values)
         )
 
-    def _series_like(self, array):
+    def _series_like(self, array: Union[pa.Array, pa.ChunkedArray]) -> pd.Series:
         """Return an Arrow result as a series with the same base classes as the input."""
         return pd.Series(
             type(self.obj.values)(array),
@@ -73,7 +73,7 @@ class TextAccessor:
             index=self.obj.index,
         )
 
-    def contains(self, pat, case=True, regex=True):
+    def contains(self, pat: str, case: bool = True, regex: bool = True) -> pd.Series:
         """
         Test if pattern or regex is contained within a string of a Series or Index.
 
