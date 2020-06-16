@@ -15,6 +15,25 @@ def generate_test_array(n):
     ]
 
 
+def generate_test_array_non_null(n):
+    return [six.text_type(x) + six.text_type(x) + six.text_type(x) for x in range(n)]
+
+
+class TimeSuiteNonNull:
+    def setup(self):
+        array = generate_test_array_non_null(2 ** 17)
+        self.df = pd.DataFrame({"str": array})
+        self.df_ext = pd.DataFrame(
+            {"str": fr.FletcherChunkedArray(pa.array(array, pa.string()))}
+        )
+
+    def time_contains_no_regex(self):
+        self.df["str"].str.contains("0", regex=False)
+
+    def time_contains_no_regex_ext(self):
+        self.df_ext["str"].text.contains("0", regex=False)
+
+
 class TimeSuite:
     def setup(self):
         array = generate_test_array(2 ** 17)

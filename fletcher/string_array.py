@@ -1,12 +1,17 @@
-from typing import Optional
+from typing import Optional, Union
 
 import numpy as np
 import pandas as pd
 import pyarrow as pa
 
-from ._algorithms import _endswith, _startswith
+from ._algorithms import _endswith, _startswith, all_true_like
 from ._numba_compat import NumbaString, NumbaStringArray
-from .algorithms.string import _text_cat, _text_cat_chunked, _text_cat_chunked_mixed
+from .algorithms.string import (
+    _text_cat,
+    _text_cat_chunked,
+    _text_cat_chunked_mixed,
+    _text_contains_case_sensitive,
+)
 from .base import FletcherBaseArray, FletcherChunkedArray, FletcherContinuousArray
 
 
@@ -56,12 +61,19 @@ class TextAccessor:
 
     def _call_str_accessor(self, func, *args, **kwargs) -> pd.Series:
         pd_series = self.data.to_pandas()
-        result = pa.array(getattr(pd_series.str, func)(*args, **kwargs).values)
-        return pd.Series(
-            type(self.obj.values)(result), dtype=type(self.obj.dtype)(result.type)
+        return self._series_like(
+            pa.array(getattr(pd_series.str, func)(*args, **kwargs).values)
         )
 
-    def contains(self, pat, case=True, regex=True):
+    def _series_like(self, array: Union[pa.Array, pa.ChunkedArray]) -> pd.Series:
+        """Return an Arrow result as a series with the same base classes as the input."""
+        return pd.Series(
+            type(self.obj.values)(array),
+            dtype=type(self.obj.dtype)(array.type),
+            index=self.obj.index,
+        )
+
+    def contains(self, pat: str, case: bool = True, regex: bool = True) -> pd.Series:
         """
         Test if pattern or regex is contained within a string of a Series or Index.
 
@@ -90,6 +102,18 @@ class TextAccessor:
             given pattern is contained within the string of each element
             of the Series or Index.
         """
+        if not regex:
+            if len(pat) == 0:
+                # For an empty pattern return all-True array
+                return self._series_like(all_true_like(self.data))
+
+            if case:
+                # Can just check for a match on the byte-sequence
+                return self._series_like(_text_contains_case_sensitive(self.data, pat))
+            else:
+                # Check if pat is all-ascii, then use lookup-table for lowercasing
+                # else: use libutf8proc
+                pass
         return self._call_str_accessor("contains", pat=pat, case=case, regex=regex)
 
     def zfill(self, width: int) -> pd.Series:

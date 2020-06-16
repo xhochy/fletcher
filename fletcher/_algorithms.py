@@ -1,4 +1,4 @@
-from functools import partial, singledispatch
+from functools import partial, singledispatch, wraps
 from typing import Any, Callable, List, Optional, Tuple, Union
 
 import numba
@@ -561,3 +561,42 @@ def _merge_valid_bitmaps(a: pa.Array, b: pa.Array) -> np.ndarray:
         )
 
         return result
+
+
+def apply_per_chunk(func):
+    """Apply a function to each chunk if the input is chunked."""
+
+    @wraps(func)
+    def wrapper(arr: Union[pa.Array, pa.ChunkedArray], *args, **kwargs):
+        if isinstance(arr, pa.ChunkedArray):
+            return pa.chunked_array(
+                [func(chunk, *args, **kwargs) for chunk in arr.chunks]
+            )
+        else:
+            return func(arr, *args, **kwargs)
+
+    return wrapper
+
+
+@apply_per_chunk
+def all_true_like(arr: pa.Array) -> pa.Array:
+    """Return a boolean array with all-True with the same size as the input."""
+    valid_buffer = arr.buffers()[0]
+    if valid_buffer:
+        valid_buffer = valid_buffer.slice(arr.offset // 8)
+
+    output_offset = arr.offset % 8
+    output_length = len(arr) + output_offset
+
+    output_size = output_length // 8
+    if output_length % 8 > 0:
+        output_size += 1
+    output = np.full(output_size, fill_value=255, dtype=np.uint8)
+
+    return pa.Array.from_buffers(
+        pa.bool_(),
+        len(arr),
+        [valid_buffer, pa.py_buffer(output)],
+        arr.null_count,
+        output_offset,
+    )

@@ -17,16 +17,16 @@ string_patterns = pytest.mark.parametrize(
         ([], ""),
         (["a", "b"], ""),
         (["aa", "ab", "ba"], "a"),
-        (["aa", "ab", "ba", None], "a"),
-        (["aa", "ab", "ba", None], "A"),
-        (["aa", "ab", "bA", None], "a"),
-        (["aa", "AB", "ba", None], "A"),
+        (["aa", "ab", "ba", "bb", None], "a"),
+        (["aa", "ab", "ba", "bb", None], "A"),
+        (["aa", "ab", "bA", "bB", None], "a"),
+        (["aa", "AB", "ba", "BB", None], "A"),
     ],
 )
 
 
-def _fr_series_from_data(data, fletcher_variant):
-    arrow_data = pa.array(data, type=pa.string())
+def _fr_series_from_data(data, fletcher_variant, dtype=pa.string()):
+    arrow_data = pa.array(data, type=dtype)
     if fletcher_variant == "chunked":
         fr_array = fr.FletcherChunkedArray(arrow_data)
     else:
@@ -80,6 +80,26 @@ def test_text_startswith(data, pat, fletcher_variant):
 @string_patterns
 def test_contains_no_regex(data, pat, fletcher_variant):
     _check_str_to_bool("contains", data, fletcher_variant, pat=pat, regex=False)
+
+
+@pytest.mark.parametrize(
+    "data, pat, expected",
+    [
+        ([], "", []),
+        (["a", "b"], "", [True, True]),
+        (["aa", "Ab", "ba", "bb", None], "a", [True, False, True, False, None]),
+    ],
+)
+def test_contains_no_regex_ascii(data, pat, expected, fletcher_variant):
+    fr_series = _fr_series_from_data(data, fletcher_variant)
+    fr_expected = _fr_series_from_data(expected, fletcher_variant, pa.bool_())
+
+    # Run over slices to check offset handling code
+    for i in range(len(data)):
+        ser = fr_series.tail(len(data) - i)
+        expected = fr_expected.tail(len(data) - i)
+        result = ser.fr_text.contains(pat, regex=False)
+        tm.assert_series_equal(result, expected)
 
 
 @string_patterns
