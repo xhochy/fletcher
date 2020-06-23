@@ -2,6 +2,13 @@ import operator
 
 import pytest
 
+from fletcher import (
+    FletcherChunkedArray,
+    FletcherChunkedDtype,
+    FletcherContinuousArray,
+    FletcherContinuousDtype,
+)
+
 # More information about the pandas extension interface tests can be found here
 # https://github.com/pandas-dev/pandas/blob/master/pandas/tests/extension/base/__init__.py
 
@@ -128,6 +135,22 @@ def pytest_configure(config):
 def fletcher_variant(request):
     """Whether to test the chunked or continuous implementation."""
     return request.param
+
+
+@pytest.fixture
+def fletcher_dtype(fletcher_variant):
+    if fletcher_variant == "chunked":
+        return FletcherChunkedDtype
+    else:
+        return FletcherContinuousDtype
+
+
+@pytest.fixture
+def fletcher_array(fletcher_variant):
+    if fletcher_variant == "chunked":
+        return FletcherChunkedArray
+    else:
+        return FletcherContinuousArray
 
 
 @pytest.fixture(params=["chunked", "continuous"], scope="session")

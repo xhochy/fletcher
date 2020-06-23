@@ -29,13 +29,7 @@ from pandas.tests.extension.base import (
     BaseSetitemTests,
 )
 
-from fletcher import (
-    FletcherBaseDtype,
-    FletcherChunkedArray,
-    FletcherChunkedDtype,
-    FletcherContinuousArray,
-    FletcherContinuousDtype,
-)
+from fletcher import FletcherBaseDtype
 
 if LooseVersion(pd.__version__) >= "0.25.0":
     # imports of pytest fixtures needed for derived unittest classes
@@ -206,28 +200,6 @@ test_types = [
         lambda: choices(list(pd.date_range("2010-1-1", "2011-1-1").date), k=10),
     ),
 ]
-
-
-@pytest.fixture(params=["chunked", "continuous"])
-def fletcher_variant(request):
-    """Whether to test the chunked or continuous implementation."""
-    return request.param
-
-
-@pytest.fixture
-def fletcher_dtype(fletcher_variant):
-    if fletcher_variant == "chunked":
-        return FletcherChunkedDtype
-    else:
-        return FletcherContinuousDtype
-
-
-@pytest.fixture
-def fletcher_array(fletcher_variant):
-    if fletcher_variant == "chunked":
-        return FletcherChunkedArray
-    else:
-        return FletcherContinuousArray
 
 
 @pytest.fixture(params=[True, False])

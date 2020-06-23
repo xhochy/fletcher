@@ -4,15 +4,21 @@ import numpy as np
 import pandas as pd
 import pyarrow as pa
 
-from ._algorithms import _endswith, _startswith, all_true_like
-from ._numba_compat import NumbaString, NumbaStringArray
-from .algorithms.string import (
+from fletcher._numba_compat import NumbaString, NumbaStringArray
+from fletcher.algorithms.bool import all_true_like
+from fletcher.algorithms.string import (
+    _endswith,
+    _startswith,
     _text_cat,
     _text_cat_chunked,
     _text_cat_chunked_mixed,
     _text_contains_case_sensitive,
 )
-from .base import FletcherBaseArray, FletcherChunkedArray, FletcherContinuousArray
+from fletcher.base import (
+    FletcherBaseArray,
+    FletcherChunkedArray,
+    FletcherContinuousArray,
+)
 
 
 @pd.api.extensions.register_series_accessor("fr_text")

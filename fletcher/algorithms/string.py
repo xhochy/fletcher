@@ -5,11 +5,10 @@ import numpy as np
 import pyarrow as pa
 from numba import njit
 
-from fletcher._algorithms import (
-    _buffer_to_view,
+from fletcher._algorithms import _buffer_to_view, _merge_valid_bitmaps
+from fletcher.algorithms.utils.chunking import (
     _calculate_chunk_offsets,
     _combined_in_chunk_offsets,
-    _merge_valid_bitmaps,
     apply_per_chunk,
 )
 
@@ -266,3 +265,43 @@ def _text_contains_case_sensitive(data: pa.Array, pat: str) -> pa.Array:
     return pa.Array.from_buffers(
         pa.bool_(), len(data), [valid_buffer, pa.py_buffer(output)], data.null_count
     )
+
+
+@njit
+def _startswith(sa, needle, na, offset, out):
+    for i in range(sa.size):
+        if sa.isnull(i):
+            out[offset + i] = na
+            continue
+
+        if sa.byte_length(i) < needle.length:
+            out[offset + i] = 0
+            continue
+
+        for j in range(needle.length):
+            if sa.get_byte(i, j) != needle.get_byte(j):
+                out[offset + i] = 0
+                break
+
+        else:
+            out[offset + i] = 1
+
+
+@njit
+def _endswith(sa, needle, na, offset, out):
+    for i in range(sa.size):
+        if sa.isnull(i):
+            out[offset + i] = na
+            continue
+
+        string_length = sa.byte_length(i)
+        needle_length = needle.length
+        if string_length < needle.length:
+            out[offset + i] = 0
+            continue
+
+        out[offset + i] = 1
+        for j in range(needle_length):
+            if sa.get_byte(i, string_length - needle_length + j) != needle.get_byte(j):
+                out[offset + i] = 0
+                break
