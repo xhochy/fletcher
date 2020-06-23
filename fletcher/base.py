@@ -382,6 +382,13 @@ class FletcherBaseArray(ExtensionArray):
         else:
             raise TypeError("Can only execute all on boolean arrays")
 
+    def any(self, skipna: bool = False) -> Optional[bool]:
+        """Compute whether any boolean value is True."""
+        if pa.types.is_boolean(self.data.type):
+            return any_op(self.data, skipna=skipna)
+        else:
+            raise TypeError("Can only execute all on boolean arrays")
+
     def sum(self, skipna: bool = True):
         """Return the sum of the values."""
         return self._reduce("sum", skipna=skipna)
