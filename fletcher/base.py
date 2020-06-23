@@ -19,10 +19,7 @@ from pandas.api.types import (
 from pandas.core.arrays import ExtensionArray
 from pandas.core.dtypes.dtypes import ExtensionDtype, register_extension_dtype
 
-from ._algorithms import (
-    _calculate_chunk_offsets,
-    all_op,
-    any_op,
+from fletcher._algorithms import (
     extract_isnull_bytemap,
     kurt_op,
     max_op,
@@ -35,6 +32,8 @@ from ._algorithms import (
     sum_op,
     var_op,
 )
+from fletcher.algorithms.bool import all_op, all_true, any_op, or_na, or_vectorised
+from fletcher.algorithms.utils.chunking import _calculate_chunk_offsets
 
 PANDAS_GE_0_26_0 = LooseVersion(pd.__version__) >= "0.26.0"
 if PANDAS_GE_0_26_0:
@@ -513,6 +512,25 @@ class FletcherBaseArray(ExtensionArray):
     __rpow__ = partialmethod(_np_ufunc_op, np.ndarray.__rpow__)
     __mod__ = partialmethod(_np_ufunc_op, np.ndarray.__mod__)
     __rmod__ = partialmethod(_np_ufunc_op, np.ndarray.__rmod__)
+
+    def __or__(self, other):
+        """Compute vectorised or."""
+        if not pa.types.is_boolean(self.dtype.arrow_dtype):
+            raise NotImplementedError("__or__ is only supported for boolean arrays yet")
+
+        if other is pd.NA or (pd.api.types.is_scalar(other) and pd.isna(other)):
+            # All fields that are True stay True, all others get set to NA
+            return type(self)(or_na(self.data))
+        elif isinstance(other, bool):
+            if other:
+                # or with True yields all-True
+                return type(self)(all_true(self.data))
+            else:
+                return self
+        else:
+            if isinstance(other, FletcherBaseArray):
+                other = other.data
+            return type(self)(or_vectorised(self.data, other))
 
     def __divmod__(self, other):
         """Compute divmod via floordiv and mod."""

@@ -7,67 +7,22 @@ import numpy.testing as npt
 import pandas as pd
 import pyarrow as pa
 import pytest
-from hypothesis import example, given, settings
+from hypothesis import given, settings
 
 from fletcher._algorithms import (
-    _calculate_chunk_offsets,
-    _combined_in_chunk_offsets,
     _extract_data_buffer_as_np_array,
-    _in_chunk_offsets,
     _merge_valid_bitmaps,
-    all_op,
-    any_op,
     max_op,
     min_op,
     np_ufunc_op,
     prod_op,
     sum_op,
 )
-
-
-@settings(deadline=timedelta(milliseconds=1000))
-@given(data=st.lists(st.one_of(st.booleans(), st.none())), skipna=st.booleans())
-@example([], False)
-@example([], True)
-# Test with numpy.array as input.
-# This has the caveat that the missing buffer is None.
-@example(np.ones(10).astype(bool), False)
-@example(np.ones(10).astype(bool), True)
-def test_any_op(data, skipna):
-    arrow = pa.array(data, type=pa.bool_())
-    # TODO(pandas-0.26): Use pandas.BooleanArray
-    # https://github.com/pandas-dev/pandas/issues/27709 / https://github.com/pandas-dev/pandas/issues/12863
-    pandas = pd.Series(data, dtype=float)
-
-    assert any_op(arrow, skipna) == pandas.any(skipna=skipna)
-
-    # Split in the middle and check whether this still works
-    if len(data) > 2:
-        arrow = pa.chunked_array(
-            [data[: len(data) // 2], data[len(data) // 2 :]], type=pa.bool_()
-        )
-        assert any_op(arrow, skipna) == pandas.any(skipna=skipna)
-
-
-@settings(deadline=timedelta(milliseconds=1000))
-@given(data=st.lists(st.one_of(st.booleans(), st.none())), skipna=st.booleans())
-# Test with numpy.array as input.
-# This has the caveat that the missing buffer is None.
-@example(np.ones(10).astype(bool), False)
-@example(np.ones(10).astype(bool), True)
-def test_all_op(data, skipna):
-    arrow = pa.array(data, type=pa.bool_())
-    # https://github.com/pandas-dev/pandas/issues/27709 / https://github.com/pandas-dev/pandas/issues/12863
-    pandas = pd.Series(data, dtype=float)
-
-    assert all_op(arrow, skipna) == pandas.all(skipna=skipna)
-
-    # Split in the middle and check whether this still works
-    if len(data) > 2:
-        arrow = pa.chunked_array(
-            [data[: len(data) // 2], data[len(data) // 2 :]], type=pa.bool_()
-        )
-        assert all_op(arrow, skipna) == pandas.all(skipna=skipna)
+from fletcher.algorithms.utils.chunking import (
+    _calculate_chunk_offsets,
+    _combined_in_chunk_offsets,
+    _in_chunk_offsets,
+)
 
 
 def _is_na(a):
