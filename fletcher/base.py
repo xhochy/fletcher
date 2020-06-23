@@ -382,7 +382,7 @@ class FletcherBaseArray(ExtensionArray):
         else:
             raise TypeError("Can only execute all on boolean arrays")
 
-    def any(self, skipna: bool = False) -> Optional[bool]:
+    def any(self, skipna: bool = False, **kwargs) -> Optional[bool]:
         """Compute whether any boolean value is True."""
         if pa.types.is_boolean(self.data.type):
             return any_op(self.data, skipna=skipna)
