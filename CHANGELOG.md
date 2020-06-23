@@ -1,6 +1,18 @@
 Changelog
 =========
 
+0.5.0
+-----
+
+* Implement `FletcherBaseArray.__or__` and `FletcherBaseArray.__any__` to support `pandas.Series.replace`.
+
+0.4.0
+-----
+
+* Forward the `__array__` protocol directly to Arrow
+* Add naive implementation for `zfill`
+* Add efficient (Numba-based) implementations for `endswith`, `startswith` and `contains`
+
 0.3.1
 -----
 
