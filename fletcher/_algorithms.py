@@ -3,9 +3,9 @@ from typing import Any, Callable, Optional, Union
 
 import numpy as np
 import pyarrow as pa
-from numba import njit
 from pandas.core import nanops
 
+from fletcher._numba_compat import njit
 from fletcher.algorithms.utils.chunking import dispatch_chunked_binary_map
 
 

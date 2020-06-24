@@ -1,6 +1,17 @@
 Changelog
 =========
 
+Starting with 0.5, we will follow the following versioning scheme:
+
+* We don't bump MAJOR yet.
+* We bump MINOR on breaking changes.
+* We increase PATCH otherwise.
+
+0.5.1
+-----
+
+* Release the GIL where possible.
+
 0.5.0
 -----
 

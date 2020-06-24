@@ -3,15 +3,15 @@ from typing import Any, Union
 import numba
 import numpy as np
 import pyarrow as pa
-from numba import njit
 
+from fletcher._numba_compat import njit
 from fletcher.algorithms.utils.chunking import (
     apply_per_chunk,
     dispatch_chunked_binary_map,
 )
 
 
-@njit(locals={"valid": numba.bool_, "value": numba.bool_}, nogil=True)
+@njit(locals={"valid": numba.bool_, "value": numba.bool_})
 def _any_op(length: int, valid_bits: bytes, data: bytes) -> int:
     for i in range(length):
         byte_offset = i // 8
@@ -25,7 +25,7 @@ def _any_op(length: int, valid_bits: bytes, data: bytes) -> int:
     return False
 
 
-@njit(locals={"valid": numba.bool_, "value": numba.bool_}, nogil=True)
+@njit(locals={"valid": numba.bool_, "value": numba.bool_})
 def _any_op_skipna(length: int, valid_bits: bytes, data: bytes) -> bool:
     for i in range(length):
         byte_offset = i // 8
@@ -39,7 +39,7 @@ def _any_op_skipna(length: int, valid_bits: bytes, data: bytes) -> bool:
     return False
 
 
-@njit(locals={"value": numba.bool_}, nogil=True)
+@njit(locals={"value": numba.bool_})
 def _any_op_nonnull(length: int, data: bytes) -> bool:
     for i in range(length):
         byte_offset = i // 8
@@ -64,7 +64,7 @@ def any_op(arr: Union[pa.ChunkedArray, pa.Array], skipna: bool) -> bool:
     return _any_op(len(arr), *arr.buffers())
 
 
-@njit(locals={"valid": numba.bool_, "value": numba.bool_}, nogil=True)
+@njit(locals={"valid": numba.bool_, "value": numba.bool_})
 def _all_op(length: int, valid_bits: bytes, data: bytes) -> bool:
     # This may be specific to Pandas but we return True as long as there is not False in the data.
     for i in range(length):
@@ -78,7 +78,7 @@ def _all_op(length: int, valid_bits: bytes, data: bytes) -> bool:
     return True
 
 
-@njit(locals={"value": numba.bool_}, nogil=True)
+@njit(locals={"value": numba.bool_})
 def _all_op_nonnull(length: int, data: bytes) -> bool:
     for i in range(length):
         byte_offset = i // 8
@@ -101,7 +101,7 @@ def all_op(arr: Union[pa.ChunkedArray, pa.Array], skipna: bool) -> bool:
     return _all_op(len(arr), *arr.buffers())
 
 
-@njit(locals={"value": numba.bool_}, nogil=True)
+@njit(locals={"value": numba.bool_})
 def _or_na(
     length: int, offset: int, valid_bits: bytes, data: bytes, output: np.ndarray
 ):
@@ -185,7 +185,7 @@ def all_true(arr: pa.Array) -> pa.Array:
     return pa.Array.from_buffers(pa.bool_(), len(arr), [buf, buf], 0)
 
 
-@njit(locals={"value_a": numba.bool_, "value_b": numba.bool_}, nogil=True)
+@njit(locals={"value_a": numba.bool_, "value_b": numba.bool_})
 def bitmap_or_unaligned(
     length: int, a: bytes, offset_a: int, b: bytes, offset_b: int, result: np.ndarray
 ) -> None:
@@ -216,7 +216,7 @@ def bitmap_or_unaligned(
             result[byte_offset_result] = current & ~mask_result
 
 
-@njit(nogil=True)
+@njit
 def masked_bitmap_or_unaligned(
     length: int,
     valid_bits_a: bytes,
@@ -318,7 +318,7 @@ def or_array_array(a: pa.Array, b: pa.Array) -> pa.Array:
         )
 
 
-@njit(locals={"value_a": numba.bool_}, nogil=True)
+@njit(locals={"value_a": numba.bool_})
 def bitmap_or_unaligned_with_numpy(
     length: int,
     valid_bits_a: bytes,
@@ -357,7 +357,7 @@ def bitmap_or_unaligned_with_numpy(
     return null_count
 
 
-@njit(locals={"value_a": numba.bool_}, nogil=True)
+@njit(locals={"value_a": numba.bool_})
 def bitmap_or_unaligned_with_numpy_nonnull(
     length: int, a: bytes, offset_a: int, b: np.ndarray, result: np.ndarray
 ) -> None:
