@@ -23,7 +23,7 @@ import pandas as pd
 
 df = pd.DataFrame({
     'str_chunked': fr.FletcherChunkedArray(['a', 'b', 'c']),
-    'str_continuous': fr.FletcherChunkedArray(['a', 'b', 'c']),
+    'str_continuous': fr.FletcherContinuousArray(['a', 'b', 'c']),
 })
 
 df.info()
@@ -31,11 +31,11 @@ df.info()
 # <class 'pandas.core.frame.DataFrame'>
 # RangeIndex: 3 entries, 0 to 2
 # Data columns (total 2 columns):
-#  #   Column          Non-Null Count  Dtype                   
-# ---  ------          --------------  -----                   
-#  0   str_chunked     3 non-null      fletcher_chunked[string]
-#  1   str_continuous  3 non-null      fletcher_chunked[string]
-# dtypes: fletcher_chunked[string](2)
+#  #   Column          Non-Null Count  Dtype                      
+# ---  ------          --------------  -----                      
+#  0   str_chunked     3 non-null      fletcher_chunked[string]   
+#  1   str_continuous  3 non-null      fletcher_continuous[string]
+# dtypes: fletcher_chunked[string](1), fletcher_continuous[string](1)
 # memory usage: 166.0 bytes
 ```
 
