@@ -12,8 +12,9 @@ behaviours that are beneficial in many situations.
 ## Usage
 
 To use `fletcher` in Pandas DataFrames, all you need to do is to wrap your data
-in a `FletcherChunkedArray` object. Your data can be of either `pyarrow.Array`,
-`pyarrow.ChunkedArray` or a type that can be passed to `pyarrow.array(…)`.
+in a `FletcherChunkedArray` or `FletcherContinuousArray` object. Your data can 
+be of either `pyarrow.Array`, `pyarrow.ChunkedArray` or a type that can be passed
+to `pyarrow.array(…)`.
 
 
 ```
@@ -21,16 +22,21 @@ import fletcher as fr
 import pandas as pd
 
 df = pd.DataFrame({
-    'str': fr.FletcherChunkedArray(['a', 'b', 'c'])
+    'str_chunked': fr.FletcherChunkedArray(['a', 'b', 'c']),
+    'str_continuous': fr.FletcherChunkedArray(['a', 'b', 'c']),
 })
 
 df.info()
 
+# <class 'pandas.core.frame.DataFrame'>
 # RangeIndex: 3 entries, 0 to 2
-# Data columns (total 1 columns):
-# str    3 non-null fletcher[string]
-# dtypes: fletcher[string](1)
-# memory usage: 100.0 bytes
+# Data columns (total 2 columns):
+#  #   Column          Non-Null Count  Dtype                   
+# ---  ------          --------------  -----                   
+#  0   str_chunked     3 non-null      fletcher_chunked[string]
+#  1   str_continuous  3 non-null      fletcher_chunked[string]
+# dtypes: fletcher_chunked[string](2)
+# memory usage: 166.0 bytes
 ```
 
 ## Development
