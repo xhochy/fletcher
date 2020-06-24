@@ -4,7 +4,7 @@ import pyarrow as pa
 import pytest
 
 from fletcher._algorithms import isnull, str_length
-from fletcher._numba_compat import (
+from fletcher.string_array import (
     NumbaStringArray,
     NumbaStringArrayBuilder,
     buffers_as_arrays,

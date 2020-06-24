@@ -3,9 +3,9 @@ from typing import Any, List, Tuple
 
 import numpy as np
 import pyarrow as pa
-from numba import njit
 
 from fletcher._algorithms import _buffer_to_view, _merge_valid_bitmaps
+from fletcher._numba_compat import njit
 from fletcher.algorithms.utils.chunking import (
     _calculate_chunk_offsets,
     _combined_in_chunk_offsets,
