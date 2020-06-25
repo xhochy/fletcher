@@ -1,9 +1,13 @@
 import warnings
 
 import numba
-import numpy as np
 
-_string_buffer_types = np.uint8, np.uint32, np.uint8
+try:
+    import dask.dataframe  # noqa: F401
+except ImportError:
+    HAS_DASK = False
+else:
+    HAS_DASK = True
 
 
 def njit(*args, **kws):

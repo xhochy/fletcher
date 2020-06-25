@@ -11,6 +11,7 @@ Starting with 0.5, we will follow the following versioning scheme:
 -----
 
 * Release the GIL where possible.
+* Register with dask's `make_array_nonempty` to be able to handle the extension types in `dask`.
 
 0.5.0
 -----
