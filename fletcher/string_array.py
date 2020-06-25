@@ -3,6 +3,7 @@ import types
 from typing import Optional, Union
 
 import numba
+import numba.experimental
 import numpy as np
 import pandas as pd
 import pyarrow as pa
@@ -33,7 +34,7 @@ def buffers_as_arrays(sa):
     )
 
 
-@numba.jitclass(
+@numba.experimental.jitclass(
     [
         ("missing", numba.uint8[:]),
         ("offsets", numba.uint32[:]),
@@ -126,7 +127,7 @@ def _make(cls, sa):
 NumbaStringArray.make = types.MethodType(_make, NumbaStringArray)  # type: ignore
 
 
-@numba.jitclass(
+@numba.experimental.jitclass(
     [("start", numba.uint32), ("end", numba.uint32), ("data", numba.uint8[:])]
 )
 class NumbaString:
@@ -159,7 +160,7 @@ def _make_string(cls, obj):
 NumbaString.make = types.MethodType(_make_string, NumbaString)  # type: ignore
 
 
-@numba.jitclass(
+@numba.experimental.jitclass(
     [
         ("missing", numba.uint8[:]),
         ("offsets", numba.uint32[:]),

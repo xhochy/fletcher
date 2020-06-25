@@ -27,5 +27,5 @@ setup(
         "Programming Language :: Python :: 3.6",
     ],
     packages=find_packages(),
-    install_requires=["pandas>=0.24.0", "pyarrow>=0.12.0", "numba", "six"],
+    install_requires=["pandas>=1.0", "pyarrow>=0.17.0", "numba>=0.49", "six"],
 )
