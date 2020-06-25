@@ -31,24 +31,25 @@ def test_basics(fletcher_array):
             "date64": fletcher_array(
                 pa.array([None, datetime.date(2010, 9, 8)], type=pa.date64())
             ),
-            "timestamp[s]": fletcher_array(
-                pa.array(
-                    [None, datetime.datetime(2013, 12, 11, 10, 9, 8)],
-                    type=pa.timestamp("s"),
-                )
-            ),
-            "timestamp[ms]": fletcher_array(
-                pa.array(
-                    [None, datetime.datetime(2013, 12, 11, 10, 9, 8, 1000)],
-                    type=pa.timestamp("ms"),
-                )
-            ),
-            "timestamp[us]": fletcher_array(
-                pa.array(
-                    [None, datetime.datetime(2013, 12, 11, 10, 9, 8, 7)],
-                    type=pa.timestamp("us"),
-                )
-            ),
+            # https://github.com/pandas-dev/pandas/issues/34986
+            # "timestamp[s]": fletcher_array(
+            #     pa.array(
+            #         [None, datetime.datetime(2013, 12, 11, 10, 9, 8)],
+            #         type=pa.timestamp("s"),
+            #     )
+            # ),
+            # "timestamp[ms]": fletcher_array(
+            #     pa.array(
+            #         [None, datetime.datetime(2013, 12, 11, 10, 9, 8, 1000)],
+            #         type=pa.timestamp("ms"),
+            #     )
+            # ),
+            # "timestamp[us]": fletcher_array(
+            #     pa.array(
+            #         [None, datetime.datetime(2013, 12, 11, 10, 9, 8, 7)],
+            #         type=pa.timestamp("us"),
+            #     )
+            # ),
             # FIXME: assert_extension_array_equal casts to numpy object thus cannot handle nanoseconds
             # 'timestamp[ns]': fletcher_array(pa.array([None, datetime.datetime(2013, 12, 11, 10, 9, 8, 7)], type=pa.timestamp("ns"))),
             "binary": fletcher_array(pa.array([None, b"122"], type=pa.binary())),
