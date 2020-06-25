@@ -1,5 +1,6 @@
 import pkg_resources
 
+from ._compat import HAS_DASK
 from .base import (
     FletcherBaseArray,
     FletcherBaseDtype,
@@ -11,6 +12,9 @@ from .base import (
 )
 from .io import read_parquet
 from .string_array import TextAccessor
+
+if HAS_DASK:
+    import fletcher._dask_compat  # noqa: F401
 
 try:
     __version__ = pkg_resources.get_distribution(__name__).version

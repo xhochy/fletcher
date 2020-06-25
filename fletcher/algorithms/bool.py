@@ -4,7 +4,7 @@ import numba
 import numpy as np
 import pyarrow as pa
 
-from fletcher._numba_compat import njit
+from fletcher._compat import njit
 from fletcher.algorithms.utils.chunking import (
     apply_per_chunk,
     dispatch_chunked_binary_map,

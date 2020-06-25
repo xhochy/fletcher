@@ -65,6 +65,58 @@ _python_type_map = {
 
 _string_type_map = {"date64[ms]": pa.date64(), "string": pa.string()}
 
+_examples = {
+    pa.null(): pa.array([None, None], type=pa.null()),
+    pa.bool_(): pa.array([None, True], type=pa.bool_()),
+    pa.int8(): pa.array([None, -1], type=pa.int8()),
+    pa.uint8(): pa.array([None, 1], type=pa.uint8()),
+    pa.int16(): pa.array([None, -1], type=pa.int16()),
+    pa.uint16(): pa.array([None, 1], type=pa.uint16()),
+    pa.int32(): pa.array([None, -1], type=pa.int32()),
+    pa.uint32(): pa.array([None, 1], type=pa.uint32()),
+    pa.int64(): pa.array([None, -1], type=pa.int64()),
+    pa.uint64(): pa.array([None, 1], type=pa.uint64()),
+    pa.float16(): pa.array([None, np.float16(-0.1)], type=pa.float16()),
+    pa.float32(): pa.array([None, -0.1], type=pa.float32()),
+    pa.float64(): pa.array([None, -0.1], type=pa.float64()),
+    pa.date32(): pa.array([None, datetime.date(2010, 9, 8)], type=pa.date32()),
+    pa.date64(): pa.array([None, datetime.date(2010, 9, 8)], type=pa.date64()),
+    pa.timestamp("s"): pa.array(
+        [None, datetime.datetime(2013, 12, 11, 10, 9, 8)], type=pa.timestamp("s")
+    ),
+    pa.timestamp("ms"): pa.array(
+        [None, datetime.datetime(2013, 12, 11, 10, 9, 8, 1000)], type=pa.timestamp("ms")
+    ),
+    pa.timestamp("us"): pa.array(
+        [None, datetime.datetime(2013, 12, 11, 10, 9, 8, 7)], type=pa.timestamp("us")
+    ),
+    pa.timestamp("ns"): pa.array(
+        [None, datetime.datetime(2013, 12, 11, 10, 9, 8, 7)], type=pa.timestamp("ns")
+    ),
+    pa.binary(): pa.array([None, b"122"], type=pa.binary()),
+    pa.string(): pa.array([None, "🤔"], type=pa.string()),
+    pa.duration("s"): pa.array(
+        [None, datetime.timedelta(seconds=9)], type=pa.duration("s")
+    ),
+    pa.duration("ms"): pa.array(
+        [None, datetime.timedelta(milliseconds=8)], type=pa.duration("ms")
+    ),
+    pa.duration("us"): pa.array(
+        [None, datetime.timedelta(microseconds=7)], type=pa.duration("us")
+    ),
+    pa.duration("ns"): pa.array(
+        [None, datetime.timedelta(microseconds=7)], type=pa.duration("ns")
+    ),
+}
+
+
+def _get_example(arrow_dtype: pa.DataType) -> pa.Array:
+    if isinstance(arrow_dtype, pa.ListType):
+        return pa.array(
+            [None, _get_example(arrow_dtype.value_type).to_pylist()], type=arrow_dtype
+        )
+    return _examples[arrow_dtype]
+
 
 def _is_numeric(arrow_dtype: pa.DataType) -> bool:
     return (
@@ -152,6 +204,10 @@ class FletcherBaseDtype(ExtensionDtype):
     def __from_arrow__(self, data):
         """Construct a FletcherArray from an arrow array."""
         return self.construct_array_type()(data)
+
+    def example(self):
+        """Get a simple array with example content."""
+        return self.construct_array_type()(_get_example(self.arrow_dtype))
 
 
 @register_extension_dtype
