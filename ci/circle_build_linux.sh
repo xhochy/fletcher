@@ -27,11 +27,11 @@ else
 fi
 
 conda create -y -q -n fletcher python=${PYTHON_VERSION} \
-    pandas pytest pytest-cov \
+    'pandas>=1' pytest pytest-cov \
     hypothesis \
     setuptools_scm \
     pip \
-    numba \
+    'numba>=0.49' \
     codecov \
     six \
     sphinx \
