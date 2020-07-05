@@ -19,6 +19,7 @@ export PATH="$MINICONDA/bin:$PATH"
 conda config --set auto_update_conda false
 conda config --add channels https://repo.continuum.io/pkgs/free
 conda config --add channels conda-forge
+conda install -y mamba
 
 if [ "${USE_DEV_WHEELS}" = "nightlies" ]; then
     export CONDA_ARROW="arrow-nightlies::pyarrow arrow-nightlies::arrow-cpp -c arrow-nightlies"
@@ -26,7 +27,7 @@ else
     export CONDA_ARROW="pyarrow arrow-cpp"
 fi
 
-conda create -y -q -n fletcher python=${PYTHON_VERSION} \
+mamba create -y -q -n fletcher python=${PYTHON_VERSION} \
     'pandas>=1' pytest pytest-cov \
     hypothesis \
     setuptools_scm \
