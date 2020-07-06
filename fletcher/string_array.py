@@ -7,6 +7,7 @@ import numba.experimental
 import numpy as np
 import pandas as pd
 import pyarrow as pa
+import pyarrow.compute as pc
 
 from fletcher._algorithms import _extract_isnull_bitmap
 from fletcher.algorithms.bool import all_true_like
@@ -337,8 +338,11 @@ class TextAccessor:
                 return self._series_like(all_true_like(self.data))
 
             if case:
+                contains_exact = getattr(
+                    pc, "binary_contains_exact", _text_contains_case_sensitive
+                )
                 # Can just check for a match on the byte-sequence
-                return self._series_like(_text_contains_case_sensitive(self.data, pat))
+                return self._series_like(contains_exact(self.data, pat))
             else:
                 # Check if pat is all-ascii, then use lookup-table for lowercasing
                 # else: use libutf8proc
