@@ -18,15 +18,16 @@ export PATH="$MINICONDA/bin:$PATH"
 
 conda config --set auto_update_conda false
 conda config --add channels conda-forge
-conda install -y mamba
+conda install -y mamba yq jq
 
 if [ "${USE_DEV_WHEELS}" = "nightlies" ]; then
-    export CONDA_CHANNELS='"arrow-nightlies", "conda-forge"'
+    export CUSTOM_CONDA_CHANNELS='"arrow-nightlies", "conda-forge"'
 else
-    export CONDA_CHANNELS='"conda-forge"'
+    export CUSTOM_CONDA_CHANNELS='"conda-forge"'
 fi
 
 yq -Y ". + {channels: [${CONDA_CHANNELS}], dependencies: [.dependencies[], \"python=${PYTHON_VERSION}\"] }" environment.yml > /tmp/environment.yml
+cat /tmp/environment.yml
 mamba env create -f /tmp/environment.yml
 source activate fletcher
 
