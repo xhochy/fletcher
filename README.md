@@ -1,8 +1,8 @@
 # fletcher
 
-[![CircleCI](https://circleci.com/gh/xhochy/fletcher/tree/master.svg?style=svg)](https://circleci.com/gh/xhochy/fletcher/tree/master)
+![CI](https://github.com/xhochy/fletcher/workflows/CI/badge.svg)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/ambv/black)
-[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fxhochy%2Ffletcher.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2Fxhochy%2Ffletcher?ref=badge_shield)
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/xhochy/fletcher/master)
 
 A library that provides a generic set of Pandas ExtensionDType/Array
 implementations backed by Apache Arrow. They support a wider range of types
