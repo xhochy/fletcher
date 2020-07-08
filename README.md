@@ -46,26 +46,16 @@ using a `conda` based development setup with packages from `conda-forge`.
 
 ```
 # Create the conda environment with all necessary dependencies
-conda create -y -q -n fletcher python=3.6 \
-    pre-commit \
-    asv \
-    numba \
-    pandas \
-    pip \
-    pyarrow \
-    pytest \
-    pytest-cov \
-    six \
-    -c conda-forge
+conda env create
 
 # Activate the newly created environment
-source activate fletcher
+conda activate fletcher
 
 # Install fletcher into the current environment
-pip install -e .
+python -m pip install -e . --no-build-isolation --no-use-pep517
 
 # Run the unit tests (you should do this several times during development)
-py.test
+py.test -nauto
 
 # Install pre-commit hooks
 # These will then be automatically run on every commit and ensure that files
@@ -74,9 +64,36 @@ pre-commit install
 ```
 
 Code formatting is done using black. This should keep everything in a
-consistent styling and the formatting can be automatically adjusted using
-`black .`. Note that we have pinned the version of `black` to ensure that
-the formatting is reproducible.
+consistent styling and the formatting is automatically adjusted via the
+pre-commit hooks.
+
+### Using pandas in development mode
+
+To test and develop against pandas' master or your local fixes, you can install a development version of pandas using:
+
+```
+git clone https://github.com/pandas-dev/pandas
+cd pandas
+
+# Install additional pandas dependencies
+conda install -y cython
+
+# Build and install pandas
+python setup.py build_ext --inplace -j 4
+python -m pip install -e . --no-build-isolation --no-use-pep517
+```
+
+This links the development version of `pandas` into your `fletcher` conda environment.
+If you change any Python code in pandas, it is directly reflected in your environment.
+If you change any Cython code in pandas, you need to re-execute `python setup.py build_ext --inplace -j 4`.
+
+### Using (py)arrow nightlies
+
+To test and develop against the latest development version of Apache Arrow (`pyarrow`), you can install it from the `arrow-nightlies` conda channel:
+
+```
+conda install -c arrow-nightlies arrow-cpp pyarrow
+```
 
 ### Benchmarks
 
