@@ -17,32 +17,17 @@ bash miniconda.sh -b -p $MINICONDA
 export PATH="$MINICONDA/bin:$PATH"
 
 conda config --set auto_update_conda false
-conda config --add channels https://repo.continuum.io/pkgs/free
 conda config --add channels conda-forge
 conda install -y mamba
 
 if [ "${USE_DEV_WHEELS}" = "nightlies" ]; then
-    export CONDA_ARROW="arrow-nightlies::pyarrow arrow-nightlies::arrow-cpp -c arrow-nightlies"
+    export CONDA_CHANNELS='"arrow-nightlies", "conda-forge"'
 else
-    export CONDA_ARROW="pyarrow arrow-cpp"
+    export CONDA_CHANNELS='"conda-forge"'
 fi
 
-mamba create -y -q -n fletcher python=${PYTHON_VERSION} \
-    'pandas>=1' pytest pytest-cov \
-    hypothesis \
-    setuptools_scm \
-    pip \
-    'numba>=0.49' \
-    codecov \
-    six \
-    sphinx \
-    sphinx_rtd_theme \
-    numpydoc \
-    sphinxcontrib-apidoc \
-    pre_commit \
-    dask \
-    $CONDA_ARROW \
-    -c conda-forge
+yq -Y ". + {channels: [${CONDA_CHANNELS}], dependencies: [.dependencies[], \"python=${PYTHON_VERSION}\"] }" environment.yml > /tmp/environment.yml
+mamba env create -f /tmp/environment.yml
 source activate fletcher
 
 if [ "${PYTHON_VERSION}" = "3.7" ]; then
@@ -57,7 +42,7 @@ if [ "${USE_DEV_WHEELS}" = "nightlies" ]; then
     pip install --pre --no-deps --upgrade --timeout=60 -i $PRE_WHEELS pandas
 fi
 
-pip install --no-deps -e .
+python -m pip install -e . --no-build-isolation --no-use-pep517
 py.test --junitxml=test-reports/junit.xml --cov=./ --cov-report=xml
 
 # Do a second run with JIT disabled to produce coverage and check that the
