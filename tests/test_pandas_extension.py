@@ -456,6 +456,15 @@ class TestBaseMethodsTests(BaseMethodsTests):
     def test_argsort(self, data_for_sorting):
         BaseMethodsTests.test_argsort(self, data_for_sorting)
 
+    @xfail_bool_too_few_uniques
+    def test_argmin_argmax(self, data_for_sorting, data_missing_for_sorting, na_value):
+        if PANDAS_GE_1_1_0:
+            BaseMethodsTests.test_argmin_argmax(
+                self, data_for_sorting, data_missing_for_sorting, na_value
+            )
+        else:
+            pass
+
     @pytest.mark.parametrize("ascending", [True, False])
     @xfail_bool_too_few_uniques
     def test_sort_values(self, data_for_sorting, ascending, sort_by_key):
