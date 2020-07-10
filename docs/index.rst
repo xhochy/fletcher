@@ -2,11 +2,12 @@ fletcher
 ========
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
    :caption: Contents:
 
-   API Reference <api/modules>
    Motivation <motivation>
+   FAQ <faq>
+   API Reference <api/modules>
 
 Use Apache Arrow backed columns in Pandas 0.23+ using the ExtensionArray interface.
 
@@ -50,16 +51,21 @@ Usage of fletcher columns is straightforward using Pandas' default constructor:
     import pandas as pd
 
     df = pd.DataFrame({
-        'str_column': fr.FletcherArray(['Test', None, 'Strings'])
+        'str_chunked': fr.FletcherChunkedArray(['a', 'b', 'c']),
+        'str_continuous': fr.FletcherContinuousArray(['a', 'b', 'c']),
     })
+
     df.info()
 
     # <class 'pandas.core.frame.DataFrame'>
     # RangeIndex: 3 entries, 0 to 2
-    # Data columns (total 1 columns):
-    # str_column    2 non-null string
-    # dtypes: string(1)
-    # memory usage: 108.0 bytes
+    # Data columns (total 2 columns):
+    #  #   Column          Non-Null Count  Dtype
+    # ---  ------          --------------  -----
+    #  0   str_chunked     3 non-null      fletcher_chunked[string]
+    #  1   str_continuous  3 non-null      fletcher_continuous[string]
+    # dtypes: fletcher_chunked[string](1), fletcher_continuous[string](1)
+    # memory usage: 166.0 bytes
 
 
 Indices and tables
