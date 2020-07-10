@@ -16,7 +16,6 @@ dependencies:
   - six
   - sphinx
   - sphinx_rtd_theme
-  - numpydoc
   - sphinxcontrib-apidoc
   - pre_commit
   - dask
