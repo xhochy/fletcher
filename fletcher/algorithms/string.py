@@ -314,22 +314,16 @@ def _text_strip(data: pa.Array, to_strip) -> pa.Array:
             stripped_str = data_buffer[0:0]
         return stripped_str
 
-    prev_offset = None
+    prev_offset = offsets[0]
     for idx in range(len(data)):
-        crr_offset = offsets[idx]
+        crr_offset = offsets[1+idx]
         valid = bool(valid_buffer[idx // 8] & (1 << (idx % 8)))
-        if prev_offset is not None:
-            if valid:
-                crr_str = extract(prev_offset, crr_offset)
-                builder.append_value(crr_str, len(crr_str))
-            else:
-                builder.append_null()
+        if valid:
+            crr_str = extract(prev_offset, crr_offset)
+            builder.append_value(crr_str, len(crr_str))
+        else:
+            builder.append_null()
         prev_offset = crr_offset
-    if valid_buffer is None or valid_buffer[(len(data) - 1)//8] & (1 << ((len(data) - 1) % 8)):
-        crr_str = extract(prev_offset, len(data_buffer) - 1)
-        builder.append_value(crr_str, len(crr_str))
-    else:
-        builder.append_null()
 
     result_array = finalize_string_array(builder, pa.string())
 

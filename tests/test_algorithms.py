@@ -18,6 +18,7 @@ from fletcher._algorithms import (
     prod_op,
     sum_op,
 )
+from fletcher.algorithms.string_builder import StringArrayBuilder, finalize_string_array
 from fletcher.algorithms.utils.chunking import (
     _calculate_chunk_offsets,
     _combined_in_chunk_offsets,
@@ -265,3 +266,27 @@ def test_merge_valid_bitmaps():
     expected = np.array([0x0], dtype=np.uint8)
     result = _merge_valid_bitmaps(a.slice(5, 2), b.slice(3, 2))
     npt.assert_array_equal(result, expected)
+
+
+def test_stringbuilder():
+    _stringbuilder_test_([], pa.array([]))
+    _stringbuilder_test_([""], pa.array([""]))
+    _stringbuilder_test_([None], pa.array([None]))
+    _stringbuilder_test_(["a"], pa.array(["a"]))
+    _stringbuilder_test_(["aa"], pa.array(["aa"]))
+    _stringbuilder_test_(["",None], pa.array(["",None]))
+    _stringbuilder_test_(["a",None], pa.array(["a",None]))
+    _stringbuilder_test_([None, ""], pa.array([None, ""]))
+    _stringbuilder_test_([None, "a"], pa.array([None, "a"]))
+
+
+def _stringbuilder_test_(values, expected):
+    builder = StringArrayBuilder(0)
+    for value in values:
+        if value is None:
+            builder.append_null()
+        else:
+            builder.append_value(bytes(value, encoding="utf-8"), len(value))
+    result = finalize_string_array(builder, pa.string())
+    npt.assert_array_equal(result, expected)
+
