@@ -54,7 +54,7 @@ class ByteVector:
     def append_bytes(self, ptr, length):
         """Append a range of bytes."""
         for i in range(length):
-            self.buf.append(ptr[i])
+            self.buf.append(numba.byte(ptr[i]))
 
     def expand(self):
         """
@@ -74,13 +74,19 @@ class BitVector:
     """
 
     def __init__(self, initial_size: int):
-        self.buf = []  # type: List[bool]
+        self.buf = []  # type: List[numba.byte]
+        self.size = 0
 
     def append_true(self):
-        self.buf.append(True)
+        if self.size % 8 == 0:
+            self.buf.append(numba.byte(0))
+        self.buf[-1] |= 1 << (self.size % 8)
+        self.size += 1
 
     def append_false(self):
-        self.buf.append(False)
+        if self.size % 8 == 0:
+            self.buf.append(numba.byte(0))
+        self.size += 1
 
     def delete(self):
         pass
@@ -152,12 +158,10 @@ def finalize_string_array(sba, typ) -> pa.Array:
     """
     # TODO: Can we handle this without a copy? Currently there is no way
     # to pass a custom destructor any pyarrow.*_buffer function.
-    valid_bits = pa.py_buffer(
-        np.copy(sba.valid_bits.buf[: byte_for_bits(sba.valid_bits.size)])
-    )
-    value_offsets = np.copy(sba.value_offsets.buf[: sba.value_offsets.size])
+    valid_bits = pa.py_buffer(np.array(sba.valid_bits.buf, dtype=np.uint8))
+    value_offsets = np.array(sba.value_offsets.buf[: len(sba.value_offsets.buf)], dtype=np.uint8)
     value_offsets = pa.py_buffer(value_offsets)
-    data = pa.py_buffer(np.copy(sba.data.buf[: sba.data.size]))
+    data = pa.py_buffer(np.copy(sba.data.buf[: len(sba.data.buf)]))
     sba.delete()
     return pa.Array.from_buffers(
         typ, sba.length, [valid_bits, value_offsets, data], sba.null_count
