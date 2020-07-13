@@ -268,6 +268,7 @@ def _text_contains_case_sensitive(data: pa.Array, pat: str) -> pa.Array:
     )
 
 
+@apply_per_chunk
 #@njit
 def _text_strip(data: pa.Array, to_strip) -> pa.Array:
     """
