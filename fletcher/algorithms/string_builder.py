@@ -158,9 +158,7 @@ def finalize_string_array(sba, typ) -> pa.Array:
     """
     # TODO: Can we handle this without a copy? Currently there is no way
     # to pass a custom destructor any pyarrow.*_buffer function.
-    valid_bits = pa.py_buffer(
-        np.copy(sba.valid_bits.buf[: byte_for_bits(len(sba.valid_bits.buf))])
-    )
+    valid_bits = pa.py_buffer(np.array(sba.valid_bits.buf, dtype=np.uint8))
     value_offsets = np.array(sba.value_offsets.buf[: len(sba.value_offsets.buf)], dtype=np.uint8)
     value_offsets = pa.py_buffer(value_offsets)
     data = pa.py_buffer(np.copy(sba.data.buf[: len(sba.data.buf)]))

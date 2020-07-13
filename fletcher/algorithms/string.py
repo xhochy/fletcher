@@ -304,10 +304,10 @@ def _text_strip(data: pa.Array, to_strip) -> pa.Array:
     def extract(last_offset, offset):
         if last_offset < offset:
             start_offset = last_offset
-            while str(data_buffer[start_offset]) in to_strip and start_offset < offset:
+            while start_offset < offset and chr(data_buffer[start_offset]) in to_strip:
                 start_offset += 1
             end_offset = offset
-            while str(data_buffer[end_offset - 1]) in to_strip and end_offset > start_offset:
+            while end_offset > start_offset and chr(data_buffer[end_offset - 1]) in to_strip:
                 end_offset -= 1
             stripped_str = data_buffer[start_offset:end_offset]
         else:
@@ -317,7 +317,7 @@ def _text_strip(data: pa.Array, to_strip) -> pa.Array:
     prev_offset = offsets[0]
     for idx in range(len(data)):
         crr_offset = offsets[1+idx]
-        valid = bool(valid_buffer[idx // 8] & (1 << (idx % 8)))
+        valid = bool(valid_buffer[idx // 8] & (1 << (idx % 8))) if valid_buffer is not None else True
         if valid:
             crr_str = extract(prev_offset, crr_offset)
             builder.append_value(crr_str, len(crr_str))

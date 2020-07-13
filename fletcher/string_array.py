@@ -352,7 +352,7 @@ class TextAccessor:
     def strip(self, to_strip = None):
         """Strip whitespaces from both ends of strings."""
         if to_strip is None:
-            to_strip = " \t\r\n"
+            to_strip = " \t\r\n\x1f\x1e\x1d\x1c\x0c\x0b"
         return self._series_like(_text_strip(self.data, to_strip))
 
     def zfill(self, width: int) -> pd.Series:
