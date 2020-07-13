@@ -169,14 +169,14 @@ def test_text_zfill(data, fletcher_variant):
     tm.assert_series_equal(result_fr, result_pd)
 
 
-@settings(deadline=timedelta(milliseconds=1000))
+@settings(deadline=None)
 @given(data=st.lists(st.one_of(st.text(), st.none())))
-def test_text_strip(data, fletcher_variant):
+def test_text_strip(fletcher_variant, data):
     if any("\x00" in x for x in data if x):
         # pytest.skip("pandas cannot handle \\x00 characters in tests")
         # Skip is not working properly with hypothesis
         return
-    if all([x is None for x in data]):
+    if all([x is None or (x != x) for x in data]):
         return  # we found a pyarrow problem with this case
     ser_pd = pd.Series(data, dtype=str)
     arrow_data = pa.array(data, type=pa.string())
@@ -191,6 +191,7 @@ def test_text_strip(data, fletcher_variant):
     result_fr = result_fr.astype(object)
     # Pandas returns np.nan for NA values in cat, keep this in line
     result_fr[result_fr.isna()] = np.nan
+    result_pd[result_pd.isna()] = np.nan
     tm.assert_series_equal(result_fr, result_pd)
 
 
