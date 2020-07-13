@@ -117,7 +117,7 @@ def _text_cat(a: pa.Array, b: pa.Array) -> pa.Array:
 
 @njit
 def _text_contains_case_sensitive_nonnull(
-    length: int, offsets: np.ndarray, data: np.ndarray, pat, output: np.ndarray
+    length: int, offsets: np.ndarray, data: np.ndarray, pat: bytes, output: np.ndarray
 ) -> None:
     for row_idx in range(length):
         str_len = offsets[row_idx + 1] - offsets[row_idx]
@@ -264,6 +264,61 @@ def _text_contains_case_sensitive(data: pa.Array, pat: str) -> pa.Array:
 
     return pa.Array.from_buffers(
         pa.bool_(), len(data), [valid_buffer, pa.py_buffer(output)], data.null_count
+    )
+
+
+@njit
+def _text_replace_case_sensitive_nonnull(
+    length: int, offsets: np.ndarray, data: np.ndarray, pat: bytes, repl: bytes
+) -> pa.Array:
+    pass
+
+
+@njit
+def _text_replace_case_sensitive_nulls(
+    length: int,
+    valid_bits: np.ndarray,
+    valid_offset: int,
+    offsets: np.ndarray,
+    data: np.ndarray,
+    pat: bytes,
+    repl: bytes,
+) -> pa.Array:
+    pass
+
+
+@apply_per_chunk
+def _text_replace_case_sensitive(data: pa.Array, pat: str, repl: str) -> pa.Array:
+    """
+    TODO:
+    """
+
+    # Convert to UTF-8 bytes
+    pat_bytes: bytes = pat.encode()
+    repl_bytes: bytes = repl.encode()
+
+    offsets, data_buffer = _extract_string_buffers(data)
+
+    if data.null_count == 0:
+        valid_buffer = None
+
+        output = _text_replace_case_sensitive_nonnull(
+            len(data), offsets, data_buffer, pat_bytes, repl_bytes
+        )
+    else:
+        valid_buffer = data.buffers()[0].slice(data.offset // 8)
+        if data.offset % 8 != 0:
+            valid_buffer = shift_unaligned_bitmap(
+                valid_buffer, data.offset % 8, len(data)
+            )
+
+        valid = _buffer_to_view(data.buffers()[0])
+        output = _text_replace_case_sensitive_nulls(
+            len(data), valid, data.offset, pat_bytes
+        )
+
+    return pa.Array.from_buffers(
+        pa.string(), len(data), [valid_buffer, pa.py_buffer(output)], data.null_count
     )
 
 
