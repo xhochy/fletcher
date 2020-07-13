@@ -150,7 +150,7 @@ def _text_contains_case_sensitive_nonnull(
 
 @njit
 def _check_valid_row(
-    row_idx: int, valid_bits: np.ndarray, valid_offset: np.ndarray
+    row_idx: int, valid_bits: np.ndarray, valid_offset: int
 ) -> bool:
     """ Check whether the current entry is null. """
     byte_offset = (row_idx + valid_offset) // 8
