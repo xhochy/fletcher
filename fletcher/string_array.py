@@ -398,9 +398,11 @@ class TextAccessor(TextAccessorBase):
                 pass
         return self._call_str_accessor("contains", pat=pat, case=case, regex=regex)
 
-    def strip(self):
+    def strip(self, to_strip = None):
         """Strip whitespaces from both ends of strings."""
-        return self._series_like(_text_strip(self.data))
+        if to_strip is None:
+            to_strip = " \t\r\n"
+        return self._series_like(_text_strip(self.data, to_strip))
 
     def zfill(self, width: int) -> pd.Series:
         """Pad strings in the Series/Index by prepending '0' characters."""

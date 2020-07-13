@@ -269,7 +269,7 @@ def _text_contains_case_sensitive(data: pa.Array, pat: str) -> pa.Array:
 
 
 #@njit
-def _text_strip(data: pa.Array) -> pa.Array:
+def _text_strip(data: pa.Array, to_strip) -> pa.Array:
     """
     Strip whitespaces from each element in the data.
 
@@ -289,39 +289,43 @@ def _text_strip(data: pa.Array) -> pa.Array:
     res.offsets = builder.get_offsets()
     res.values = builder.get_values()  # copies to actual size
     """
-    strip_chars = " \t\r\n"
+    if len(data) == 0:
+        return data
+
     offsets, data_buffer = _extract_string_buffers(data)
 
     valid_buffer = data.buffers()[0]
     if valid_buffer is not None:
         valid_buffer = valid_buffer.slice(data.offset // 8)
-    builder = StringArrayBuilder(len(data))
+    builder = StringArrayBuilder(len(data_buffer))
     if data.offset % 8 != 0:
         valid_buffer = shift_unaligned_bitmap(valid_buffer, data.offset % 8, len(data))
 
     def extract(last_offset, offset):
         if last_offset < offset:
             start_offset = last_offset
-            while start_offset in strip_chars and start_offset < offset:
+            while str(data_buffer[start_offset]) in to_strip and start_offset < offset:
                 start_offset += 1
             end_offset = offset
-            while end_offset - 1 in strip_chars and end_offset > start_offset:
+            while str(data_buffer[end_offset - 1]) in to_strip and end_offset > start_offset:
                 end_offset -= 1
             stripped_str = data_buffer[start_offset:end_offset]
         else:
-            stripped_str = ""
+            stripped_str = data_buffer[0:0]
         return stripped_str
 
     prev_offset = None
-    for crr_offset, valid in zip(offsets, valid_buffer):
+    for idx in range(len(data)):
+        crr_offset = offsets[idx]
+        valid = bool(valid_buffer[idx // 8] & (1 << (idx % 8)))
         if prev_offset is not None:
             if valid:
                 crr_str = extract(prev_offset, crr_offset)
-                builder.append(crr_str, len(crr_str))
+                builder.append_value(crr_str, len(crr_str))
             else:
                 builder.append_null()
         prev_offset = crr_offset
-    if valid_buffer[-1]:
+    if valid_buffer is None or valid_buffer[(len(data) - 1)//8] & (1 << ((len(data) - 1) % 8)):
         crr_str = extract(prev_offset, len(data_buffer) - 1)
         builder.append_value(crr_str, len(crr_str))
     else:
