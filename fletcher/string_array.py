@@ -245,8 +245,7 @@ def _missing_capactiy(capacity):
     return int(math.ceil(capacity / 8))
 
 
-@pd.api.extensions.register_series_accessor("fr_text")
-@pd.api.extensions.register_series_accessor("text")
+@pd.api.extensions.register_series_accessor("fr_strx")
 class TextAccessor:
     """Accessor for pandas exposed as ``.str``."""
 
