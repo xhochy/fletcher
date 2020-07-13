@@ -350,6 +350,7 @@ class TextAccessor:
         return self._call_str_accessor("contains", pat=pat, case=case, regex=regex)
 
     def strip(self):
+        print("strip")
         return self._call_str_accessor("strip")
 
     def zfill(self, width: int) -> pd.Series:
