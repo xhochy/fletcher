@@ -288,7 +288,7 @@ def _text_replace_case_sensitive_nulls(
 
 
 @apply_per_chunk
-def _text_replace_case_sensitive(data: pa.Array, pat: str, repl: str) -> pa.Array:
+def _text_replace_case_sensitive(data: pa.Array, pat: str, repl: str, n: int) -> pa.Array:
     """
     TODO:
     """
