@@ -310,22 +310,13 @@ def _text_strip(data: pa.Array) -> pa.Array:
         valid_buffer = shift_unaligned_bitmap(
             valid_buffer, data.offset % 8, len(data)
         )
-    output = data_buffer
 
-    if data.null_count == 0:
-        valid_buffer = None
-        _text_contains_case_sensitive_nonnull(
-            len(data), offsets, data_buffer, pat_bytes, output
-        )
-    else:
-        valid = _buffer_to_view(data.buffers()[0])
-        _text_contains_case_sensitive_nulls(
-            len(data), valid, data.offset, offsets, data_buffer, pat_bytes, output
-        )
+    result_valid = valid_buffer
+    result_offsets = offsets
+    result_data = data_buffer
 
-    return pa.Array.from_buffers(
-        pa.bool_(), len(data), [valid_buffer, pa.py_buffer(output)], data.null_count
-    )
+    buffers = [pa.py_buffer(x) for x in [result_valid, result_offsets, result_data]]
+    return pa.Array.from_buffers(pa.string(), len(data), buffers)
 
 
 @njit
