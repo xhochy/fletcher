@@ -268,10 +268,61 @@ def _text_contains_case_sensitive(data: pa.Array, pat: str) -> pa.Array:
 
 
 @njit
+def _compute_kmp_failure_function(
+    pat: bytes
+) -> np.ndarray:
+    """
+    \texttt{f[i]} is length of the longest proper suffix
+    of the $i$-th prefix of $pat$ that is a prefix of $pat$
+    """
+
+    length = len(pat)
+    f = np.empty(length + 1, dtype=np.uint8)
+
+    f[0] = -1
+
+    for i in range(1, length + 1):
+        f[i] = f[i - 1]
+        while f[i] != -1 and pat[f[i]] != pat[i - 1]:
+            f[i] = f[f[i]]
+        f[i] += 1
+
+    return f
+
+
+@njit
 def _text_replace_case_sensitive_nonnull(
     length: int, offsets: np.ndarray, data: np.ndarray, pat: bytes, repl: bytes
 ) -> pa.Array:
-    pass
+
+
+
+
+    for row_idx in range(length):
+        str_len = offsets[row_idx + 1] - offsets[row_idx]
+
+        contains = False
+        for str_idx in range(max(0, str_len - len(pat) + 1)):
+            pat_found = True
+            for pat_idx in range(len(pat)):
+                if data[offsets[row_idx] + str_idx + pat_idx] != pat[pat_idx]:
+                    pat_found = False
+                    break
+            if pat_found:
+                contains = True
+                break
+
+        # TODO: Set word-wise for better performance
+        byte_offset_result = row_idx >> 3
+        bit_offset_result = row_idx & 7
+
+        mask_result = np.uint8(1 << bit_offset_result)
+        current = output[byte_offset_result]
+
+        if contains:  # must be logical, not bit-wise as different bits may be flagged
+            output[byte_offset_result] = current | mask_result
+        else:
+            output[byte_offset_result] = current & ~mask_result
 
 
 @njit
