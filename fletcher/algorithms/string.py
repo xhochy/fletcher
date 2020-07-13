@@ -268,6 +268,67 @@ def _text_contains_case_sensitive(data: pa.Array, pat: str) -> pa.Array:
 
 
 @njit
+def _text_strip(data: pa.Array) -> pa.Array:
+    """
+    Strip whitespaces from each element in the data.
+
+    Whitespaces: " ", "\t", "\r", "\n"
+    """
+
+    """
+    def extract(last_offset, offset):
+        if last_offset < offset:
+            start_offset = last_offset
+            while start_offset is whitespace and start_offse < offset:
+              start_offset += 1
+            end_offset = offset
+            while end_offset-1 is whitespace and end_offset > start_offset:
+              end_offset -= 1
+            str = data.values[start_offset:end_offset]
+        else:
+            str = ""
+        return str
+    
+    builder(worst_case_size=len(data.values))
+    last_offset = None
+    for offset in data.offsets: 
+      if last_offset != None:
+        str = extract(last_offset, offset)
+        builder.append(str)
+      last_offset = offset
+    str = extract(last_offset, len(data.values)-1)
+    builer.append(str)
+    res.valid = data.valid
+    res.offsets = builder.get_offsets()
+    res.values = builder.get_values()  # copies to actual size    
+    """
+
+    offsets, data_buffer = _extract_string_buffers(data)
+
+    valid_buffer = data.buffers()[0].slice(data.offset // 8)
+    if data.offset % 8 != 0:
+        valid_buffer = shift_unaligned_bitmap(
+            valid_buffer, data.offset % 8, len(data)
+        )
+    output = data_buffer
+
+    if data.null_count == 0:
+        valid_buffer = None
+        _text_contains_case_sensitive_nonnull(
+            len(data), offsets, data_buffer, pat_bytes, output
+        )
+    else:
+        valid = _buffer_to_view(data.buffers()[0])
+        _text_contains_case_sensitive_nulls(
+            len(data), valid, data.offset, offsets, data_buffer, pat_bytes, output
+        )
+
+    return pa.Array.from_buffers(
+        pa.bool_(), len(data), [valid_buffer, pa.py_buffer(output)], data.null_count
+    )
+
+
+@njit
 def _startswith(sa, needle, na, offset, out):
     for i in range(sa.size):
         if sa.isnull(i):
