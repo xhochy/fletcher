@@ -297,7 +297,7 @@ def _text_replace_case_sensitive_nonnull(
     pat: bytes,
     repl: bytes,
     n: int,
-) -> (np.ndarray, np.ndarray):
+) -> Tuple[np.ndarray, np.ndarray]:
     """
     Instead of using a StringBuilder, we make two passes:
      The first one computes the offsets for the output buffer.
@@ -359,7 +359,7 @@ def _text_replace_case_sensitive_nulls(
     data: np.ndarray,
     pat: bytes,
     repl: bytes,
-) -> pa.Array:
+) -> Tuple[np.ndarray, np.ndarray]:
     pass
 
 
@@ -391,8 +391,11 @@ def _text_replace_case_sensitive(data: pa.Array, pat: str, repl: str, n: int) ->
             len(data), valid, data.offset, pat_bytes
         )
 
+    buffers = [
+        valid_buffer, pa.py_buffer(output_buffer), pa.py_buffer(output_offsets)
+    ]
     return pa.Array.from_buffers(
-        pa.string(), len(data), [valid_buffer, ], data.null_count
+        pa.string(), len(data), buffers, data.null_count
     )
 
 
