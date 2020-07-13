@@ -18,6 +18,7 @@ from fletcher.algorithms.string import (
     _text_cat_chunked,
     _text_cat_chunked_mixed,
     _text_contains_case_sensitive,
+    _zfill,
 )
 from fletcher.base import (
     FletcherBaseArray,
@@ -351,6 +352,11 @@ class TextAccessor:
 
     def zfill(self, width: int) -> pd.Series:
         """Pad strings in the Series/Index by prepending '0' characters."""
+        if width < 1:
+            return self._series_like(self.data)
+        else:
+            return self._series_like(_zfill(self.data, width))
+
         return self._call_str_accessor("zfill", width)
 
     def startswith(self, pat):
