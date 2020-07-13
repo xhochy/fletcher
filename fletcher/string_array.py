@@ -398,6 +398,9 @@ class TextAccessor(TextAccessorBase):
                 pass
         return self._call_str_accessor("contains", pat=pat, case=case, regex=regex)
 
+    def strip(self):
+        return self._call_str_accessor("strip")
+
     def zfill(self, width: int) -> pd.Series:
         """Pad strings in the Series/Index by prepending '0' characters."""
         return self._call_str_accessor("zfill", width)
