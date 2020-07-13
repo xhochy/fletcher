@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 import pyarrow as pa
 import pyarrow.compute as pc
+from pandas.core.strings import StringMethods
 
 from fletcher._algorithms import _extract_isnull_bitmap
 from fletcher.algorithms.bool import all_true_like
@@ -243,6 +244,25 @@ class NumbaStringArrayBuilder:
 @numba.jit
 def _missing_capactiy(capacity):
     return int(math.ceil(capacity / 8))
+
+
+@pd.api.extensions.register_series_accessor("fr_str")
+class TextAccessorExt:
+    def __init__(self, obj):
+        if not isinstance(obj.values, FletcherBaseArray):
+            self.delegate = StringMethods(obj)
+        self.obj = obj
+
+    def startswith(self, pat):
+        """Check whether a row starts with a certain pattern."""
+        if hasattr(self, "delegate"):
+            return self.delegate.startswith(pat)
+        return TextAccessor(self.obj).startswith(pat)
+
+    def cat(self, others: Optional[FletcherBaseArray]) -> pd.Series:
+        if hasattr(self, "delegate"):
+            return self.delegate.cat(others)
+        return TextAccessor(self.obj).cat(others)
 
 
 @pd.api.extensions.register_series_accessor("fr_strx")
