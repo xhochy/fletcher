@@ -291,7 +291,12 @@ def _compute_kmp_failure_function(
 
 @njit
 def _text_replace_case_sensitive_nonnull(
-    length: int, offsets: np.ndarray, data: np.ndarray, pat: bytes, repl: bytes
+    length: int,
+    offsets: np.ndarray,
+    data: np.ndarray,
+    pat: bytes,
+    repl: bytes,
+    n: int,
 ) -> (np.ndarray, np.ndarray):
     """
     Instead of using a StringBuilder, we make two passes:
@@ -307,14 +312,16 @@ def _text_replace_case_sensitive_nonnull(
     for row_idx in range(length):
         output_offsets[0] = cumulative_offset
         matched_until = 0
+        matches_done = 0
         for str_idx in range(offsets[row_idx], offsets[row_idx + 1]):
             while matched_until != -1 and pat[matched_until] != data[str_idx]:
                 matched_until = failure_function[matched_until]
 
             cumulative_offset += 1
             matched_until += 1
-            if matched_until == len(pat):
+            if matched_until == len(pat) and matches_done < n:
                 cumulative_offset += len(repl) - len(pat)
+                matches_done += 1
                 matched_until = 0
 
     output_offsets[length] = cumulative_offset
@@ -323,6 +330,7 @@ def _text_replace_case_sensitive_nonnull(
     output_buffer = np.empty(cumulative_offset, dtype=np.uint8)
     for row_idx in range(length):
         matched_until = 0
+        matches_done = 0
         pos_output = output_offsets[row_idx]
         for str_idx in range(offsets[row_idx], offsets[row_idx + 1]):
             while matched_until != -1 and pat[matched_until] != data[str_idx]:
@@ -332,11 +340,12 @@ def _text_replace_case_sensitive_nonnull(
             pos_output += 1
             matched_until += 1
 
-            if matched_until == len(pat):
+            if matched_until == len(pat) and matches_done < n:
                 pos_output -= len(pat)
                 for i in range(len(repl)):
                     output_buffer[pos_output] = repl[i]
                     pos_output += 1
+                matches_done += 1
                 matched_until = 0
 
     return output_buffer, output_offsets
@@ -368,9 +377,8 @@ def _text_replace_case_sensitive(data: pa.Array, pat: str, repl: str, n: int) ->
 
     if data.null_count == 0:
         valid_buffer = None
-
-        output = _text_replace_case_sensitive_nonnull(
-            len(data), offsets, data_buffer, pat_bytes, repl_bytes
+        output_buffer, output_offsets = _text_replace_case_sensitive_nonnull(
+            len(data), offsets, data_buffer, pat_bytes, repl_bytes, n
         )
     else:
         valid_buffer = data.buffers()[0].slice(data.offset // 8)
@@ -378,14 +386,13 @@ def _text_replace_case_sensitive(data: pa.Array, pat: str, repl: str, n: int) ->
             valid_buffer = shift_unaligned_bitmap(
                 valid_buffer, data.offset % 8, len(data)
             )
-
         valid = _buffer_to_view(data.buffers()[0])
-        output = _text_replace_case_sensitive_nulls(
+        output_buffer, output_offsets = _text_replace_case_sensitive_nulls(
             len(data), valid, data.offset, pat_bytes
         )
 
     return pa.Array.from_buffers(
-        pa.string(), len(data), [valid_buffer, pa.py_buffer(output)], data.null_count
+        pa.string(), len(data), [valid_buffer, ], data.null_count
     )
 
 
