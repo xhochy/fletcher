@@ -19,7 +19,7 @@ from fletcher.algorithms.string import (
     _text_cat_chunked,
     _text_cat_chunked_mixed,
     _text_contains_case_sensitive,
-)
+    _text_strip)
 from fletcher.base import (
     FletcherBaseArray,
     FletcherChunkedArray,
@@ -399,8 +399,8 @@ class TextAccessor(TextAccessorBase):
         return self._call_str_accessor("contains", pat=pat, case=case, regex=regex)
 
     def strip(self):
-        print("strip")
-        return self._call_str_accessor("strip")
+        """Strip whitespaces from both ends of strings."""
+        return _text_strip(self.data)
 
     def zfill(self, width: int) -> pd.Series:
         """Pad strings in the Series/Index by prepending '0' characters."""
