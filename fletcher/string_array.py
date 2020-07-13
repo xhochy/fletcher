@@ -351,7 +351,7 @@ class TextAccessor:
 
     def strip(self):
         """Strip whitespaces from both ends of strings."""
-        return _text_strip(self.data)
+        return self._series_like(_text_strip(self.data))
 
     def zfill(self, width: int) -> pd.Series:
         """Pad strings in the Series/Index by prepending '0' characters."""
