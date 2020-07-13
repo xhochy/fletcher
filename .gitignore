@@ -109,3 +109,4 @@ ENV/
 
 # experiments
 private_*
+*.parquet
