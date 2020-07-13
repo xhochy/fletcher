@@ -168,3 +168,26 @@ def test_text_zfill(data, fletcher_variant):
     # Pandas returns np.nan for NA values in cat, keep this in line
     result_fr[result_fr.isna()] = np.nan
     tm.assert_series_equal(result_fr, result_pd)
+
+
+@settings(deadline=timedelta(milliseconds=1000))
+@given(data=st.lists(st.one_of(st.text(), st.none())))
+def test_text_strip(data, fletcher_variant):
+    if any("\x00" in x for x in data if x):
+        # pytest.skip("pandas cannot handle \\x00 characters in tests")
+        # Skip is not working properly with hypothesis
+        return
+    ser_pd = pd.Series(data, dtype=str)
+    arrow_data = pa.array(data, type=pa.string())
+    if fletcher_variant == "chunked":
+        fr_array = fr.FletcherChunkedArray(arrow_data)
+    else:
+        fr_array = fr.FletcherContinuousArray(arrow_data)
+    ser_fr = pd.Series(fr_array)
+
+    result_pd = ser_pd.str.strip()
+    result_fr = ser_fr.fr_text.strip()
+    result_fr = result_fr.astype(object)
+    # Pandas returns np.nan for NA values in cat, keep this in line
+    result_fr[result_fr.isna()] = np.nan
+    tm.assert_series_equal(result_fr, result_pd)
