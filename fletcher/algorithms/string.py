@@ -280,7 +280,6 @@ def _compute_kmp_failure_function(
     f = np.empty(length + 1, dtype=np.uint8)
 
     f[0] = -1
-
     for i in range(1, length + 1):
         f[i] = f[i - 1]
         while f[i] != -1 and pat[f[i]] != pat[i - 1]:
@@ -293,37 +292,54 @@ def _compute_kmp_failure_function(
 @njit
 def _text_replace_case_sensitive_nonnull(
     length: int, offsets: np.ndarray, data: np.ndarray, pat: bytes, repl: bytes
-) -> pa.Array:
+) -> (np.ndarray, np.ndarray):
+    """
+    Instead of using a StringBuilder, we make two passes:
+     The first one computes the offsets for the output buffer.
+     The second one actually does the replace in the buffer.
+    """
 
+    failure_function = _compute_kmp_failure_function(pat)
 
-
-
+    # Computes output buffer offsets
+    output_offsets = np.empty(length + 1, dtype=np.int32)
+    cumulative_offset = 0
     for row_idx in range(length):
-        str_len = offsets[row_idx + 1] - offsets[row_idx]
+        output_offsets[0] = cumulative_offset
+        matched_until = 0
+        for str_idx in range(offsets[row_idx], offsets[row_idx + 1]):
+            while matched_until != -1 and pat[matched_until] != data[str_idx]:
+                matched_until = failure_function[matched_until]
 
-        contains = False
-        for str_idx in range(max(0, str_len - len(pat) + 1)):
-            pat_found = True
-            for pat_idx in range(len(pat)):
-                if data[offsets[row_idx] + str_idx + pat_idx] != pat[pat_idx]:
-                    pat_found = False
-                    break
-            if pat_found:
-                contains = True
-                break
+            cumulative_offset += 1
+            matched_until += 1
+            if matched_until == len(pat):
+                cumulative_offset += len(repl) - len(pat)
+                matched_until = 0
 
-        # TODO: Set word-wise for better performance
-        byte_offset_result = row_idx >> 3
-        bit_offset_result = row_idx & 7
+    output_offsets[length] = cumulative_offset
 
-        mask_result = np.uint8(1 << bit_offset_result)
-        current = output[byte_offset_result]
+    # Replace in the output_buffer
+    output_buffer = np.empty(cumulative_offset, dtype=np.uint8)
+    for row_idx in range(length):
+        matched_until = 0
+        pos_output = output_offsets[row_idx]
+        for str_idx in range(offsets[row_idx], offsets[row_idx + 1]):
+            while matched_until != -1 and pat[matched_until] != data[str_idx]:
+                matched_until = failure_function[matched_until]
 
-        if contains:  # must be logical, not bit-wise as different bits may be flagged
-            output[byte_offset_result] = current | mask_result
-        else:
-            output[byte_offset_result] = current & ~mask_result
+            output_buffer[pos_output] = data[str_idx]
+            pos_output += 1
+            matched_until += 1
 
+            if matched_until == len(pat):
+                pos_output -= len(pat)
+                for i in range(len(repl)):
+                    output_buffer[pos_output] = repl[i]
+                    pos_output += 1
+                matched_until = 0
+
+    return output_buffer, output_offsets
 
 @njit
 def _text_replace_case_sensitive_nulls(
