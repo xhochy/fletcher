@@ -268,7 +268,7 @@ def _text_contains_case_sensitive(data: pa.Array, pat: str) -> pa.Array:
     )
 
 
-@njit
+#@njit
 def _text_strip(data: pa.Array) -> pa.Array:
     """
     Strip whitespaces from each element in the data.
@@ -292,7 +292,9 @@ def _text_strip(data: pa.Array) -> pa.Array:
     strip_chars = " \t\r\n"
     offsets, data_buffer = _extract_string_buffers(data)
 
-    valid_buffer = data.buffers()[0].slice(data.offset // 8)
+    valid_buffer = data.buffers()[0]
+    if valid_buffer is not None:
+        valid_buffer = valid_buffer.slice(data.offset // 8)
     builder = StringArrayBuilder(len(data))
     if data.offset % 8 != 0:
         valid_buffer = shift_unaligned_bitmap(valid_buffer, data.offset % 8, len(data))
@@ -331,7 +333,7 @@ def _text_strip(data: pa.Array) -> pa.Array:
     result_offsets = offsets
     result_data = data_buffer
 
-    buffers = [pa.py_buffer(x) for x in [result_valid, result_offsets, result_data]]
+    buffers = [pa.py_buffer(x) if x is not None else None for x in [result_valid, result_offsets, result_data]]
     return pa.Array.from_buffers(pa.string(), len(data), buffers)"""
     return result_array
 
