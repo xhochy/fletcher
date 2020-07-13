@@ -11,6 +11,10 @@ from fletcher.algorithms.utils.chunking import (
     _combined_in_chunk_offsets,
     apply_per_chunk,
 )
+from fletcher.algorithms.utils.kmp import (
+    compute_kmp_failure_function,
+    append_to_kmp_matching
+)
 
 
 def _extract_string_buffers(arr: pa.Array) -> Tuple[np.ndarray, np.ndarray]:
@@ -274,28 +278,6 @@ def _text_contains_case_sensitive(data: pa.Array, pat: str) -> pa.Array:
 
 
 @njit
-def _compute_kmp_failure_function(
-    pat: bytes
-) -> np.ndarray:
-    """
-    \texttt{f[i]} is length of the longest proper suffix
-    of the $i$-th prefix of $pat$ that is a prefix of $pat$
-    """
-
-    length = len(pat)
-    f = np.empty(length + 1, dtype=np.int32)
-
-    f[0] = -1
-    for i in range(1, length + 1):
-        f[i] = f[i - 1]
-        while f[i] != -1 and pat[f[i]] != pat[i - 1]:
-            f[i] = f[f[i]]
-        f[i] += 1
-
-    return f
-
-
-@njit
 def _text_replace_case_sensitive_nonnull(
     length: int,
     offsets: np.ndarray,
@@ -310,49 +292,57 @@ def _text_replace_case_sensitive_nonnull(
      The second one actually does the replace in the buffer.
     """
 
-    failure_function = _compute_kmp_failure_function(pat)
+    failure_function = compute_kmp_failure_function(pat)
 
     # Computes output buffer offsets
     output_offsets = np.empty(length + 1, dtype=np.int32)
     cumulative_offset = 0
+
     for row_idx in range(length):
         output_offsets[row_idx] = cumulative_offset
-        matched_until = 0
+        matched_len = 0
         matches_done = 0
-        for str_idx in range(offsets[row_idx], offsets[row_idx + 1]):
-            while matched_until != -1 and pat[matched_until] != data[str_idx]:
-                matched_until = failure_function[matched_until]
 
-            cumulative_offset += 1
-            matched_until += 1
-            if matched_until == len(pat) and matches_done < n:
-                cumulative_offset += len(repl) - len(pat)
+        for str_idx in range(offsets[row_idx], offsets[row_idx + 1]):
+            matched_len = append_to_kmp_matching(
+                matched_len, data[str_idx], pat, failure_function
+            )
+
+            if matched_len == len(pat):
                 matches_done += 1
-                matched_until = 0
+                matched_len = 0
+                if matches_done == n:
+                    break
+
+        cumulative_offset += offsets[row_idx + 1] - offsets[row_idx]
+        cumulative_offset += matches_done * (len(repl) - len(pat))
 
     output_offsets[length] = cumulative_offset
 
     # Replace in the output_buffer
     output_buffer = np.empty(cumulative_offset, dtype=np.uint8)
     for row_idx in range(length):
-        matched_until = 0
+        matched_len = 0
         matches_done = 0
         pos_output = output_offsets[row_idx]
-        for str_idx in range(offsets[row_idx], offsets[row_idx + 1]):
-            while matched_until != -1 and pat[matched_until] != data[str_idx]:
-                matched_until = failure_function[matched_until]
 
+        for str_idx in range(offsets[row_idx], offsets[row_idx + 1]):
             output_buffer[pos_output] = data[str_idx]
             pos_output += 1
-            matched_until += 1
 
-            if matched_until == len(pat) and matches_done < n:
+            matched_len = append_to_kmp_matching(
+                matched_len, data[str_idx], pat, failure_function
+            )
+
+            if matched_len == len(pat) and matches_done < n:
                 pos_output -= len(pat)
-                for i in range(len(repl)):
-                    output_buffer[pos_output] = repl[i]
+                for char in repl:
+                    output_buffer[pos_output] = char
                     pos_output += 1
+
                 matches_done += 1
-                matched_until = 0
+                matched_len = 0
+
 
     return output_buffer, output_offsets
 
@@ -454,7 +444,7 @@ def _text_replace_case_sensitive(data: pa.Array, pat: str, repl: str, n: int) ->
         )
 
     buffers = [
-        valid_buffer, pa.py_buffer(output_buffer), pa.py_buffer(output_offsets)
+        valid_buffer, pa.py_buffer(output_offsets), pa.py_buffer(output_buffer)
     ]
     return pa.Array.from_buffers(
         pa.string(), len(data), buffers, data.null_count
