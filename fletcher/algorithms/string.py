@@ -6,6 +6,7 @@ import pyarrow as pa
 
 from fletcher._algorithms import _buffer_to_view, _merge_valid_bitmaps
 from fletcher._compat import njit
+from fletcher.algorithms.string_builder import StringArrayBuilder, finalize_string_array
 from fletcher.algorithms.utils.chunking import (
     _calculate_chunk_offsets,
     _combined_in_chunk_offsets,
@@ -274,24 +275,10 @@ def _text_strip(data: pa.Array) -> pa.Array:
 
     Whitespaces: " ", "\t", "\r", "\n"
     """
-
     """
-    def extract(last_offset, offset):
-        if last_offset < offset:
-            start_offset = last_offset
-            while start_offset is whitespace and start_offse < offset:
-              start_offset += 1
-            end_offset = offset
-            while end_offset-1 is whitespace and end_offset > start_offset:
-              end_offset -= 1
-            str = data.values[start_offset:end_offset]
-        else:
-            str = ""
-        return str
-    
     builder(worst_case_size=len(data.values))
     last_offset = None
-    for offset in data.offsets: 
+    for offset in data.offsets:
       if last_offset != None:
         str = extract(last_offset, offset)
         builder.append(str)
@@ -300,23 +287,47 @@ def _text_strip(data: pa.Array) -> pa.Array:
     builer.append(str)
     res.valid = data.valid
     res.offsets = builder.get_offsets()
-    res.values = builder.get_values()  # copies to actual size    
+    res.values = builder.get_values()  # copies to actual size
     """
-
+    strip_chars = " \t\r\n"
     offsets, data_buffer = _extract_string_buffers(data)
 
     valid_buffer = data.buffers()[0].slice(data.offset // 8)
+    builder = StringArrayBuilder(len(data))
     if data.offset % 8 != 0:
-        valid_buffer = shift_unaligned_bitmap(
-            valid_buffer, data.offset % 8, len(data)
-        )
+        valid_buffer = shift_unaligned_bitmap(valid_buffer, data.offset % 8, len(data))
 
-    result_valid = valid_buffer
+    def extract(last_offset, offset):
+        if last_offset < offset:
+            start_offset = last_offset
+            while start_offset in strip_chars and start_offset < offset:
+                start_offset += 1
+            end_offset = offset
+            while end_offset - 1 in strip_chars and end_offset > start_offset:
+                end_offset -= 1
+            stripped_str = data_buffer[start_offset:end_offset]
+        else:
+            stripped_str = ""
+        return stripped_str
+
+    prev_offset = None
+    for crr_offset in offsets:
+        if prev_offset is not None:
+            crr_str = extract(prev_offset, crr_offset)
+            builder.append(crr_str, len(crr_str))
+        prev_offset = crr_offset
+    crr_str = extract(prev_offset, len(data_buffer) - 1)
+    builder.append_value(crr_str, len(crr_str))
+
+    result_array = finalize_string_array(builder, pa.string())
+
+    """result_valid = valid_buffer
     result_offsets = offsets
     result_data = data_buffer
 
     buffers = [pa.py_buffer(x) for x in [result_valid, result_offsets, result_data]]
-    return pa.Array.from_buffers(pa.string(), len(data), buffers)
+    return pa.Array.from_buffers(pa.string(), len(data), buffers)"""
+    return result_array
 
 
 @njit

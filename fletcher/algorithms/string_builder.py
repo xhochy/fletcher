@@ -231,3 +231,23 @@ class StringArrayBuilder:
         self.valid_bits.delete()
         self.value_offsets.delete()
         self.data.delete()
+
+
+def finalize_string_array(sba, typ) -> pa.Array:
+    """
+    Take a StringArrayBuilder and returns a pyarrow.StringArray.
+    The native memory in the StringArrayBuilder is free'd during this method
+    call and this is unusable afterwards but also doesn't leak any memory.
+    """
+    # TODO: Can we handle this without a copy? Currently there is no way
+    # to pass a custom destructor any pyarrow.*_buffer function.
+    valid_bits = pa.py_buffer(
+        np.copy(sba.valid_bits.buf[: byte_for_bits(sba.valid_bits.size)])
+    )
+    value_offsets = np.copy(sba.value_offsets.buf[: sba.value_offsets.size])
+    value_offsets = pa.py_buffer(value_offsets)
+    data = pa.py_buffer(np.copy(sba.data.buf[: sba.data.size]))
+    sba.delete()
+    return pa.Array.from_buffers(
+        typ, sba.length, [valid_bits, value_offsets, data], sba.null_count
+    )
