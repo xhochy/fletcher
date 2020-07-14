@@ -161,48 +161,6 @@ def _check_valid_row(
 
 
 @njit
-def _text_contains_case_sensitive_nulls(
-    length: int,
-    valid_bits: np.ndarray,
-    valid_offset: int,
-    offsets: np.ndarray,
-    data: np.ndarray,
-    pat: bytes,
-    output: np.ndarray,
-) -> None:
-    for row_idx in range(length):
-        # We don't need to set the result for nulls, the calling code is
-        # already dealing with them by zero'ing the output.
-        if not _check_valid_row(row_idx, valid_bits, valid_offset):
-            continue
-
-        str_len = offsets[row_idx + 1] - offsets[row_idx]
-
-        contains = False
-        # Try to find the pattern at each starting position
-        for str_idx in range(max(0, str_len - len(pat) + 1)):
-            pat_found = True
-            # Compare at the current position byte-by-byte
-            for pat_idx in range(len(pat)):
-                if data[offsets[row_idx] + str_idx + pat_idx] != pat[pat_idx]:
-                    pat_found = False
-                    break
-            if pat_found:
-                contains = True
-                break
-
-        # Write out the result into the bit-mask
-        byte_offset_result = row_idx // 8
-        bit_offset_result = row_idx % 8
-        mask_result = np.uint8(1 << bit_offset_result)
-        current = output[byte_offset_result]
-        if contains:  # must be logical, not bit-wise as different bits may be flagged
-            output[byte_offset_result] = current | mask_result
-        else:
-            output[byte_offset_result] = current & ~mask_result
-
-
-@njit
 def _shift_unaligned_bitmap(
     valid_bits: np.ndarray, valid_offset: int, length: int, output: np.ndarray
 ) -> None:
@@ -233,17 +191,110 @@ def shift_unaligned_bitmap(
 
     return pa.py_buffer(output)
 
+@njit
+def _text_count_case_sensitive_numba(
+    length: int,
+    valid_bits: np.ndarray,
+    valid_offset: int,
+    offsets: np.ndarray,
+    data: np.ndarray,
+    pat: bytes,
+) -> np.ndarray:
+    """
+    TODO:
+    """
+
+    failure_function = compute_kmp_failure_function(pat)
+
+    output = np.empty(length, dtype=np.int64)
+
+    has_nulls = valid_bits.size > 0
+
+    for row_idx in range(length):
+        if (has_nulls and
+            not _check_valid_row(row_idx, valid_bits, valid_offset)
+        ):
+            continue
+
+        matched_len = 0
+        if matched_len == len(pat):
+            output[row_idx] = 1
+        else:
+            output[row_idx] = 0
+
+        for str_idx in range(offsets[row_idx], offsets[row_idx + 1]):
+            matched_len = append_to_kmp_matching(
+                matched_len, data[str_idx], pat, failure_function
+            )
+
+            if matched_len == len(pat):
+                output[row_idx] += 1
+                matched_len = failure_function[matched_len]
+
+    return output
+
 
 @apply_per_chunk
-def _text_contains_case_sensitive(data: pa.Array, pat: str) -> pa.Array:
+def _text_count_case_sensitive(
+        data: pa.Array,
+        pat: str
+) -> pa.Array:
     """
-    Check for each element in the data whether it contains the pattern ``pat``.
-
+    For each row in the data computes the number of occurrences of the pattern ``pat``.
     This implementation does basic byte-by-byte comparison and is independent
     of any locales or encodings.
     """
+
     # Convert to UTF-8 bytes
     pat_bytes: bytes = pat.encode()
+
+    offsets_buffer, data_buffer = _extract_string_buffers(data)
+
+    if data.null_count == 0:
+        valid_buffer = np.empty(0, dtype=np.uint8)
+    else:
+        valid_buffer = _buffer_to_view(data.buffers()[0])
+
+    output = _text_count_case_sensitive_numba(
+        len(data),
+        valid_buffer,
+        data.offset,
+        offsets_buffer,
+        data_buffer,
+        pat_bytes,
+    )
+
+    if data.null_count == 0:
+        output_valid = None
+    else:
+        output_valid = data.buffers()[0].slice(data.offset // 8)
+        if data.offset % 8 != 0:
+            output_valid = shift_unaligned_bitmap(
+                output_valid, data.offset % 8, len(data)
+            )
+
+    buffers = [
+        output_valid, pa.py_buffer(output)
+    ]
+    return pa.Array.from_buffers(
+        pa.int64(), len(data), buffers, data.null_count
+    )
+
+
+@njit
+def _text_contains_case_sensitive_numba(
+    length: int,
+    valid_bits: np.ndarray,
+    valid_offset: int,
+    offsets: np.ndarray,
+    data: np.ndarray,
+    pat: bytes,
+) -> np.ndarray:
+    """
+    TODO:
+    """
+
+    failure_function = compute_kmp_failure_function(pat)
 
     # Initialise boolean (bit-packaed) output array.
     output_size = len(data) // 8
@@ -254,26 +305,85 @@ def _text_contains_case_sensitive(data: pa.Array, pat: str) -> pa.Array:
         # Zero trailing bits
         output[-1] = 0
 
-    offsets, data_buffer = _extract_string_buffers(data)
+    has_nulls = valid_bits.size > 0
+
+    for row_idx in range(length):
+        if (has_nulls and
+            not _check_valid_row(row_idx, valid_bits, valid_offset)
+        ):
+            continue
+
+        matched_len = 0
+        contains = False
+        if matched_len == len(pat):
+            contains = True
+        else:
+            for str_idx in range(offsets[row_idx], offsets[row_idx + 1]):
+                matched_len = append_to_kmp_matching(
+                    matched_len, data[str_idx], pat, failure_function
+                )
+
+                if matched_len == len(pat):
+                    contains = True
+                    break
+
+        # Write out the result into the bit-mask
+        byte_offset_result = row_idx // 8
+        bit_offset_result = row_idx % 8
+        mask_result = np.uint8(1 << bit_offset_result)
+        current = output[byte_offset_result]
+        if contains:  # must be logical, not bit-wise as different bits may be flagged
+            output[byte_offset_result] = current | mask_result
+        else:
+            output[byte_offset_result] = current & ~mask_result
+
+    return output
+
+
+@apply_per_chunk
+def _text_contains_case_sensitive(
+        data: pa.Array,
+        pat: str
+) -> pa.Array:
+    """
+    Check for each element in the data whether it contains the pattern ``pat``.
+
+    This implementation does basic byte-by-byte comparison and is independent
+    of any locales or encodings.
+    """
+    # Convert to UTF-8 bytes
+    pat_bytes: bytes = pat.encode()
+
+    offsets_buffer, data_buffer = _extract_string_buffers(data)
 
     if data.null_count == 0:
-        valid_buffer = None
-        _text_contains_case_sensitive_nonnull(
-            len(data), offsets, data_buffer, pat_bytes, output
-        )
+        valid_buffer = np.empty(0, dtype=np.uint8)
     else:
-        valid = _buffer_to_view(data.buffers()[0])
-        _text_contains_case_sensitive_nulls(
-            len(data), valid, data.offset, offsets, data_buffer, pat_bytes, output
-        )
-        valid_buffer = data.buffers()[0].slice(data.offset // 8)
+        valid_buffer = _buffer_to_view(data.buffers()[0])
+
+    output = _text_contains_case_sensitive_numba(
+        len(data),
+        valid_buffer,
+        data.offset,
+        offsets_buffer,
+        data_buffer,
+        pat_bytes,
+    )
+
+    if data.null_count == 0:
+        output_valid = None
+    else:
+        output_valid = data.buffers()[0].slice(data.offset // 8)
         if data.offset % 8 != 0:
-            valid_buffer = shift_unaligned_bitmap(
-                valid_buffer, data.offset % 8, len(data)
+            output_valid = shift_unaligned_bitmap(
+                output_valid, data.offset % 8, len(data)
             )
 
+    buffers = [
+        output_valid, pa.py_buffer(output)
+    ]
     return pa.Array.from_buffers(
-        pa.bool_(), len(data), [valid_buffer, pa.py_buffer(output)], data.null_count
+        pa.bool_(), len(data), buffers, data.null_count
     )
 
 
@@ -392,8 +502,14 @@ def _text_replace_case_sensitive(
         valid_buffer = _buffer_to_view(data.buffers()[0])
 
     output_offsets, output_buffer = _text_replace_case_sensitive_numba(
-        len(data), valid_buffer, data.offset, offsets_buffer, data_buffer,
-        pat_bytes, repl_bytes, max_repl
+        len(data),
+        valid_buffer,
+        data.offset,
+        offsets_buffer,
+        data_buffer,
+        pat_bytes,
+        repl_bytes,
+        max_repl
     )
 
     if data.null_count == 0:
