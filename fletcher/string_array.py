@@ -252,28 +252,34 @@ class TextAccessorExt:
         """Accessor for pandas exposed as ``.fr_str``.
         fletcher functionality will be used if available otherwise dt functions are invoked."""
         if not isinstance(obj.values, FletcherBaseArray):
+            # call StringMethods to validate the input obj
             StringMethods(obj)
         self.obj = obj
 
     def __getattribute__(self, name):
-
         obj = object.__getattribute__(self, "obj")
-        if hasattr(TextAccessor, name) and callable(getattr(TextAccessor, name)):
-            arrow_data = pa.Array.from_pandas(obj)
-            fr_array = FletcherContinuousArray(arrow_data)
-            ta = TextAccessor(pd.Series(fr_array))
-            return getattr(ta, name)
-
-        elif hasattr(pd.core.strings.StringMethods, name) and callable(
-            getattr(pd.core.strings.StringMethods, name)
+        if not (
+            hasattr(pd.core.strings.StringMethods, name)
+            and callable(getattr(pd.core.strings.StringMethods, name))
         ):
-
-            return getattr(obj.str, name)
-
-        else:
             raise AttributeError(
-                f"{name} not available in fletcher.string_array.TextAccessor nor in pd.core.strings.StringMethods"
+                f"{name} not available in pd.core.strings.StringMethods nor in fletcher.string_array.TextAccessor"
             )
+        if isinstance(obj.values, FletcherBaseArray):
+            if hasattr(TextAccessor, name) and callable(getattr(TextAccessor, name)):
+                return getattr(TextAccessor(obj), name)
+
+            def _wrapped_str_fn(*args, **kwargs) -> pd.Series:
+                pd_series = obj.values.data.to_pandas()
+                array = pa.array(getattr(pd_series.str, name)(*args, **kwargs).values)
+                return pd.Series(
+                    type(obj.values)(array),
+                    dtype=type(obj.dtype)(array.type),
+                    index=obj.index,
+                )
+
+            return _wrapped_str_fn
+        return getattr(obj.str, name)
 
 
 @pd.api.extensions.register_series_accessor("fr_strx")
