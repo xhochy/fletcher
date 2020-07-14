@@ -278,77 +278,7 @@ def _text_contains_case_sensitive(data: pa.Array, pat: str) -> pa.Array:
 
 
 @njit
-def _text_replace_case_sensitive_nonnull(
-    length: int,
-    offsets: np.ndarray,
-    data: np.ndarray,
-    pat: bytes,
-    repl: bytes,
-    n: int,
-) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    Instead of using a StringBuilder, we make two passes:
-     The first one computes the offsets for the output buffer.
-     The second one actually does the replace in the buffer.
-    """
-
-    failure_function = compute_kmp_failure_function(pat)
-
-    # Computes output buffer offsets
-    output_offsets = np.empty(length + 1, dtype=np.int32)
-    cumulative_offset = 0
-
-    for row_idx in range(length):
-        output_offsets[row_idx] = cumulative_offset
-        matched_len = 0
-        matches_done = 0
-
-        for str_idx in range(offsets[row_idx], offsets[row_idx + 1]):
-            matched_len = append_to_kmp_matching(
-                matched_len, data[str_idx], pat, failure_function
-            )
-
-            if matched_len == len(pat):
-                matches_done += 1
-                matched_len = 0
-                if matches_done == n:
-                    break
-
-        cumulative_offset += offsets[row_idx + 1] - offsets[row_idx]
-        cumulative_offset += matches_done * (len(repl) - len(pat))
-
-    output_offsets[length] = cumulative_offset
-
-    # Replace in the output_buffer
-    output_buffer = np.empty(cumulative_offset, dtype=np.uint8)
-    for row_idx in range(length):
-        matched_len = 0
-        matches_done = 0
-        pos_output = output_offsets[row_idx]
-
-        for str_idx in range(offsets[row_idx], offsets[row_idx + 1]):
-            output_buffer[pos_output] = data[str_idx]
-            pos_output += 1
-
-            matched_len = append_to_kmp_matching(
-                matched_len, data[str_idx], pat, failure_function
-            )
-
-            if matched_len == len(pat) and matches_done < n:
-                pos_output -= len(pat)
-                for char in repl:
-                    output_buffer[pos_output] = char
-                    pos_output += 1
-
-                matches_done += 1
-                matched_len = 0
-
-
-    return output_buffer, output_offsets
-
-
-@njit
-def _text_replace_case_sensitive_nulls(
+def _text_replace_case_sensitive_numba(
     length: int,
     valid_bits: np.ndarray,
     valid_offset: int,
@@ -368,9 +298,11 @@ def _text_replace_case_sensitive_nulls(
     output_offsets = np.empty(length + 1, dtype=np.int32)
     cumulative_offset = 0
 
+    has_nulls = not (valid_offset is None and valid_bits is None)
+
     for row_idx in range(length):
         output_offsets[row_idx] = cumulative_offset
-        if not _check_valid_row(row_idx, valid_bits, valid_offset):
+        if has_nulls and not _check_valid_row(row_idx, valid_bits, valid_offset):
             continue
 
         matched_len = 0
@@ -395,7 +327,7 @@ def _text_replace_case_sensitive_nulls(
     # Replace in the output_buffer
     output_buffer = np.empty(cumulative_offset, dtype=np.uint8)
     for row_idx in range(length):
-        if not _check_valid_row(row_idx, valid_bits, valid_offset):
+        if has_nulls and not _check_valid_row(row_idx, valid_bits, valid_offset):
             continue
 
         matched_len = 0
@@ -436,8 +368,8 @@ def _text_replace_case_sensitive(data: pa.Array, pat: str, repl: str, n: int) ->
 
     if data.null_count == 0:
         valid_buffer = None
-        output_buffer, output_offsets = _text_replace_case_sensitive_nonnull(
-            len(data), offsets, data_buffer, pat_bytes, repl_bytes, n
+        output_buffer, output_offsets = _text_replace_case_sensitive_numba(
+            len(data), None, None, offsets, data_buffer, pat_bytes, repl_bytes, n
         )
     else:
         valid_buffer = data.buffers()[0].slice(data.offset // 8)
@@ -445,10 +377,12 @@ def _text_replace_case_sensitive(data: pa.Array, pat: str, repl: str, n: int) ->
             valid_buffer = shift_unaligned_bitmap(
                 valid_buffer, data.offset % 8, len(data)
             )
+
         valid = _buffer_to_view(data.buffers()[0])
-        output_buffer, output_offsets = _text_replace_case_sensitive_nulls(
-            len(data), valid, data.offset, pat_bytes, n
+        output_buffer, output_offsets = _text_replace_case_sensitive_numba(
+            len(data), valid, data.offset, offsets, data_buffer, pat_bytes, repl_bytes, n
         )
+
 
     buffers = [
         valid_buffer, pa.py_buffer(output_offsets), pa.py_buffer(output_buffer)
