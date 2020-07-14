@@ -11,6 +11,9 @@ from fletcher.algorithms.utils.chunking import (
     _combined_in_chunk_offsets,
     apply_per_chunk,
 )
+from fletcher.algorithms.string_builder_jit import StringArrayBuilder
+
+from numba import prange
 
 
 def _extract_string_buffers(arr: pa.Array) -> Tuple[np.ndarray, np.ndarray]:
@@ -305,3 +308,54 @@ def _endswith(sa, needle, na, offset, out):
             if sa.get_byte(i, string_length - needle_length + j) != needle.get_byte(j):
                 out[offset + i] = 0
                 break
+
+
+@njit
+def get_utf8_size(first_byte: int):
+    if first_byte < 0b10000000:
+        return 1
+    elif first_byte < 0b11100000:
+        return 2
+    elif first_byte < 0b11110000:
+        return 3
+    else:
+        return 4
+
+
+@njit
+def _slice(sa, start, end, step):
+    """
+    Currently: assumes step is positive and 1
+    """
+    builder = StringArrayBuilder(sa.byte_size)
+
+    for i in prange(sa.size):
+        char_idx = 0
+        byte_idx = 0
+
+        str_len = sa.byte_length(i)
+        if end < 0:
+            end += str_len
+        if start < 0:
+            start += str_len
+
+        for char_idx in range(str_len):
+
+            if char_idx == start:
+                start_byte = sa.offsets[i] + byte_idx
+
+            char_size = get_utf8_size(sa.get_byte(i, byte_idx))
+            byte_idx += char_size
+
+            if (char_idx + 1 == end) or (byte_idx == str_len):
+                end_byte = sa.offsets[i] + byte_idx
+                break
+        else:
+            builder.append_null()
+            continue
+
+        builder.append_value(
+            sa.data[start_byte:end_byte], end_byte - start_byte,
+        )
+
+    return builder

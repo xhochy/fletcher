@@ -18,12 +18,14 @@ from fletcher.algorithms.string import (
     _text_cat_chunked,
     _text_cat_chunked_mixed,
     _text_contains_case_sensitive,
+    _slice,
 )
 from fletcher.base import (
     FletcherBaseArray,
     FletcherChunkedArray,
     FletcherContinuousArray,
 )
+from fletcher.algorithms.string_builder_jit import finalize_string_array
 
 
 def buffers_as_arrays(sa):
@@ -378,3 +380,7 @@ class TextAccessor:
         return pd.Series(
             type(self.obj.values)(pa.array(result.astype(bool), mask=(result == 2)))
         )
+
+    def slice(self, start, end, step):
+        sa = NumbaStringArray.make(self.data)
+        return self._series_like(finalize_string_array(_slice(sa, start, end, step), pa.string()))
