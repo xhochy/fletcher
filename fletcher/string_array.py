@@ -19,7 +19,8 @@ from fletcher.algorithms.string import (
     _text_cat_chunked,
     _text_cat_chunked_mixed,
     _text_contains_case_sensitive,
-    _text_strip)
+    _text_strip,
+)
 from fletcher.base import (
     FletcherBaseArray,
     FletcherChunkedArray,
@@ -398,7 +399,7 @@ class TextAccessor(TextAccessorBase):
                 pass
         return self._call_str_accessor("contains", pat=pat, case=case, regex=regex)
 
-    def strip(self, to_strip = None):
+    def strip(self, to_strip=None):
         """Strip whitespaces from both ends of strings."""
         if to_strip is None:
             to_strip = " \t\r\n\x1f\x1e\x1d\x1c\x0c\x0b"

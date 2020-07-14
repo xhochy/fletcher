@@ -269,19 +269,23 @@ def test_merge_valid_bitmaps():
 
 
 def test_stringbuilder():
-    _stringbuilder_test_(['', '', '', '', None, None, None, None, ''],
-                         pa.array(['', '', '', '', None, None, None, None, '']))
+    _stringbuilder_test_(
+        ["", "", "", "", None, None, None, None, ""],
+        pa.array(["", "", "", "", None, None, None, None, ""]),
+    )
     _stringbuilder_test_([], pa.array([]))
     _stringbuilder_test_([""], pa.array([""]))
     _stringbuilder_test_([None], pa.array([None]))
     _stringbuilder_test_(["a"], pa.array(["a"]))
     _stringbuilder_test_(["aa"], pa.array(["aa"]))
-    _stringbuilder_test_(["",None], pa.array(["",None]))
-    _stringbuilder_test_(["a",None], pa.array(["a",None]))
+    _stringbuilder_test_(["", None], pa.array(["", None]))
+    _stringbuilder_test_(["a", None], pa.array(["a", None]))
     _stringbuilder_test_([None, ""], pa.array([None, ""]))
     _stringbuilder_test_([None, "a"], pa.array([None, "a"]))
-    _stringbuilder_test_(['', '', '', '', None, None, None, None, ''],
-                         pa.array(['', '', '', '', None, None, None, None, '']))
+    _stringbuilder_test_(
+        ["", "", "", "", None, None, None, None, ""],
+        pa.array(["", "", "", "", None, None, None, None, ""]),
+    )
 
 
 def _stringbuilder_test_(values, expected):
@@ -293,4 +297,3 @@ def _stringbuilder_test_(values, expected):
             builder.append_value(bytes(value, encoding="utf-8"), len(value))
     result = finalize_string_array(builder, pa.string())
     npt.assert_array_equal(result, expected)
-

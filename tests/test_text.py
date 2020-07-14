@@ -33,7 +33,7 @@ def _fr_series_from_data(data, fletcher_variant, dtype=pa.string()):
     return pd.Series(fr_array)
 
 
-@settings(deadline=timedelta(milliseconds=1000))
+@settings(deadline=None)
 @given(data=st.lists(st.one_of(st.text(), st.none())))
 def test_text_cat(data, fletcher_variant, fletcher_variant_2):
     if any("\x00" in x for x in data if x):
@@ -186,12 +186,10 @@ def test_text_strip(fletcher_variant, data):
 
     result_pd = ser_pd.str.strip()
     result_fr = ser_fr.fr_text.strip()
-    #print([(list(buf),buf.size) if buf is not None else (None,0) for buf in result_fr.fr_text.data.buffers()])
     result_fr = result_fr.astype(object)
     # Pandas returns np.nan for NA values in cat, keep this in line
     result_fr[result_fr.isna()] = np.nan
     result_pd[result_pd.isna()] = np.nan
-    print(f"compare: {all([x==y or (math.isnan(x) and math.isnan(y)) for x,y in zip(result_fr, result_pd)])}")
     tm.assert_series_equal(result_fr, result_pd)
 
 
