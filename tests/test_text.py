@@ -208,6 +208,18 @@ def test_contains_no_regex_ascii(data, pat, expected, fletcher_variant):
         tm.assert_series_equal(result, expected)
 
 
+@many_string_patterns
+@pytest.mark.parametrize("test_offset", [0, 1])
+def test_contains_no_regex_case_sensitive(
+    data, pat, test_offset, fletcher_variant
+):
+    _check_str_to_bool(
+        "contains", data, fletcher_variant, test_offset=test_offset,
+        pat=pat, case=True, regex=False
+    )
+
+
+
 @string_patterns
 def test_contains_no_regex_ignore_case(data, pat, fletcher_variant):
     _check_str_to_bool(
@@ -243,7 +255,8 @@ def test_contains_regex_ignore_case(data, pat, fletcher_variant):
     )
 
 
-replace_values = pytest.mark.parametrize(
+@many_string_patterns
+@pytest.mark.parametrize(
     "repl, n, test_offset",
     [
         ("len4", -1, 0),
@@ -251,18 +264,13 @@ replace_values = pytest.mark.parametrize(
         ("", -1, 0),
     ]
 )
-
-
-@many_string_patterns
-@replace_values
 def test_replace_no_regex_case_sensitive(
     data, pat, repl, n, test_offset, fletcher_variant
 ):
     _check_str_to_str(
         "replace", data, fletcher_variant, test_offset=test_offset,
-        pat=pat, repl=repl, n=n, regex=False
+        pat=pat, repl=repl, n=n, case=True, regex=False
     )
-    pass
 
 
 def _optional_len(x: Optional[str]) -> int:
