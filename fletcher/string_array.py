@@ -361,6 +361,36 @@ class TextAccessor:
 
     def replace(self, pat: str, repl: str, n: int = -1,
                 case: bool = True, regex: bool = True):
+        """
+        Replace occurrences of pattern/regex in the Series/Index with some other string.
+        Equivalent to str.replace() or re.sub().
+
+        Return а string Series where in each row the occurrences of the given
+        pattern or regex ``pat`` are replaced by ``repl``.
+
+        This implementation differs to the one in ``pandas``:
+         * We always return a missing for missing data.
+         * You cannot pass flags for the regular expression module.
+
+        Parameters
+        ----------
+        pat : str
+            Character sequence or regular expression.
+        repl : str
+            Replacement string.
+        n : int
+            Number of replacements to make from start.
+        case : bool, default True
+            If True, case sensitive.
+        regex : bool, default True
+            If True, assumes the pat is a regular expression.
+
+            If False, treats the pat as a literal string.
+
+        Returns
+        -------
+        Series of string values.
+        """
         if n == 0:
             return self._series_like(self.data)
         if not regex:

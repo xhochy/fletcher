@@ -200,9 +200,6 @@ def _text_count_case_sensitive_numba(
     data: np.ndarray,
     pat: bytes,
 ) -> np.ndarray:
-    """
-    TODO:
-    """
 
     failure_function = compute_kmp_failure_function(pat)
 
@@ -290,9 +287,6 @@ def _text_contains_case_sensitive_numba(
     data: np.ndarray,
     pat: bytes,
 ) -> np.ndarray:
-    """
-    TODO:
-    """
 
     failure_function = compute_kmp_failure_function(pat)
 
@@ -351,6 +345,7 @@ def _text_contains_case_sensitive(
     This implementation does basic byte-by-byte comparison and is independent
     of any locales or encodings.
     """
+
     # Convert to UTF-8 bytes
     pat_bytes: bytes = pat.encode()
 
@@ -398,9 +393,6 @@ def _text_replace_case_sensitive_numba(
     repl: bytes,
     max_repl: int,
 ) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    TODO:
-    """
 
     failure_function = compute_kmp_failure_function(pat)
 
@@ -487,7 +479,12 @@ def _text_replace_case_sensitive(
     max_repl: int
 ) -> pa.Array:
     """
-    TODO:
+    Replace occurrences of ``pat`` with ``repl`` in the Series/Index with some other string. For every
+    row, only the first ``max_repl`` replacements will be performed. If ``max_repl = -1`` we consider that
+    we have no limit for the number of replacements.
+
+    This implementation does basic byte-by-byte comparison and is independent
+    of any locales or encodings.
     """
 
     # Convert to UTF-8 bytes
