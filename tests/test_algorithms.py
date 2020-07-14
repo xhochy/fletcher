@@ -1,5 +1,5 @@
 from datetime import timedelta
-from typing import List, Tuple
+from typing import Any, List, Tuple
 
 import hypothesis.strategies as st
 import numpy as np
@@ -298,7 +298,9 @@ def string_builder_test_data(request):
 
 def test_stringbuilder(string_bulder_variant, string_builder_test_data):
     _stringbuilder_test_(
-        string_builder_test_data, pa.array(string_builder_test_data), string_bulder_variant
+        string_builder_test_data,
+        pa.array(string_builder_test_data),
+        string_bulder_variant,
     )
 
 
@@ -310,7 +312,7 @@ def test_stringbuilder_auto(string_bulder_variant, data):
 
 def _stringbuilder_test_(values, expected, string_bulder_variant):
     if string_bulder_variant == "nojit":
-        sb = sb2
+        sb = sb2  # type: Any
     else:
         sb = sb1
     builder = sb.StringArrayBuilder(0)
