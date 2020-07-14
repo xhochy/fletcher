@@ -33,9 +33,9 @@ class ByteVector:
 
     def __init__(self, initial_size: int):
         self.ptr = malloc(initial_size)
-        self.buf = numba.carray(self.ptr, initial_size, numba.byte)
+        self.capacity = max(initial_size, 5)
+        self.buf = numba.carray(self.ptr, self.capacity, numba.byte)
         self.size = 0
-        self.capacity = initial_size
 
     def delete(self):
         free(self.ptr)
@@ -129,9 +129,9 @@ class BitVector:
 
     def __init__(self, initial_size: int):
         self.ptr = malloc(initial_size)
-        self.buf = numba.carray(self.ptr, initial_size, numba.byte)
+        self.capacity = max(initial_size, 5)
+        self.buf = numba.carray(self.ptr, self.capacity, numba.byte)
         self.size = 0
-        self.capacity = initial_size
 
     def append_true(self):
         if self.size + 1 > (8 * self.capacity):
@@ -170,6 +170,7 @@ class BitVector:
         free(self.ptr)
         self.ptr = new_ptr
         self.buf = numba.carray(self.ptr, self.capacity, numba.byte)
+        print("Cap: ", {self.capacity})
 
 
 @numba.jit
