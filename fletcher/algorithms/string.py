@@ -270,7 +270,7 @@ def _text_contains_case_sensitive(data: pa.Array, pat: str) -> pa.Array:
 
 def _zfill_nonnull(
     length: int,
-    data: pa.lib.StringArray,
+    data: pa.Array,
     offsets: np.ndarray,
     data_buffer: np.ndarray,
     width: int,
@@ -278,15 +278,13 @@ def _zfill_nonnull(
 ) -> None:
     for row_idx in range(length):
         val = data[row_idx]
-        # val = data[offsets[row_idx] : offsets[row_idx + 1]]
-        # pad string with zeros as necessary
-        # TODO double check index !!
         value = np.concatenate(
             (
                 np.frombuffer(
-                    (max(0, width - len(val.as_py())) * b"0"), dtype=np.uint8
+                    # as_py: get the number of chars (instead of the len of string data)
+                    (max(0, width - len(val.as_py())) * b"0"),
+                    dtype=np.uint8,
                 ),
-                # val,
                 data_buffer[offsets[row_idx] : offsets[row_idx + 1]],
             ),
             axis=0,
@@ -296,7 +294,7 @@ def _zfill_nonnull(
 
 def _zfill_nulls(
     length: int,
-    data: pa.lib.StringArray,
+    data: pa.Array,
     valid_bits: np.ndarray,
     valid_offset: int,
     offsets: np.ndarray,
@@ -316,15 +314,11 @@ def _zfill_nulls(
             continue
 
         val = data[row_idx]
-        # val = data[offsets[row_idx] : offsets[row_idx + 1]]
-        # pad string with zeros as necessary
-        # TODO double check index !!
         value = np.concatenate(
             (
                 np.frombuffer(
                     (max(0, width - len(val.as_py())) * b"0"), dtype=np.uint8
                 ),
-                # val,
                 data_buffer[offsets[row_idx] : offsets[row_idx + 1]],
             ),
             axis=0,
@@ -334,8 +328,8 @@ def _zfill_nulls(
 
 @apply_per_chunk
 def _zfill(data: pa.Array, width: int):
-    builder = StringArrayBuilder(2)
     offsets, data_buffer = _extract_string_buffers(data)
+    builder = StringArrayBuilder(max(len(data_buffer), 2))
 
     if data.null_count == 0:
         _zfill_nonnull(len(data), data, offsets, data_buffer, width, builder)

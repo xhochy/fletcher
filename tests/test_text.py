@@ -144,7 +144,7 @@ def _optional_len(x: Optional[str]) -> int:
         return 0
 
 
-@settings(deadline=timedelta(milliseconds=1000))
+@settings(deadline=None)
 @given(data=st.lists(st.one_of(st.text(), st.none())))
 def test_text_zfill(data, fletcher_variant):
     if any("\x00" in x for x in data if x):

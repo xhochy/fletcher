@@ -352,7 +352,7 @@ class TextAccessor:
 
     def zfill(self, width: int) -> pd.Series:
         """Pad strings in the Series/Index by prepending '0' characters."""
-        if width < 1:
+        if width < 1 or not len(self.data):
             return self._series_like(self.data)
         else:
             return self._series_like(_zfill(self.data, width))
