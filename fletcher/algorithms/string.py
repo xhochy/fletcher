@@ -269,26 +269,12 @@ def _text_contains_case_sensitive(data: pa.Array, pat: str) -> pa.Array:
 
 
 @apply_per_chunk
-#@njit
+# @njit
 def _text_strip(data: pa.Array, to_strip) -> pa.Array:
     """
-    Strip whitespaces from each element in the data.
+    Strip the characters of ``to_strip`` from each element in the data.
 
-    Whitespaces: " ", "\t", "\r", "\n"
-    """
-    """
-    builder(worst_case_size=len(data.values))
-    last_offset = None
-    for offset in data.offsets:
-      if last_offset != None:
-        str = extract(last_offset, offset)
-        builder.append(str)
-      last_offset = offset
-    str = extract(last_offset, len(data.values)-1)
-    builer.append(str)
-    res.valid = data.valid
-    res.offsets = builder.get_offsets()
-    res.values = builder.get_values()  # copies to actual size
+    Default strip characters are whitespaces: " ", "\t", "\r", "\n"
     """
     if len(data) == 0:
         return data
@@ -308,7 +294,10 @@ def _text_strip(data: pa.Array, to_strip) -> pa.Array:
             while start_offset < offset and chr(data_buffer[start_offset]) in to_strip:
                 start_offset += 1
             end_offset = offset
-            while end_offset > start_offset and chr(data_buffer[end_offset - 1]) in to_strip:
+            while (
+                end_offset > start_offset
+                and chr(data_buffer[end_offset - 1]) in to_strip
+            ):
                 end_offset -= 1
             stripped_str = data_buffer[start_offset:end_offset]
         else:
@@ -317,8 +306,12 @@ def _text_strip(data: pa.Array, to_strip) -> pa.Array:
 
     prev_offset = offsets[0]
     for idx in range(len(data)):
-        crr_offset = offsets[1+idx]
-        valid = bool(valid_buffer[idx // 8] & (1 << (idx % 8))) if valid_buffer is not None else True
+        crr_offset = offsets[1 + idx]
+        valid = (
+            bool(valid_buffer[idx // 8] & (1 << (idx % 8)))
+            if valid_buffer is not None
+            else True
+        )
         if valid:
             crr_str = extract(prev_offset, crr_offset)
             builder.append_value(crr_str, len(crr_str))
@@ -327,13 +320,6 @@ def _text_strip(data: pa.Array, to_strip) -> pa.Array:
         prev_offset = crr_offset
 
     result_array = finalize_string_array(builder, pa.string())
-
-    """result_valid = valid_buffer
-    result_offsets = offsets
-    result_data = data_buffer
-
-    buffers = [pa.py_buffer(x) if x is not None else None for x in [result_valid, result_offsets, result_data]]
-    return pa.Array.from_buffers(pa.string(), len(data), buffers)"""
     return result_array
 
 
