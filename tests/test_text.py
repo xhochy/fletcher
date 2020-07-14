@@ -144,6 +144,15 @@ def test_text_cat(data, fletcher_variant, fletcher_variant_2):
     tm.assert_series_equal(result_fr, result_pd)
 
 
+def _check_fletcher_series_equal(t, fletcher_s, pandas_s):
+    if fletcher_s.values.data.null_count > 0:
+        fletcher_s = pandas_s.astype(object)
+    else:
+        fletcher_s = fletcher_s.astype(t)
+
+    tm.assert_series_equal(fletcher_s, pandas_s)
+
+
 def _check_str_to_t(
     t, func, data, fletcher_variant, test_offset = 0, *args, **kwargs
 ):
@@ -158,19 +167,15 @@ def _check_str_to_t(
     ser_fr = _fr_series_from_data(data, fletcher_variant).tail(tail_len)
     result_fr = getattr(ser_fr.fr_text, func)(*args, **kwargs)
 
-    if result_fr.values.data.null_count > 0:
-        result_fr = result_fr.astype(object)
-    else:
-        result_fr = result_fr.astype(t)
+    _check_fletcher_series_equal(t, result_fr, result_pd)
 
-    tm.assert_series_equal(result_fr, result_pd)
 
+def _check_str_to_str(func, data, fletcher_variant, *args, **kwargs):
+    _check_str_to_t(str, func, data, fletcher_variant, *args, **kwargs)
 
 def _check_str_to_bool(func, data, fletcher_variant, *args, **kwargs):
     _check_str_to_t(bool, func, data, fletcher_variant, *args, **kwargs)
 
-def _check_str_to_str(func, data, fletcher_variant, *args, **kwargs):
-    _check_str_to_t(str, func, data, fletcher_variant, *args, **kwargs)
 
 
 @string_patterns
@@ -209,7 +214,7 @@ def test_contains_no_regex_ascii(data, pat, expected, fletcher_variant):
 
 
 @many_string_patterns
-@pytest.mark.parametrize("test_offset", [0, 1])
+@pytest.mark.parametrize("test_offset", [0, 9])
 def test_contains_no_regex_case_sensitive(
     data, pat, test_offset, fletcher_variant
 ):
@@ -271,6 +276,32 @@ def test_replace_no_regex_case_sensitive(
         "replace", data, fletcher_variant, test_offset=test_offset,
         pat=pat, repl=repl, n=n, case=True, regex=False
     )
+
+
+@many_string_patterns
+@pytest.mark.parametrize("test_offset", [0, 9])
+def test_count_no_regex(
+    data, pat, test_offset, fletcher_variant
+):
+    """Check a .str. function that returns a series with type t."""
+    if test_offset > len(data):
+        return
+    tail_len = len(data) - test_offset
+
+    ser_pd = pd.Series(data, dtype=str).tail(tail_len)
+    result_pd = getattr(ser_pd.str, "count")(pat=pat)
+
+    ser_fr = _fr_series_from_data(data, fletcher_variant).tail(tail_len)
+    result_fr = getattr(ser_fr.fr_text, "count")(
+        pat=pat, case=True, regex=False
+    )
+
+    if result_fr.values.data.null_count > 0:
+        result_fr = result_fr.astype(np.float64)
+    else:
+        result_fr = result_fr.astype(np.int64)
+
+    tm.assert_series_equal(result_fr, result_pd)
 
 
 def _optional_len(x: Optional[str]) -> int:

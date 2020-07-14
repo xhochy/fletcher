@@ -355,9 +355,7 @@ class TextAccessor:
         if not regex:
             if case:
                 return self._series_like(_text_count_case_sensitive(self.data, pat))
-        return self._call_str_accessor(
-            "count", pat=pat, case=case, regex=regex
-        )
+        return self._call_str_accessor("count", pat=pat)
 
     def replace(self, pat: str, repl: str, n: int = -1,
                 case: bool = True, regex: bool = True):
