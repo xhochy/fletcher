@@ -1,18 +1,56 @@
+import ctypes as C
+import os
+from ctypes.util import find_library
+from typing import cast
+
 import numba
 import numpy as np
 import pyarrow as pa
-from cffi import FFI
 
-ffi = FFI()
-ffi.cdef("void free(void* ptr);")
-ffi.cdef("void* malloc(size_t size);")
-ffi.cdef("void* memset(void * ptr, int value, size_t num);")
-ffi.cdef("void* memcpy(void *dest, const void *src, size_t count);")
-libc = ffi.dlopen(None)
-malloc = libc.malloc
+# ffi = FFI()
+# ffi.cdef("void free(void* ptr);")
+# ffi.cdef("void* malloc(size_t size);")
+# ffi.cdef("void* memset(void * ptr, int value, size_t num);")
+# ffi.cdef("void* memcpy(void *dest, const void *src, size_t count);")
+# libc = ffi.dlopen(None)
+
+# from cffi import FFI
+
+
+# libc = C.CDLL(find_library('c'))
+libc = C.cdll.LoadLibrary(cast(str, find_library("c")))
+# libc.malloc.restype = C.c_void_p
+libc.memset.restype = C.c_void_p
+libc.memcpy.restype = C.c_void_p
+# libc.malloc.argtypes = [C.c_size_t]
+libc.memset.argtypes = [C.c_void_p, C.c_int, C.c_size_t]
+libc.memcpy.argtypes = [C.c_void_p, C.c_void_p, C.c_size_t]
+libc.free.argtypes = [C.c_void_p]
+
+# malloc = libc.malloc
 free = libc.free
 memcpy = libc.memcpy
 memset = libc.memset
+numba.byte = numba.byte if os.getenv("NUMBA_DISABLE_JIT", "0") != "1" else "uint8"
+
+
+class LibcMalloc(numba.types.WrapperAddressProtocol):
+    def __wrapper_address__(self):
+        return C.cast(libc.malloc, C.c_void_p).value
+
+    def signature(self):
+        return numba.types.voidptr(numba.int64)
+
+
+malloc = LibcMalloc()
+
+# c_sig = numba.types.CPointer(numba.types.void)(numba.types.int_)
+# @cfunc(c_sig)
+# def mycast(ptr):
+#     return C.cast(ptr, C.c_void_p)
+
+# def mycast(ptr):
+#     return C.cast(ptr, C.c_void_p).value
 
 
 @numba.jitclass(
@@ -35,6 +73,8 @@ class ByteVector:
         self.capacity = max(initial_size, 8)
         self.ptr = malloc(self.capacity)
         memset(self.ptr, 0, self.capacity)
+        # self.buf = ffi.cast('unsigned char*', self.ptr)
+        # self.buf = C.cast(self.ptr, C.POINTER(C.c_uint8))
         self.buf = numba.carray(self.ptr, self.capacity, numba.byte)
         self.size = 0
 
@@ -105,14 +145,17 @@ class ByteVector:
         This allocates a new buffer and copies the data.
         """
         new_capacity = max(min_capacity, 2 * self.capacity)
-        new_ptr = malloc(
-            new_capacity
-        )  # TODO: consider using realloc instead of malloc+memcpy+free
+        # new_ptr = malloc(
+        #     new_capacity
+        # )  # TODO: consider using realloc instead of malloc+memcpy+free
+        new_ptr = malloc(new_capacity)
         memset(new_ptr, 0, new_capacity)
         memcpy(new_ptr, self.ptr, self.capacity)
         self.capacity = new_capacity
         free(self.ptr)
         self.ptr = new_ptr
+        # self.buf = ffi.cast('unsigned char*', self.ptr)
+        # self.buf = C.cast(self.ptr, C.POINTER(C.c_uint8))
         self.buf = numba.carray(self.ptr, self.capacity, numba.byte)
 
 
@@ -136,6 +179,8 @@ class BitVector:
         self.capacity = max(initial_size, 4)
         self.ptr = malloc(self.capacity)
         memset(self.ptr, 0, self.capacity)
+        # self.buf = ffi.cast('unsigned char*', self.ptr)
+        # self.buf = C.cast(self.ptr, C.POINTER(C.c_uint8))
         self.buf = numba.carray(self.ptr, self.capacity, numba.byte)
         self.size = 0
 
@@ -177,6 +222,8 @@ class BitVector:
         self.capacity = new_capacity
         free(self.ptr)
         self.ptr = new_ptr
+        # self.buf = ffi.cast('unsigned char*', self.ptr)
+        # self.buf = C.cast(self.ptr, C.POINTER(C.c_uint8))
         self.buf = numba.carray(self.ptr, self.capacity, numba.byte)
 
 
@@ -202,6 +249,8 @@ def bit_vector_to_pa_boolarray(bv: BitVector) -> pa.BooleanArray:
         ("value_offsets", ByteVector.class_type.instance_type),  # type: ignore
         ("data", ByteVector.class_type.instance_type),  # type: ignore
     ]
+    if os.getenv("NUMBA_DISABLE_JIT", "0") != "1"
+    else []
 )
 class StringArrayBuilder:
     """
@@ -250,11 +299,30 @@ def finalize_string_array(sba, typ) -> pa.Array:
     # TODO: Can we handle this without a copy? Currently there is no way
     # to pass a custom destructor any pyarrow.*_buffer function.
     valid_bits = pa.py_buffer(
-        np.copy(sba.valid_bits.buf[: byte_for_bits(sba.valid_bits.size)])
+        np.copy(
+            # np.frombuffer(ffi.buffer(sba.valid_bits.buf, byte_for_bits(sba.valid_bits.size)), np.dtype('uint8'))
+            np.ctypeslib.as_array(
+                sba.valid_bits.buf, shape=(byte_for_bits(sba.valid_bits.size),)
+            )
+            # sba.valid_bits.buf[: byte_for_bits(sba.valid_bits.size)]
+        )
     )
-    value_offsets = np.copy(sba.value_offsets.buf[: sba.value_offsets.size])
+
+    value_offsets = np.copy(
+        # np.frombuffer(ffi.buffer(sba.value_offsets.buf, sba.value_offsets.size), np.dtype('uint8'))
+        np.ctypeslib.as_array(
+            sba.value_offsets.buf, shape=(byte_for_bits(sba.value_offsets.size),)
+        )
+        # sba.value_offsets.buf[: sba.value_offsets.size]
+    )
     value_offsets = pa.py_buffer(value_offsets)
-    data = pa.py_buffer(np.copy(sba.data.buf[: sba.data.size]))
+    data = pa.py_buffer(
+        np.copy(
+            # np.frombuffer(ffi.buffer(sba.data.buf, sba.data.size), np.dtype('uint8'))
+            np.ctypeslib.as_array(sba.data.buf, shape=(byte_for_bits(sba.data.size),))
+            # sba.data.buf[: sba.data.size]
+        )
+    )
     sba.delete()
     return pa.Array.from_buffers(
         typ, sba.length, [valid_bits, value_offsets, data], sba.null_count
