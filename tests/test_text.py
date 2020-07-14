@@ -202,7 +202,5 @@ def test_fr_str_accessor(fletcher_variant):
         getmodule(ser_fr.fr_str.startswith).__name__ == fr_stringmethods  # type: ignore
     )
     # pandas strings only method
-    assert (
-        getmodule(ser_fr.fr_str._make_accessor).__name__  # type: ignore
-        == pd_stringmethods
-    )
+    s = ser_fr.fr_str.encode("utf8")
+    assert isinstance(s.values, fr.FletcherBaseArray)
