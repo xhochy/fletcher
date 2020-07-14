@@ -342,7 +342,7 @@ def _text_replace_case_sensitive_numba(
                 matched_len, data[str_idx], pat, failure_function
             )
 
-            if matched_len == len(pat) and matches_done < n:
+            if matched_len == len(pat) and matches_done != n:
                 pos_output -= len(pat)
                 for char in repl:
                     output_buffer[pos_output] = char
