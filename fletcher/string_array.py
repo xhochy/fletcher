@@ -354,10 +354,7 @@ class TextAccessor:
         """Pad strings in the Series/Index by prepending '0' characters."""
         if width < 1 or not len(self.data):
             return self._series_like(self.data)
-        else:
-            return self._series_like(_zfill(self.data, width))
-
-        return self._call_str_accessor("zfill", width)
+        return self._series_like(_zfill(self.data, width))
 
     def startswith(self, pat):
         """Check whether a row starts with a certain pattern."""
