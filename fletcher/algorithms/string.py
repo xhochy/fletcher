@@ -3,17 +3,16 @@ from typing import Any, List, Tuple
 
 import numpy as np
 import pyarrow as pa
+from numba import prange
 
 from fletcher._algorithms import _buffer_to_view, _merge_valid_bitmaps
 from fletcher._compat import njit
+from fletcher.algorithms.string_builder_jit import StringArrayBuilder
 from fletcher.algorithms.utils.chunking import (
     _calculate_chunk_offsets,
     _combined_in_chunk_offsets,
     apply_per_chunk,
 )
-from fletcher.algorithms.string_builder_jit import StringArrayBuilder
-
-from numba import prange
 
 
 def _extract_string_buffers(arr: pa.Array) -> Tuple[np.ndarray, np.ndarray]:
@@ -354,8 +353,6 @@ def _slice(sa, start, end, step):
             builder.append_null()
             continue
 
-        builder.append_value(
-            sa.data[start_byte:end_byte], end_byte - start_byte,
-        )
+        builder.append_value(sa.data[start_byte:end_byte], end_byte - start_byte)
 
     return builder

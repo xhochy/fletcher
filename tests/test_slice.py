@@ -1,16 +1,17 @@
 import pytest
-import fletcher as fr
+
+# import fletcher as fr
 
 
 @pytest.mark.parametrize(
-    ['data', 'slice_', 'expected'],
+    ["data", "slice_", "expected"],
     [
-        (['abcd', 'defg', 'hijk'], (1, 2, 1), ['b', 'e', 'i']),
-        (['abcd', 'defg', 'h'], (1, 2, 1), ['b', 'e', '']),
-        (['abcd', 'defg', 'hijk'], (1, 4, 2), ['bd', 'eg', 'ik']),
-        (['abcd', 'defg', 'hijk'], (0, -2, 1), ['ab', 'de', 'hi']),
-        ([''])
-    ]
+        (["abcd", "defg", "hijk"], (1, 2, 1), ["b", "e", "i"]),
+        (["abcd", "defg", "h"], (1, 2, 1), ["b", "e", ""]),
+        (["abcd", "defg", "hijk"], (1, 4, 2), ["bd", "eg", "ik"]),
+        (["abcd", "defg", "hijk"], (0, -2, 1), ["ab", "de", "hi"]),
+        ([""]),
+    ],
 )
 def test_slice(data, slice_, expected):
     """

@@ -13,19 +13,19 @@ from fletcher._algorithms import _extract_isnull_bitmap
 from fletcher.algorithms.bool import all_true_like
 from fletcher.algorithms.string import (
     _endswith,
+    _slice,
     _startswith,
     _text_cat,
     _text_cat_chunked,
     _text_cat_chunked_mixed,
     _text_contains_case_sensitive,
-    _slice,
 )
+from fletcher.algorithms.string_builder_jit import finalize_string_array
 from fletcher.base import (
     FletcherBaseArray,
     FletcherChunkedArray,
     FletcherContinuousArray,
 )
-from fletcher.algorithms.string_builder_jit import finalize_string_array
 
 
 def buffers_as_arrays(sa):
@@ -382,5 +382,6 @@ class TextAccessor:
         )
 
     def slice(self, start, end, step):
-        sa = NumbaStringArray.make(self.data)
-        return self._series_like(finalize_string_array(_slice(sa, start, end, step), pa.string()))
+        return self._series_like(
+            finalize_string_array(_slice(self.data, start, end, step), pa.string())
+        )
