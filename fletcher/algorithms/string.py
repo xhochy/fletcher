@@ -269,8 +269,11 @@ def _text_contains_case_sensitive(data: pa.Array, pat: str) -> pa.Array:
 
 
 @apply_per_chunk
-# @njit
 def _text_strip(data: pa.Array, to_strip) -> pa.Array:
+    return _do_text_strip(data, to_strip)
+
+
+def _do_text_strip(data: pa.Array, to_strip) -> pa.Array:
     """
     Strip the characters of ``to_strip`` from each element in the data.
 
@@ -288,35 +291,45 @@ def _text_strip(data: pa.Array, to_strip) -> pa.Array:
     if data.offset % 8 != 0:
         valid_buffer = shift_unaligned_bitmap(valid_buffer, data.offset % 8, len(data))
 
-    def extract(last_offset, offset):
-        if last_offset < offset:
-            start_offset = last_offset
-            while start_offset < offset and chr(data_buffer[start_offset]) in to_strip:
-                start_offset += 1
-            end_offset = offset
-            while (
-                end_offset > start_offset
-                and chr(data_buffer[end_offset - 1]) in to_strip
-            ):
-                end_offset -= 1
-            stripped_str = data_buffer[start_offset:end_offset]
-        else:
-            stripped_str = data_buffer[0:0]
-        return stripped_str
+    _do_strip(valid_buffer, offsets, data_buffer, len(data), to_strip, inout_builder=builder)
 
+    result_array = finalize_string_array(builder, pa.string())
+
+    """result_valid = valid_buffer
+    result_offsets = offsets
+    result_data = data_buffer
+
+    buffers = [pa.py_buffer(x) if x is not None else None for x in [result_valid, result_offsets, result_data]]
+    return pa.Array.from_buffers(pa.string(), len(data), buffers)"""
+    return result_array
+
+
+#@njit()
+def _extract(last_offset, offset, data_buffer, to_strip):
+    if last_offset < offset:
+        start_offset = last_offset
+        while start_offset < offset and chr(data_buffer[start_offset]) in to_strip:
+            start_offset += 1
+        end_offset = offset
+        while end_offset > start_offset and chr(data_buffer[end_offset - 1]) in to_strip:
+            end_offset -= 1
+        stripped_str = data_buffer[start_offset:end_offset]
+    else:
+        stripped_str = data_buffer[0:0]
+    return stripped_str
+
+
+#@njit()
+def _do_strip(valid_buffer, offsets, data_buffer, len_data, to_strip, inout_builder):
     prev_offset = offsets[0]
-    for idx in range(len(data)):
+    for idx in range(len_data):
         crr_offset = offsets[1 + idx]
-        valid = (
-            bool(valid_buffer[idx // 8] & (1 << (idx % 8)))
-            if valid_buffer is not None
-            else True
-        )
+        valid = bool(valid_buffer[idx // 8] & (1 << (idx % 8))) if valid_buffer is not None else True
         if valid:
-            crr_str = extract(prev_offset, crr_offset)
-            builder.append_value(crr_str, len(crr_str))
+            crr_str = _extract(prev_offset, crr_offset, data_buffer, to_strip)
+            inout_builder.append_value(crr_str, len(crr_str))
         else:
-            builder.append_null()
+            inout_builder.append_null()
         prev_offset = crr_offset
 
     result_array = finalize_string_array(builder, pa.string())
