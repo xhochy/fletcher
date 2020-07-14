@@ -249,31 +249,43 @@ def _missing_capactiy(capacity):
 @pd.api.extensions.register_series_accessor("fr_str")
 class TextAccessorExt:
     def __init__(self, obj):
+        """Accessor for pandas exposed as ``.fr_str``.
+        fletcher functionality will be used if available otherwise dt functions are invoked."""
         if not isinstance(obj.values, FletcherBaseArray):
-            self.delegate = StringMethods(obj)
+            StringMethods(obj)
         self.obj = obj
 
-    def startswith(self, pat):
-        """Check whether a row starts with a certain pattern."""
-        if hasattr(self, "delegate"):
-            return self.delegate.startswith(pat)
-        return TextAccessor(self.obj).startswith(pat)
+    def __getattribute__(self, name):
 
-    def cat(self, others: Optional[FletcherBaseArray]) -> pd.Series:
-        if hasattr(self, "delegate"):
-            return self.delegate.cat(others)
-        return TextAccessor(self.obj).cat(others)
+        obj = object.__getattribute__(self, "obj")
+        if hasattr(TextAccessor, name) and callable(getattr(TextAccessor, name)):
+            arrow_data = pa.Array.from_pandas(obj)
+            fr_array = FletcherContinuousArray(arrow_data)
+            ta = TextAccessor(pd.Series(fr_array))
+            return getattr(ta, name)
+
+        elif hasattr(pd.core.strings.StringMethods, name) and callable(
+            getattr(pd.core.strings.StringMethods, name)
+        ):
+
+            return getattr(obj.str, name)
+
+        else:
+            raise AttributeError(
+                f"{name} not available in fletcher.string_array.TextAccessor nor in pd.core.strings.StringMethods"
+            )
 
 
 @pd.api.extensions.register_series_accessor("fr_strx")
 class TextAccessor:
-    """Accessor for pandas exposed as ``.str``."""
+    """Accessor for pandas exposed as ``.fr_strx``."""
 
     def __init__(self, obj):
         if not isinstance(obj.values, FletcherBaseArray):
             raise AttributeError(
                 "only Fletcher{Continuous,Chunked}Array[string] has text accessor"
             )
+
         self.obj = obj
         self.data = self.obj.values.data
 

@@ -169,9 +169,9 @@ def test_text_zfill(data, fletcher_variant):
     tm.assert_series_equal(result_fr, result_pd)
 
 
-@settings(deadline=None)
-@given(data=st.lists(st.text(min_size=10), min_size=3))
-def test_fr_str_accessor(data):
-    ser_pd = pd.Series(data)
+def test_fr_str_accessor():
+    ser_pd = pd.Series(["a", "b"])
 
-    ser_pd.fr_str
+    ser_pd.fr_str.startswith
+
+    ser_pd.fr_str.split
