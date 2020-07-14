@@ -327,12 +327,14 @@ def get_utf8_size(first_byte: int):
 @apply_per_chunk
 def _slice_handle_chunk(pa_arr, start, end, step):
     offsets, data = _extract_string_buffers(pa_arr)
-    res = _slice(offsets, data, start, end, step)
+    if step != 1:
+        raise NotImplementedError("step is not implemented yet")
+    res = _slice_no_step(offsets, data, start, end)
     return finalize_string_array(res, pa.string())
 
 
 @njit
-def _slice(offsets, data, start: int, end: int, step: int) -> StringArrayBuilder:
+def _slice_no_step(offsets, data, start: int, end: int) -> StringArrayBuilder:
     """
     Currently: assumes step is positive and 1, and positive bounds
     """
@@ -344,11 +346,12 @@ def _slice(offsets, data, start: int, end: int, step: int) -> StringArrayBuilder
 
         str_len = offsets[i + 1] - offsets[i]
 
-        # doesn't work
-        # if end < 0:
-        #     end += str_len
-        # if start < 0:
-        #     start += str_len
+        if start > str_len:
+            builder.append_empty()
+            continue
+
+        start_byte = offsets[i + 1]
+        end_byte = offsets[i]
 
         for char_idx in range(str_len):
 
@@ -361,9 +364,6 @@ def _slice(offsets, data, start: int, end: int, step: int) -> StringArrayBuilder
             if (char_idx + 1 == end) or (byte_idx == str_len):
                 end_byte = offsets[i] + byte_idx
                 break
-        # else:
-        #     builder.append_null()
-        #     continue
 
         builder.append_value(data[start_byte:end_byte], end_byte - start_byte)
 
