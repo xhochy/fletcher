@@ -321,6 +321,7 @@ def _text_replace_case_sensitive_nonnull(
 
     # Replace in the output_buffer
     output_buffer = np.empty(cumulative_offset, dtype=np.uint8)
+
     for row_idx in range(length):
         matched_len = 0
         matches_done = 0
@@ -334,7 +335,7 @@ def _text_replace_case_sensitive_nonnull(
                 matched_len, data[str_idx], pat, failure_function
             )
 
-            if matched_len == len(pat) and matches_done < n:
+            if matched_len == len(pat) and matches_done != n:
                 pos_output -= len(pat)
                 for char in repl:
                     output_buffer[pos_output] = char
@@ -410,7 +411,7 @@ def _text_replace_case_sensitive_nulls(
                 matched_len, data[str_idx], pat, failure_function
             )
 
-            if matched_len == len(pat) and matches_done < n:
+            if matched_len == len(pat) and matches_done != n:
                 pos_output -= len(pat)
                 for char in repl:
                     output_buffer[pos_output] = char
@@ -439,6 +440,8 @@ def _text_replace_case_sensitive(data: pa.Array, pat: str, repl: str, n: int) ->
         output_buffer, output_offsets = _text_replace_case_sensitive_nonnull(
             len(data), offsets, data_buffer, pat_bytes, repl_bytes, n
         )
+        print(bytes(output_buffer))
+        print(output_offsets)
     else:
         valid_buffer = data.buffers()[0].slice(data.offset // 8)
         if data.offset % 8 != 0:
