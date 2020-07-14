@@ -1,4 +1,8 @@
 from typing import Optional
+import string
+import math
+import itertools
+import collections
 
 import hypothesis.strategies as st
 import numpy as np
@@ -8,19 +12,94 @@ import pyarrow as pa
 import pytest
 from hypothesis import given, settings
 
+
 import fletcher as fr
+
+_basic_string_patterns = [
+    ([], ""),
+    (["a", "b"], ""),
+    (["aa", "ab", "ba"], "a"),
+    (["aa", "ab", "ba", "bb", None], "a"),
+    (["aa", "ab", "ba", "bb", None], "A"),
+    (["aa", "ab", "bA", "bB", None], "a"),
+    (["aa", "AB", "ba", "BB", None], "A"),
+]
+
+def _gen_string_pattern(
+    seq_len = 20,
+    max_str_len = 20,
+    max_pat_in_str = 3,
+    pat_len = 3,
+    pat = None,
+    missing_cnt = 0,
+    charset = string.ascii_lowercase
+):
+    charset = list(charset)
+    if pat is None:
+        pat = ''.join(np.random.choice(charset, pat_len))
+
+    min_str_len = math.ceil(max_str_len * 0.5)
+
+    seq = []
+    for _ in range(seq_len):
+        str_len = np.random.randint(min_str_len, max_str_len + 1)
+        base_str = np.random.choice(charset, str_len)
+
+        max_start_i = str_len - pat_len
+
+        if max_start_i > 0:
+            pat_cnt_in_cur_str = np.random.randint(max_pat_in_str)
+            pat_ind = np.random.randint(0, max_start_i + 1, pat_cnt_in_cur_str)
+
+            for i in pat_ind:
+                assert i + pat_len <= str_len
+                base_str[i : i + pat_len] = pat
+
+        seq.append(''.join(base_str))
+
+    for i in np.random.randint(0, seq_len, missing_cnt):
+        seq[i] = None
+
+    return (seq, pat)
+    
+def _gen_larger_string_patterns(seed = 1337):
+    np.random.seed(seed)
+    parameter_vals = (
+        ('seq_len', [1, 2, 20, 30]),
+        ('max_str_len', [1, 10, 20, 50]),
+        ('max_pat_in_str', [1, 2, 5]),
+        ('pat', [1, 4, 10, 'aab', 'aaab']),
+        ('missing_cnt', [0, 4]),
+        ('charset', [string.ascii_lowercase, 'ab']),
+    )
+
+    iter_tuples = itertools.product(*[vals for name, vals in parameter_vals])
+    parameter_names = [name for name, vals in parameter_vals]
+
+    res = []
+    for test_tuple in iter_tuples:
+        t = {name: val for name, val in zip(parameter_names, test_tuple)}
+        print(t)
+
+        if isinstance(t['pat'], int):
+            t['pat_len'] = t['pat']
+            t['pat'] = None
+        else:
+            t['pat_len'] = len(t['pat'])
+
+        if t['max_str_len'] < t['pat_len']:
+            continue
+        if t['missing_cnt'] > t['seq_len']:
+            continue
+
+        res.append(_gen_string_pattern(**t))
+
+    return res
+
 
 string_patterns = pytest.mark.parametrize(
     "data, pat",
-    [
-        ([], ""),
-        (["a", "b"], ""),
-        (["aa", "ab", "ba"], "a"),
-        (["aa", "ab", "ba", "bb", None], "a"),
-        (["aa", "ab", "ba", "bb", None], "A"),
-        (["aa", "ab", "bA", "bB", None], "a"),
-        (["aa", "AB", "ba", "BB", None], "A"),
-    ],
+    _basic_string_patterns #+ _gen_larger_string_patterns()
 )
 
 
