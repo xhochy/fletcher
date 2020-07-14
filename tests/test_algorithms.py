@@ -9,7 +9,8 @@ import pyarrow as pa
 import pytest
 from hypothesis import given, settings
 
-import fletcher.algorithms.string_builder as sb2
+import fletcher.algorithms.string_builder as sb1
+import fletcher.algorithms.string_builder_nojit as sb2
 from fletcher._algorithms import (
     _extract_data_buffer_as_np_array,
     _merge_valid_bitmaps,
@@ -19,7 +20,6 @@ from fletcher._algorithms import (
     prod_op,
     sum_op,
 )
-from fletcher.algorithms.string_builder import StringArrayBuilder, finalize_string_array
 from fletcher.algorithms.utils.chunking import (
     _calculate_chunk_offsets,
     _combined_in_chunk_offsets,
@@ -297,32 +297,28 @@ def string_builder_test_data(request):
 
 
 def test_stringbuilder(string_bulder_variant, string_builder_test_data):
-    if string_bulder_variant == "nojit":
-        sb = sb2.StringArrayBuilder
-    else:
-        sb = StringArrayBuilder
     _stringbuilder_test_(
-        string_builder_test_data, pa.array(string_builder_test_data), sb
+        string_builder_test_data, pa.array(string_builder_test_data), string_bulder_variant
     )
 
 
 @settings(deadline=None)
 @given(data=st.lists(st.one_of(st.text(), st.none())))
 def test_stringbuilder_auto(string_bulder_variant, data):
+    _stringbuilder_test_(data, pa.array(data), string_bulder_variant)
+
+
+def _stringbuilder_test_(values, expected, string_bulder_variant):
     if string_bulder_variant == "nojit":
-        sb = sb2.StringArrayBuilder
+        sb = sb2
     else:
-        sb = StringArrayBuilder
-    _stringbuilder_test_(data, pa.array(data), sb)
-
-
-def _stringbuilder_test_(values, expected, string_array_builder):
-    builder = string_array_builder(0)
+        sb = sb1
+    builder = sb.StringArrayBuilder(0)
     for value in values:
         if value is None:
             builder.append_null()
         else:
             encoded_value = bytes(value, encoding="utf-8")
             builder.append_value(encoded_value, len(encoded_value))
-    result = finalize_string_array(builder, pa.string())
+    result = sb.finalize_string_array(builder, pa.string())
     npt.assert_array_equal(result, expected)
