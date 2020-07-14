@@ -291,7 +291,9 @@ def _do_text_strip(data: pa.Array, to_strip) -> pa.Array:
     if data.offset % 8 != 0:
         valid_buffer = shift_unaligned_bitmap(valid_buffer, data.offset % 8, len(data))
 
-    _do_strip(valid_buffer, offsets, data_buffer, len(data), to_strip, inout_builder=builder)
+    _do_strip(
+        valid_buffer, offsets, data_buffer, len(data), to_strip, inout_builder=builder
+    )
 
     result_array = finalize_string_array(builder, pa.string())
 
@@ -311,7 +313,9 @@ def _extract(last_offset, offset, data_buffer, to_strip):
         while start_offset < offset and chr(data_buffer[start_offset]) in to_strip:
             start_offset += 1
         end_offset = offset
-        while end_offset > start_offset and chr(data_buffer[end_offset - 1]) in to_strip:
+        while (
+            end_offset > start_offset and chr(data_buffer[end_offset - 1]) in to_strip
+        ):
             end_offset -= 1
         stripped_str = data_buffer[start_offset:end_offset]
     else:
@@ -324,7 +328,11 @@ def _do_strip(valid_buffer, offsets, data_buffer, len_data, to_strip, inout_buil
     prev_offset = offsets[0]
     for idx in range(len_data):
         crr_offset = offsets[1 + idx]
-        valid = bool(valid_buffer[idx // 8] & (1 << (idx % 8))) if valid_buffer is not None else True
+        valid = (
+            bool(valid_buffer[idx // 8] & (1 << (idx % 8)))
+            if valid_buffer is not None
+            else True
+        )
         if valid:
             crr_str = _extract(prev_offset, crr_offset, data_buffer, to_strip)
             inout_builder.append_value(crr_str, len(crr_str))

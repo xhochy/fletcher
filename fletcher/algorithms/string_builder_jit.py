@@ -1,5 +1,3 @@
-import math
-
 import numba
 import numpy as np
 import pyarrow as pa
@@ -107,7 +105,9 @@ class ByteVector:
         This allocates a new buffer and copies the data.
         """
         new_capacity = max(min_capacity, 2 * self.capacity)
-        new_ptr = malloc(new_capacity)  # TODO: consider using realloc instead of malloc+memcpy+free
+        new_ptr = malloc(
+            new_capacity
+        )  # TODO: consider using realloc instead of malloc+memcpy+free
         memset(new_ptr, 0, new_capacity)
         memcpy(new_ptr, self.ptr, self.capacity)
         self.capacity = new_capacity

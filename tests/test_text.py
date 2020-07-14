@@ -172,7 +172,9 @@ def test_text_zfill(data, fletcher_variant):
 @settings(deadline=None)
 @given(data=st.lists(st.one_of(st.text(), st.none())))
 def test_text_strip(fletcher_variant, data):
-    print(f"Testing: {[''.join(['%x' % ord(c) for c in s]) if s is not None else None for s in data]}")
+    print(
+        f"Testing: {[''.join(['%x' % ord(c) for c in s]) if s is not None else None for s in data]}"
+    )
     if any("\x00" in x for x in data if x):
         # pytest.skip("pandas cannot handle \\x00 characters in tests")
         # Skip is not working properly with hypothesis
