@@ -13,15 +13,13 @@ from fletcher._algorithms import _extract_isnull_bitmap
 from fletcher.algorithms.bool import all_true_like
 from fletcher.algorithms.string import (
     _endswith,
-    _extract_string_buffers,
-    _slice,
+    _slice_handle_chunk,
     _startswith,
     _text_cat,
     _text_cat_chunked,
     _text_cat_chunked_mixed,
     _text_contains_case_sensitive,
 )
-from fletcher.algorithms.string_builder_jit import finalize_string_array
 from fletcher.base import (
     FletcherBaseArray,
     FletcherChunkedArray,
@@ -383,7 +381,4 @@ class TextAccessor:
         )
 
     def slice(self, start, end, step):
-        offsets, data = _extract_string_buffers(self.data)
-        return self._series_like(
-            finalize_string_array(_slice(offsets, data, start, end, step), pa.string())
-        )
+        return self._series_like(_slice_handle_chunk(self.data, start, end, step))
