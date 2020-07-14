@@ -304,7 +304,7 @@ def _do_text_strip(data: pa.Array, to_strip) -> pa.Array:
     return result_array
 
 
-#@njit()
+@njit()
 def _extract(last_offset, offset, data_buffer, to_strip):
     if last_offset < offset:
         start_offset = last_offset
@@ -319,7 +319,7 @@ def _extract(last_offset, offset, data_buffer, to_strip):
     return stripped_str
 
 
-#@njit()
+@njit()
 def _do_strip(valid_buffer, offsets, data_buffer, len_data, to_strip, inout_builder):
     prev_offset = offsets[0]
     for idx in range(len_data):
