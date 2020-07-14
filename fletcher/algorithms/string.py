@@ -191,6 +191,95 @@ def shift_unaligned_bitmap(
 
     return pa.py_buffer(output)
 
+@njit
+def _text_count_case_sensitive_numba(
+    length: int,
+    valid_bits: np.ndarray,
+    valid_offset: int,
+    offsets: np.ndarray,
+    data: np.ndarray,
+    pat: bytes,
+) -> np.ndarray:
+    """
+    TODO:
+    """
+
+    failure_function = compute_kmp_failure_function(pat)
+
+    output = np.empty(length, dtype=np.int64)
+
+    has_nulls = valid_bits.size > 0
+
+    for row_idx in range(length):
+        if (has_nulls and
+            not _check_valid_row(row_idx, valid_bits, valid_offset)
+        ):
+            continue
+
+        matched_len = 0
+        if matched_len == len(pat):
+            output[row_idx] = 1
+        else:
+            output[row_idx] = 0
+
+        for str_idx in range(offsets[row_idx], offsets[row_idx + 1]):
+            matched_len = append_to_kmp_matching(
+                matched_len, data[str_idx], pat, failure_function
+            )
+
+            if matched_len == len(pat):
+                output[row_idx] += 1
+                matched_len = failure_function[matched_len]
+
+    return output
+
+
+@apply_per_chunk
+def _text_count_case_sensitive(
+        data: pa.Array,
+        pat: str
+) -> pa.Array:
+    """
+    For each row in the data computes the number of occurrences of the pattern ``pat``.
+    This implementation does basic byte-by-byte comparison and is independent
+    of any locales or encodings.
+    """
+
+    # Convert to UTF-8 bytes
+    pat_bytes: bytes = pat.encode()
+
+    offsets_buffer, data_buffer = _extract_string_buffers(data)
+
+    if data.null_count == 0:
+        valid_buffer = np.empty(0, dtype=np.uint8)
+    else:
+        valid_buffer = _buffer_to_view(data.buffers()[0])
+
+    output = _text_count_case_sensitive_numba(
+        len(data),
+        valid_buffer,
+        data.offset,
+        offsets_buffer,
+        data_buffer,
+        pat_bytes,
+    )
+
+    if data.null_count == 0:
+        output_valid = None
+    else:
+        output_valid = data.buffers()[0].slice(data.offset // 8)
+        if data.offset % 8 != 0:
+            output_valid = shift_unaligned_bitmap(
+                output_valid, data.offset % 8, len(data)
+            )
+
+    buffers = [
+        output_valid, pa.py_buffer(output)
+    ]
+    return pa.Array.from_buffers(
+        pa.int64(), len(data), buffers, data.null_count
+    )
+
 
 @njit
 def _text_contains_case_sensitive_numba(
@@ -250,8 +339,12 @@ def _text_contains_case_sensitive_numba(
 
     return output
 
+
 @apply_per_chunk
-def _text_contains_case_sensitive(data: pa.Array, pat: str) -> pa.Array:
+def _text_contains_case_sensitive(
+        data: pa.Array,
+        pat: str
+) -> pa.Array:
     """
     Check for each element in the data whether it contains the pattern ``pat``.
 
