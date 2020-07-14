@@ -327,14 +327,12 @@ def get_utf8_size(first_byte: int):
 @apply_per_chunk
 def _slice_handle_chunk(pa_arr, start, end, step):
     offsets, data = _extract_string_buffers(pa_arr)
-    res = _slice_no_step(offsets, data, start, end, step)
+    res = _slice(offsets, data, start, end, step)
     return finalize_string_array(res, pa.string())
 
 
 @njit
-def _slice_no_step(
-    offsets, data, start: int, end: int, step: int
-) -> StringArrayBuilder:
+def _slice(offsets, data, start: int, end: int, step: int) -> StringArrayBuilder:
     """
     Currently: assumes step is positive and 1, and positive bounds
     """
