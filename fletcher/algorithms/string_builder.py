@@ -1,7 +1,7 @@
 import ctypes as C
 import os
 from ctypes.util import find_library
-from typing import cast
+from typing import Any, cast
 
 import numba
 import numpy as np
@@ -19,10 +19,10 @@ import pyarrow as pa
 
 # libc = C.CDLL(find_library('c'))
 libc = C.cdll.LoadLibrary(cast(str, find_library("c")))
-# libc.malloc.restype = C.c_void_p
+libc.malloc.restype = C.c_void_p
 libc.memset.restype = C.c_void_p
 libc.memcpy.restype = C.c_void_p
-# libc.malloc.argtypes = [C.c_size_t]
+libc.malloc.argtypes = [C.c_size_t]
 libc.memset.argtypes = [C.c_void_p, C.c_int, C.c_size_t]
 libc.memcpy.argtypes = [C.c_void_p, C.c_void_p, C.c_size_t]
 libc.free.argtypes = [C.c_void_p]
@@ -42,7 +42,12 @@ class LibcMalloc(numba.types.WrapperAddressProtocol):
         return numba.types.voidptr(numba.int64)
 
 
-malloc = LibcMalloc()
+def mymalloc(size: int):
+    return C.c_void_p(libc.malloc(size))
+
+
+malloc_callable = LibcMalloc()  # type: Any
+malloc = malloc_callable if os.getenv("NUMBA_DISABLE_JIT", "0") != "1" else mymalloc
 
 # c_sig = numba.types.CPointer(numba.types.void)(numba.types.int_)
 # @cfunc(c_sig)
