@@ -1,5 +1,4 @@
 import datetime
-import platform
 import string
 from collections import namedtuple
 from distutils.version import LooseVersion
@@ -841,7 +840,7 @@ class TestBaseArithmeticOpsTests(BaseArithmeticOpsTests):
                     other_is_np_int64 = (
                         isinstance(other, pd.Series)
                         and isinstance(other.values, np.ndarray)
-                        and other.dtype.char == "l"
+                        and other.dtype.char in ("q", "l")
                     )
                     if (
                         pa.types.is_integer(arrow_dtype)
@@ -863,13 +862,8 @@ class TestBaseArithmeticOpsTests(BaseArithmeticOpsTests):
 
     @skip_non_artithmetic_type
     def test_arith_series_with_array(self, data, all_arithmetic_operators):
-        # On Windows the type of the result when performing arithmetic operations on series with array is the
-        # same as the data type of the input data, but it's int64 when the data is scalar (see method _check_op above),
-        # so we work-around this by converting the data to int64.
         BaseArithmeticOpsTests.test_arith_series_with_array(
-            self,
-            data.astype(np.int64) if platform.system() == "Windows" else data,
-            all_arithmetic_operators,
+            self, data, all_arithmetic_operators
         )
 
     @skip_non_artithmetic_type
