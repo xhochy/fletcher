@@ -3,6 +3,7 @@ from typing import Any, List, Tuple
 
 import numpy as np
 import pyarrow as pa
+from numba import jit
 
 from fletcher._algorithms import _buffer_to_view, _merge_valid_bitmaps
 from fletcher._compat import njit
@@ -268,55 +269,56 @@ def _text_contains_case_sensitive(data: pa.Array, pat: str) -> pa.Array:
     )
 
 
+def _compute_str_len(buffer: np.ndarray, i_start: int, i_end: int) -> int:
+    return (
+        np.bitwise_xor(np.right_shift(buffer[i_start:i_end], 6), 2)
+        .astype(dtype=bool)
+        .sum()
+    )
+
+
+@jit
 def _zfill_nonnull(
-    length: int,
-    # data: pa.Array,
-    offsets: np.ndarray,
-    data_buffer: np.ndarray,
-    width: int,
-    str_builder: StringArrayBuilder,
-) -> None:
+    length: int, offsets: np.ndarray, data_buffer: np.ndarray, width: int
+):
+
+    str_builder = StringArrayBuilder(max(len(data_buffer), 2))
     for row_idx in range(length):
-        # val = data[row_idx]
-        #
-        # l_py = len(val.as_py())
-
-        # test computed len
-        buf_val = data_buffer[offsets[row_idx] : offsets[row_idx + 1]]
-
-        # TODO benchmark with JIT --> better to vectorize within numpy or not?
-        attempt_len = 0
-        for byte_val in buf_val:
-            # start of char if first two bits != '10'
-            if byte_val >> 6 ^ 2:
-                attempt_len += 1
-
-        # assert attempt_len == l_py
 
         value = np.concatenate(
             (
                 np.frombuffer(
-                    # as_py: get the number of chars (instead of the len of string data)
-                    (max(0, width - attempt_len) * b"0"),
+                    (
+                        max(
+                            0,
+                            width
+                            - _compute_str_len(
+                                data_buffer, offsets[row_idx], offsets[row_idx + 1]
+                            ),
+                        )
+                        * b"0"
+                    ),
                     dtype=np.uint8,
                 ),
-                buf_val,
+                data_buffer[offsets[row_idx] : offsets[row_idx + 1]],
             ),
             axis=0,
         )
         str_builder.append_value(value, len(value))
+    return str_builder
 
 
+@jit
 def _zfill_nulls(
     length: int,
-    # data: pa.Array,
     valid_bits: np.ndarray,
     valid_offset: int,
     offsets: np.ndarray,
     data_buffer: np.ndarray,
     width: int,
-    str_builder: StringArrayBuilder,
-) -> None:
+):
+    str_builder = StringArrayBuilder(max(len(data_buffer), 2))
+
     for row_idx in range(length):
         # Check whether the current entry is null.
         byte_offset = (row_idx + valid_offset) // 8
@@ -328,41 +330,39 @@ def _zfill_nulls(
             str_builder.append_null()
             continue
 
-        # val = data[row_idx]
-        #
-        # l_py = len(val.as_py())
-
-        # test computed len
-        buf_val = data_buffer[offsets[row_idx] : offsets[row_idx + 1]]
-        attempt_len = 0
-        for byte_val in buf_val:
-            # start of char if first two bits != '10'
-            if byte_val >> 6 ^ 2:
-                attempt_len += 1
-
-        # assert attempt_len == l_py
-
         value = np.concatenate(
             (
-                np.frombuffer((max(0, width - attempt_len) * b"0"), dtype=np.uint8),
-                buf_val,
+                np.frombuffer(
+                    (
+                        max(
+                            0,
+                            width
+                            - _compute_str_len(
+                                data_buffer, offsets[row_idx], offsets[row_idx + 1]
+                            ),
+                        )
+                        * b"0"
+                    ),
+                    dtype=np.uint8,
+                ),
+                data_buffer[offsets[row_idx] : offsets[row_idx + 1]],
             ),
             axis=0,
         )
         str_builder.append_value(value, len(value))
+    return str_builder
 
 
 @apply_per_chunk
 def _zfill(data: pa.Array, width: int):
     offsets, data_buffer = _extract_string_buffers(data)
-    builder = StringArrayBuilder(max(len(data_buffer), 2))
 
     if data.null_count == 0:
-        _zfill_nonnull(len(data), offsets, data_buffer, width, builder)
+        builder = _zfill_nonnull(len(data), offsets, data_buffer, width)
     else:
         valid = _buffer_to_view(data.buffers()[0])
-        _zfill_nulls(
-            len(data), valid, data.offset, offsets, data_buffer, width, builder
+        builder = _zfill_nulls(
+            len(data), valid, data.offset, offsets, data_buffer, width
         )
     return finalize_string_array(builder, pa.string())
 
