@@ -204,3 +204,13 @@ def test_fr_str_accessor(fletcher_variant):
     # pandas strings only method
     s = ser_fr.fr_str.encode("utf8")
     assert isinstance(s.values, fr.FletcherBaseArray)
+
+
+@pytest.mark.xfail
+def test_fr_str_accessor_fail(fletcher_variant):
+
+    data = [1, 2]
+    ser_pd = pd.Series(data)
+
+    # this should fail
+    ser_pd.fr_str.startswith
