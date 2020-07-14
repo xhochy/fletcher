@@ -287,7 +287,7 @@ def _do_text_strip(data: pa.Array, to_strip) -> pa.Array:
     valid_buffer = data.buffers()[0]
     if valid_buffer is not None:
         valid_buffer = valid_buffer.slice(data.offset // 8)
-    builder = StringArrayBuilder(len(data_buffer))
+    builder = StringArrayBuilder(max(len(data_buffer), len(data)))
     if data.offset % 8 != 0:
         valid_buffer = shift_unaligned_bitmap(valid_buffer, data.offset % 8, len(data))
 
