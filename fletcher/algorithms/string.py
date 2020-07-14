@@ -270,19 +270,22 @@ def _text_contains_case_sensitive(data: pa.Array, pat: str) -> pa.Array:
 
 def _zfill_nonnull(
     length: int,
+    data: pa.Array,
     offsets: np.ndarray,
-    data: np.ndarray,
+    data_buffer: np.ndarray,
     width: int,
     str_builder: StringArrayBuilder,
 ) -> None:
     for row_idx in range(length):
-        str_len = offsets[row_idx + 1] - offsets[row_idx]
-        # pad string with zeros as necessary
-        # TODO double check index !!
+        val = data[row_idx]
         value = np.concatenate(
             (
-                np.frombuffer((max(0, width - str_len) * b"0"), dtype=np.uint8),
-                data[offsets[row_idx] : offsets[row_idx + 1]],
+                np.frombuffer(
+                    # as_py: get the number of chars (instead of the len of string data)
+                    (max(0, width - len(val.as_py())) * b"0"),
+                    dtype=np.uint8,
+                ),
+                data_buffer[offsets[row_idx] : offsets[row_idx + 1]],
             ),
             axis=0,
         )
@@ -291,10 +294,11 @@ def _zfill_nonnull(
 
 def _zfill_nulls(
     length: int,
+    data: pa.Array,
     valid_bits: np.ndarray,
     valid_offset: int,
     offsets: np.ndarray,
-    data: np.ndarray,
+    data_buffer: np.ndarray,
     width: int,
     str_builder: StringArrayBuilder,
 ) -> None:
@@ -309,14 +313,13 @@ def _zfill_nulls(
             str_builder.append_null()
             continue
 
-        str_len = offsets[row_idx + 1] - offsets[row_idx]
-
-        # pad string with zeros as necessary
-        # TODO double check index !!
+        val = data[row_idx]
         value = np.concatenate(
             (
-                np.frombuffer((max(0, width - str_len) * b"0"), dtype=np.uint8),
-                data[offsets[row_idx] : offsets[row_idx + 1]],
+                np.frombuffer(
+                    (max(0, width - len(val.as_py())) * b"0"), dtype=np.uint8
+                ),
+                data_buffer[offsets[row_idx] : offsets[row_idx + 1]],
             ),
             axis=0,
         )
@@ -325,15 +328,15 @@ def _zfill_nulls(
 
 @apply_per_chunk
 def _zfill(data: pa.Array, width: int):
-    builder = StringArrayBuilder(2)
     offsets, data_buffer = _extract_string_buffers(data)
+    builder = StringArrayBuilder(max(len(data_buffer), 2))
 
     if data.null_count == 0:
-        _zfill_nonnull(len(data), offsets, data_buffer, width, builder)
+        _zfill_nonnull(len(data), data, offsets, data_buffer, width, builder)
     else:
         valid = _buffer_to_view(data.buffers()[0])
         _zfill_nulls(
-            len(data), valid, data.offset, offsets, data_buffer, width, builder
+            len(data), data, valid, data.offset, offsets, data_buffer, width, builder
         )
     return finalize_string_array(builder, pa.string())
 
