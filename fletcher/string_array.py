@@ -18,8 +18,8 @@ from fletcher.algorithms.string import (
     _text_cat_chunked,
     _text_cat_chunked_mixed,
     _text_contains_case_sensitive,
-    _text_replace_case_sensitive,
     _text_count_case_sensitive,
+    _text_replace_case_sensitive,
 )
 from fletcher.base import (
     FletcherBaseArray,
@@ -357,17 +357,49 @@ class TextAccessor:
                 return self._series_like(_text_count_case_sensitive(self.data, pat))
         return self._call_str_accessor("count", pat=pat)
 
-    def replace(self, pat: str, repl: str, n: int = -1,
-                case: bool = True, regex: bool = True):
+    def replace(
+        self, pat: str, repl: str, n: int = -1, case: bool = True, regex: bool = True
+    ):
+        """
+        Replace occurrences of pattern/regex in the Series/Index with some other string.
+        Equivalent to str.replace() or re.sub().
+
+        Return а string Series where in each row the occurrences of the given
+        pattern or regex ``pat`` are replaced by ``repl``.
+
+        This implementation differs to the one in ``pandas``:
+         * We always return a missing for missing data.
+         * You cannot pass flags for the regular expression module.
+
+        Parameters
+        ----------
+        pat : str
+            Character sequence or regular expression.
+        repl : str
+            Replacement string.
+        n : int
+            Number of replacements to make from start.
+        case : bool, default True
+            If True, case sensitive.
+        regex : bool, default True
+            If True, assumes the pat is a regular expression.
+>>>>>>> 41679f2223c5af196b095d49032b443fd59beef0
+
+            If False, treats the pat as a literal string.
+
+        Returns
+        -------
+        Series of string values.
+        """
         if n == 0:
             return self._series_like(self.data)
         if not regex:
             if case:
-                return self._series_like(_text_replace_case_sensitive(
-                    self.data, pat, repl, n
-                ))
+                return self._series_like(
+                    _text_replace_case_sensitive(self.data, pat, repl, n)
+                )
         return self._call_str_accessor(
-            "replace", pat=pat, repl=repl, n=n, case=case,regex=regex
+            "replace", pat=pat, repl=repl, n=n, case=case, regex=regex
         )
 
     def zfill(self, width: int) -> pd.Series:
