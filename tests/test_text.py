@@ -169,9 +169,52 @@ def test_text_zfill(data, fletcher_variant):
     tm.assert_series_equal(result_fr, result_pd)
 
 
+@pytest.fixture(
+    params=[
+        [],
+        [""],
+        [None],
+        [" "],
+        ["\u2000"],
+        [" a"],
+        ["a "],
+        [" a "],
+        ["\u2000a\u2000"],
+        ["\u2000\u200C\u2000"],
+        ["\n\u200C\r"],
+        ["\u2000\x80\u2000"],
+        ["\t\x80\x0b"],
+        ["\u2000\u10FFFF\u2000"],
+        [" \u10FFFF "],
+    ]
+    + [
+        [c]
+        for c in " \t\r\n\x1f\x1e\x1d\x1c\x0c\x0b"
+        "\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2000\u2009\u200A\u200B\u2028\u2029\u202F"
+    ]
+    + [[chr(c)] for c in range(0x32)]
+    + [[chr(c)] for c in range(0x80, 0x85)]
+    + [[chr(c)] for c in range(0x200C, 0x2030)]
+    + [[chr(c)] for c in range(0x2060, 0x2070)]
+    + [[chr(c)] for c in range(0x10FFFE, 0x110000)],
+    scope="session",
+)
+def strip_data(request):
+    """Explicit Test data for test_text_strip."""
+    return request.param
+
+
+def test_text_strip(fletcher_variant, strip_data):
+    _do_test_text_strip(fletcher_variant, strip_data)
+
+
 @settings(deadline=None)
 @given(data=st.lists(st.one_of(st.text(), st.none())))
-def test_text_strip(fletcher_variant, data):
+def test_text_strip_auto(fletcher_variant, data):
+    _do_test_text_strip(fletcher_variant, data)
+
+
+def _do_test_text_strip(fletcher_variant, data):
     print(
         f"Testing: {[''.join(['%x' % ord(c) for c in s]) if s is not None else None for s in data]}"
     )
