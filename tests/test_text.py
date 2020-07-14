@@ -63,8 +63,8 @@ def _gen_string_pattern(
 
         seq.append("".join(base_str))
 
-    for i in np.random.randint(0, seq_len, missing_cnt):
-        seq[i] = None
+    missing_prefix_length = np.random.randint(0, seq_len, missing_cnt)
+    seq = [None if i < missing_prefix_length else x for i, x in enumerate(seq)]
 
     return (seq, pat)
 
