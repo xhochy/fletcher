@@ -13,6 +13,7 @@ from fletcher._algorithms import _extract_isnull_bitmap
 from fletcher.algorithms.bool import all_true_like
 from fletcher.algorithms.string import (
     _endswith,
+    _extract_string_buffers,
     _slice,
     _startswith,
     _text_cat,
@@ -382,6 +383,7 @@ class TextAccessor:
         )
 
     def slice(self, start, end, step):
+        offsets, data = _extract_string_buffers(self.data)
         return self._series_like(
-            finalize_string_array(_slice(self.data, start, end, step), pa.string())
+            finalize_string_array(_slice(offsets, data, start, end, step), pa.string())
         )

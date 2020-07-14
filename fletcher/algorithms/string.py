@@ -322,37 +322,39 @@ def get_utf8_size(first_byte: int):
 
 
 @njit
-def _slice(sa, start, end, step):
+def _slice(offsets, data, start, end, step):
     """
-    Currently: assumes step is positive and 1
+    Currently: assumes step is positive and 1, and positive bounds
     """
-    builder = StringArrayBuilder(sa.byte_size)
+    builder = StringArrayBuilder(len(offsets) - 1)
 
-    for i in prange(sa.size):
+    for i in prange(len(offsets) - 1):
         char_idx = 0
         byte_idx = 0
 
-        str_len = sa.byte_length(i)
-        if end < 0:
-            end += str_len
-        if start < 0:
-            start += str_len
+        str_len = offsets[i + 1] - offsets[i]
+
+        # doesn't work
+        # if end < 0:
+        #     end += str_len
+        # if start < 0:
+        #     start += str_len
 
         for char_idx in range(str_len):
 
             if char_idx == start:
-                start_byte = sa.offsets[i] + byte_idx
+                start_byte = offsets[i] + byte_idx
 
-            char_size = get_utf8_size(sa.get_byte(i, byte_idx))
+            char_size = get_utf8_size(data[offsets[i] + byte_idx])
             byte_idx += char_size
 
             if (char_idx + 1 == end) or (byte_idx == str_len):
-                end_byte = sa.offsets[i] + byte_idx
+                end_byte = offsets[i] + byte_idx
                 break
-        else:
-            builder.append_null()
-            continue
+        # else:
+        #     builder.append_null()
+        #     continue
 
-        builder.append_value(sa.data[start_byte:end_byte], end_byte - start_byte)
+        builder.append_value(data[start_byte:end_byte], end_byte - start_byte)
 
     return builder
