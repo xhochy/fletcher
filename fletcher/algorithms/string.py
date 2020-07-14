@@ -339,32 +339,44 @@ def _slice(offsets, data, start: int, end: int, step: int) -> StringArrayBuilder
     builder = StringArrayBuilder(len(offsets) - 1)
 
     for i in prange(len(offsets) - 1):
+        str_len_bytes = offsets[i + 1] - offsets[i]
+
         char_idx = 0
         byte_idx = 0
 
-        str_len = offsets[i + 1] - offsets[i]
+        while char_idx < start and byte_idx < str_len_bytes:
+            char_idx += 1
+            byte_idx += get_utf8_size(data[offsets[i] + byte_idx])
 
-        # doesn't work
-        # if end < 0:
-        #     end += str_len
-        # if start < 0:
-        #     start += str_len
+        # positive start, end; step > 1
+        if step > 1:
+            to_skip = 0
+            include_bytes: List[bytes] = []
 
-        for char_idx in range(str_len):
+            while char_idx < end and byte_idx < str_len_bytes:
+                char_size = get_utf8_size(data[offsets[i] + byte_idx])
 
-            if char_idx == start:
-                start_byte = offsets[i] + byte_idx
+                if not to_skip:
+                    include_bytes.extend(
+                        data[offsets[i] + byte_idx : offsets[i] + byte_idx + char_size]
+                    )
+                    to_skip = step
 
-            char_size = get_utf8_size(data[offsets[i] + byte_idx])
-            byte_idx += char_size
+                char_idx += 1
+                byte_idx += char_size
+                to_skip -= 1
 
-            if (char_idx + 1 == end) or (byte_idx == str_len):
-                end_byte = offsets[i] + byte_idx
-                break
-        # else:
-        #     builder.append_null()
-        #     continue
+            builder.append_value(include_bytes, len(include_bytes))
 
-        builder.append_value(data[start_byte:end_byte], end_byte - start_byte)
+        # positive start, end; step = 1
+        elif step == 1:
+            start_byte = offsets[i] + byte_idx
+
+            while char_idx < end and byte_idx < str_len_bytes:
+                char_idx += 1
+                byte_idx += get_utf8_size(data[offsets[i] + byte_idx])
+
+            end_byte = offsets[i] + byte_idx
+            builder.append_value(data[start_byte:end_byte], end_byte - start_byte)
 
     return builder
