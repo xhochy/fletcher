@@ -3,9 +3,11 @@ from typing import Any, List, Tuple
 
 import numpy as np
 import pyarrow as pa
+from numba import prange
 
 from fletcher._algorithms import _buffer_to_view, _merge_valid_bitmaps
 from fletcher._compat import njit
+from fletcher.algorithms.string_builder_jit import StringArrayBuilder
 from fletcher.algorithms.utils.chunking import (
     _calculate_chunk_offsets,
     _combined_in_chunk_offsets,
@@ -305,3 +307,54 @@ def _endswith(sa, needle, na, offset, out):
             if sa.get_byte(i, string_length - needle_length + j) != needle.get_byte(j):
                 out[offset + i] = 0
                 break
+
+
+@njit
+def get_utf8_size(first_byte: int):
+    if first_byte < 0b10000000:
+        return 1
+    elif first_byte < 0b11100000:
+        return 2
+    elif first_byte < 0b11110000:
+        return 3
+    else:
+        return 4
+
+
+@njit
+def _slice(offsets, data, start, end, step):
+    """
+    Currently: assumes step is positive and 1, and positive bounds
+    """
+    builder = StringArrayBuilder(len(offsets) - 1)
+
+    for i in prange(len(offsets) - 1):
+        char_idx = 0
+        byte_idx = 0
+
+        str_len = offsets[i + 1] - offsets[i]
+
+        # doesn't work
+        # if end < 0:
+        #     end += str_len
+        # if start < 0:
+        #     start += str_len
+
+        for char_idx in range(str_len):
+
+            if char_idx == start:
+                start_byte = offsets[i] + byte_idx
+
+            char_size = get_utf8_size(data[offsets[i] + byte_idx])
+            byte_idx += char_size
+
+            if (char_idx + 1 == end) or (byte_idx == str_len):
+                end_byte = offsets[i] + byte_idx
+                break
+        # else:
+        #     builder.append_null()
+        #     continue
+
+        builder.append_value(data[start_byte:end_byte], end_byte - start_byte)
+
+    return builder
