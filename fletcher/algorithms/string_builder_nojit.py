@@ -27,14 +27,14 @@ class ByteVector:
     def append_uint32(self, i32):
         """Append an unsigned 32bit integer."""
         self.buf.append(numba.byte(i32 & 0xFF))
-        self.buf.append(numba.byte(i32 & 0xFF00) >> 8)
-        self.buf.append(numba.byte(i32 & 0xFF0000) >> 16)
-        self.buf.append(numba.byte(i32 & 0xFF000000) >> 24)
+        self.buf.append(numba.byte((i32 & 0xFF00) >> 8))
+        self.buf.append(numba.byte((i32 & 0xFF0000) >> 16))
+        self.buf.append(numba.byte((i32 & 0xFF000000) >> 24))
 
     def append_int16(self, i16):
         """Append a signed 16bit integer."""
         self.buf.append(numba.byte(i16 & 0xFF))
-        self.buf.append(numba.byte(i16 & 0xFF00) >> 8)
+        self.buf.append(numba.byte((i16 & 0xFF00) >> 8))
 
     def append_int32(self, i32):
         """Append a signed 32bit integer."""
@@ -43,13 +43,13 @@ class ByteVector:
     def append_int64(self, i64):
         """Append a signed 64bit integer."""
         self.buf.append(numba.byte(i64 & 0xFF))
-        self.buf.append(numba.byte(i64 & 0xFF00) >> 8)
-        self.buf.append(numba.byte(i64 & 0xFF0000) >> 16)
-        self.buf.append(numba.byte(i64 & 0xFF000000) >> 24)
-        self.buf.append(numba.byte(i64 & 0xFF00000000) >> 32)
-        self.buf.append(numba.byte(i64 & 0xFF0000000000) >> 40)
-        self.buf.append(numba.byte(i64 & 0xFF000000000000) >> 48)
-        self.buf.append(numba.byte(i64 & 0xFF00000000000000) >> 56)
+        self.buf.append(numba.byte((i64 & 0xFF00) >> 8))
+        self.buf.append(numba.byte((i64 & 0xFF0000) >> 16))
+        self.buf.append(numba.byte((i64 & 0xFF000000) >> 24))
+        self.buf.append(numba.byte((i64 & 0xFF00000000) >> 32))
+        self.buf.append(numba.byte((i64 & 0xFF0000000000) >> 40))
+        self.buf.append(numba.byte((i64 & 0xFF000000000000) >> 48))
+        self.buf.append(numba.byte((i64 & 0xFF00000000000000) >> 56))
 
     def append_bytes(self, ptr, length):
         """Append a range of bytes."""
