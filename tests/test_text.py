@@ -96,7 +96,6 @@ def _gen_many_string_patterns(seed = 1337):
 
         res.append(_gen_string_pattern(**t))
 
-    print(len(res))
     return res
 
 

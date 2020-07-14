@@ -286,7 +286,7 @@ def _text_replace_case_sensitive_numba(
     data: np.ndarray,
     pat: bytes,
     repl: bytes,
-    n: int,
+    max_repl: int,
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
     TODO:
@@ -298,15 +298,21 @@ def _text_replace_case_sensitive_numba(
     output_offsets = np.empty(length + 1, dtype=np.int32)
     cumulative_offset = 0
 
-    has_nulls = not (valid_offset is None and valid_bits is None)
+    has_nulls = valid_bits.size > 0
 
     for row_idx in range(length):
         output_offsets[row_idx] = cumulative_offset
-        if has_nulls and not _check_valid_row(row_idx, valid_bits, valid_offset):
+
+        if (has_nulls and
+            not _check_valid_row(row_idx, valid_bits, valid_offset)
+        ):
             continue
 
         matched_len = 0
         matches_done = 0
+
+        if matched_len == len(pat):
+            matches_done += 1
 
         for str_idx in range(offsets[row_idx], offsets[row_idx + 1]):
             matched_len = append_to_kmp_matching(
@@ -316,7 +322,7 @@ def _text_replace_case_sensitive_numba(
             if matched_len == len(pat):
                 matches_done += 1
                 matched_len = 0
-                if matches_done == n:
+                if matches_done == max_repl:
                     break
 
         cumulative_offset += offsets[row_idx + 1] - offsets[row_idx]
@@ -326,36 +332,50 @@ def _text_replace_case_sensitive_numba(
 
     # Replace in the output_buffer
     output_buffer = np.empty(cumulative_offset, dtype=np.uint8)
+    output_pos = 0
     for row_idx in range(length):
-        if has_nulls and not _check_valid_row(row_idx, valid_bits, valid_offset):
+        if (has_nulls and
+            not _check_valid_row(row_idx, valid_bits, valid_offset)
+        ):
             continue
 
         matched_len = 0
         matches_done = 0
-        pos_output = output_offsets[row_idx]
+
+        if matched_len == len(pat):
+            for char in repl:
+                output_buffer[output_pos] = char
+                output_pos += 1
+
+            matches_done += 1
 
         for str_idx in range(offsets[row_idx], offsets[row_idx + 1]):
-            output_buffer[pos_output] = data[str_idx]
-            pos_output += 1
+            output_buffer[output_pos] = data[str_idx]
+            output_pos += 1
 
             matched_len = append_to_kmp_matching(
                 matched_len, data[str_idx], pat, failure_function
             )
 
-            if matched_len == len(pat) and matches_done != n:
-                pos_output -= len(pat)
+            if matched_len == len(pat) and matches_done != max_repl:
+                output_pos -= len(pat)
                 for char in repl:
-                    output_buffer[pos_output] = char
-                    pos_output += 1
+                    output_buffer[output_pos] = char
+                    output_pos += 1
 
                 matches_done += 1
                 matched_len = 0
 
-    return output_buffer, output_offsets
+    return output_offsets, output_buffer
 
 
 @apply_per_chunk
-def _text_replace_case_sensitive(data: pa.Array, pat: str, repl: str, n: int) -> pa.Array:
+def _text_replace_case_sensitive(
+    data: pa.Array,
+    pat: str,
+    repl: str,
+    max_repl: int
+) -> pa.Array:
     """
     TODO:
     """
@@ -364,28 +384,29 @@ def _text_replace_case_sensitive(data: pa.Array, pat: str, repl: str, n: int) ->
     pat_bytes: bytes = pat.encode()
     repl_bytes: bytes = repl.encode()
 
-    offsets, data_buffer = _extract_string_buffers(data)
+    offsets_buffer, data_buffer = _extract_string_buffers(data)
 
     if data.null_count == 0:
-        valid_buffer = None
-        output_buffer, output_offsets = _text_replace_case_sensitive_numba(
-            len(data), None, None, offsets, data_buffer, pat_bytes, repl_bytes, n
-        )
+        valid_buffer = np.empty(0, dtype=np.uint8)
     else:
-        valid_buffer = data.buffers()[0].slice(data.offset // 8)
+        valid_buffer = _buffer_to_view(data.buffers()[0])
+
+    output_offsets, output_buffer = _text_replace_case_sensitive_numba(
+        len(data), valid_buffer, data.offset, offsets_buffer, data_buffer,
+        pat_bytes, repl_bytes, max_repl
+    )
+
+    if data.null_count == 0:
+        output_valid = None
+    else:
+        output_valid = data.buffers()[0].slice(data.offset // 8)
         if data.offset % 8 != 0:
-            valid_buffer = shift_unaligned_bitmap(
-                valid_buffer, data.offset % 8, len(data)
+            output_valid = shift_unaligned_bitmap(
+                output_valid, data.offset % 8, len(data)
             )
 
-        valid = _buffer_to_view(data.buffers()[0])
-        output_buffer, output_offsets = _text_replace_case_sensitive_numba(
-            len(data), valid, data.offset, offsets, data_buffer, pat_bytes, repl_bytes, n
-        )
-
-
     buffers = [
-        valid_buffer, pa.py_buffer(output_offsets), pa.py_buffer(output_buffer)
+        output_valid, pa.py_buffer(output_offsets), pa.py_buffer(output_buffer)
     ]
     return pa.Array.from_buffers(
         pa.string(), len(data), buffers, data.null_count
