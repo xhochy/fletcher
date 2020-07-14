@@ -1,3 +1,4 @@
+from inspect import getmodule
 from typing import Optional
 
 import hypothesis.strategies as st
@@ -169,9 +170,39 @@ def test_text_zfill(data, fletcher_variant):
     tm.assert_series_equal(result_fr, result_pd)
 
 
-def test_fr_str_accessor():
-    ser_pd = pd.Series(["a", "b"])
+def test_fr_str_accessor(fletcher_variant):
 
-    ser_pd.fr_str.startswith
+    data = ["a", "b"]
+    ser_pd = pd.Series(data)
 
-    ser_pd.fr_str.split
+    pd_stringmethods = getmodule(pd.core.strings.StringMethods).__name__  # type: ignore
+    fr_stringmethods = getmodule(fr.string_array).__name__  # type: ignore
+
+    # method available in both
+    assert (
+        getmodule(ser_pd.fr_str.startswith).__name__ == pd_stringmethods  # type: ignore
+    )
+    # pandas strings only method
+    assert (
+        getmodule(ser_pd.fr_str._make_accessor).__name__  # type: ignore
+        == pd_stringmethods
+    )
+
+    # test fletcher functionality and fallback to pandas
+    arrow_data = pa.array(data, type=pa.string())
+    if fletcher_variant == "chunked":
+        fr_array = fr.FletcherChunkedArray(arrow_data)
+    else:
+        fr_array = fr.FletcherContinuousArray(arrow_data)
+
+    ser_fr = pd.Series(fr_array)
+
+    # method available in both
+    assert (
+        getmodule(ser_fr.fr_str.startswith).__name__ == fr_stringmethods  # type: ignore
+    )
+    # pandas strings only method
+    assert (
+        getmodule(ser_fr.fr_str._make_accessor).__name__  # type: ignore
+        == pd_stringmethods
+    )
