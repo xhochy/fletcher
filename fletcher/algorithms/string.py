@@ -7,7 +7,10 @@ from numba import prange
 
 from fletcher._algorithms import _buffer_to_view, _merge_valid_bitmaps
 from fletcher._compat import njit
-from fletcher.algorithms.string_builder_jit import StringArrayBuilder
+from fletcher.algorithms.string_builder_jit import (
+    StringArrayBuilder,
+    finalize_string_array,
+)
 from fletcher.algorithms.utils.chunking import (
     _calculate_chunk_offsets,
     _combined_in_chunk_offsets,
@@ -321,8 +324,15 @@ def get_utf8_size(first_byte: int):
         return 4
 
 
+@apply_per_chunk
+def _slice_handle_chunk(pa_arr, start, end, step):
+    offsets, data = _extract_string_buffers(pa_arr)
+    res = _slice(offsets, data, start, end, step)
+    return finalize_string_array(res, pa.string())
+
+
 @njit
-def _slice(offsets, data, start, end, step):
+def _slice(offsets, data, start: int, end: int, step: int) -> StringArrayBuilder:
     """
     Currently: assumes step is positive and 1, and positive bounds
     """
