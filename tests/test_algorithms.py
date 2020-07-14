@@ -24,6 +24,7 @@ from fletcher.algorithms.utils.chunking import (
     _combined_in_chunk_offsets,
     _in_chunk_offsets,
 )
+import fletcher.algorithms.string_builder as sb2
 
 
 def _is_na(a):
@@ -268,28 +269,38 @@ def test_merge_valid_bitmaps():
     npt.assert_array_equal(result, expected)
 
 
-def test_stringbuilder():
+@pytest.fixture(params=["jit", "nojit"], scope="session")
+def string_bulder_variant(request):
+    """Whether to test the chunked or continuous implementation."""
+    return request.param
+
+
+def test_stringbuilder(string_bulder_variant):
+    if string_bulder_variant == "nojit":
+        sb = sb2.StringArrayBuilder
+    else:
+        sb = StringArrayBuilder
     _stringbuilder_test_(
         ["", "", "", "", None, None, None, None, ""],
-        pa.array(["", "", "", "", None, None, None, None, ""]),
+        pa.array(["", "", "", "", None, None, None, None, ""]), sb
     )
-    _stringbuilder_test_([], pa.array([]))
-    _stringbuilder_test_([""], pa.array([""]))
-    _stringbuilder_test_([None], pa.array([None]))
-    _stringbuilder_test_(["a"], pa.array(["a"]))
-    _stringbuilder_test_(["aa"], pa.array(["aa"]))
-    _stringbuilder_test_(["", None], pa.array(["", None]))
-    _stringbuilder_test_(["a", None], pa.array(["a", None]))
-    _stringbuilder_test_([None, ""], pa.array([None, ""]))
-    _stringbuilder_test_([None, "a"], pa.array([None, "a"]))
+    _stringbuilder_test_([], pa.array([]), sb)
+    _stringbuilder_test_([""], pa.array([""]), sb)
+    _stringbuilder_test_([None], pa.array([None]), sb)
+    _stringbuilder_test_(["a"], pa.array(["a"]), sb)
+    _stringbuilder_test_(["aa"], pa.array(["aa"]), sb)
+    _stringbuilder_test_(["", None], pa.array(["", None]), sb)
+    _stringbuilder_test_(["a", None], pa.array(["a", None]), sb)
+    _stringbuilder_test_([None, ""], pa.array([None, ""]), sb)
+    _stringbuilder_test_([None, "a"], pa.array([None, "a"]), sb)
     _stringbuilder_test_(
         ["", "", "", "", None, None, None, None, ""],
-        pa.array(["", "", "", "", None, None, None, None, ""]),
+        pa.array(["", "", "", "", None, None, None, None, ""]), sb
     )
 
 
-def _stringbuilder_test_(values, expected):
-    builder = StringArrayBuilder(0)
+def _stringbuilder_test_(values, expected, string_array_builder):
+    builder = string_array_builder(0)
     for value in values:
         if value is None:
             builder.append_null()
