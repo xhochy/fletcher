@@ -9,6 +9,7 @@ import pyarrow as pa
 import pytest
 from hypothesis import given, settings
 
+import fletcher.algorithms.string_builder as sb2
 from fletcher._algorithms import (
     _extract_data_buffer_as_np_array,
     _merge_valid_bitmaps,
@@ -24,7 +25,6 @@ from fletcher.algorithms.utils.chunking import (
     _combined_in_chunk_offsets,
     _in_chunk_offsets,
 )
-import fletcher.algorithms.string_builder as sb2
 
 
 def _is_na(a):
@@ -275,28 +275,45 @@ def string_bulder_variant(request):
     return request.param
 
 
-def test_stringbuilder(string_bulder_variant):
+@pytest.fixture(
+    params=[
+        ["\x80"],
+        [],
+        [""],
+        [None],
+        ["a"],
+        ["aa"],
+        ["", None],
+        ["a", None],
+        [None, ""],
+        [None, "a"],
+        ["", "", "", "", None, None, None, None, ""],
+    ],
+    scope="session",
+)
+def string_builder_test_data(request):
+    """Whether to test the chunked or continuous implementation."""
+    return request.param
+
+
+def test_stringbuilder(string_bulder_variant, string_builder_test_data):
     if string_bulder_variant == "nojit":
         sb = sb2.StringArrayBuilder
     else:
         sb = StringArrayBuilder
     _stringbuilder_test_(
-        ["", "", "", "", None, None, None, None, ""],
-        pa.array(["", "", "", "", None, None, None, None, ""]), sb
+        string_builder_test_data, pa.array(string_builder_test_data), sb
     )
-    _stringbuilder_test_([], pa.array([]), sb)
-    _stringbuilder_test_([""], pa.array([""]), sb)
-    _stringbuilder_test_([None], pa.array([None]), sb)
-    _stringbuilder_test_(["a"], pa.array(["a"]), sb)
-    _stringbuilder_test_(["aa"], pa.array(["aa"]), sb)
-    _stringbuilder_test_(["", None], pa.array(["", None]), sb)
-    _stringbuilder_test_(["a", None], pa.array(["a", None]), sb)
-    _stringbuilder_test_([None, ""], pa.array([None, ""]), sb)
-    _stringbuilder_test_([None, "a"], pa.array([None, "a"]), sb)
-    _stringbuilder_test_(
-        ["", "", "", "", None, None, None, None, ""],
-        pa.array(["", "", "", "", None, None, None, None, ""]), sb
-    )
+
+
+@settings(deadline=None)
+@given(data=st.lists(st.one_of(st.text(), st.none())))
+def test_stringbuilder_auto(string_bulder_variant, data):
+    if string_bulder_variant == "nojit":
+        sb = sb2.StringArrayBuilder
+    else:
+        sb = StringArrayBuilder
+    _stringbuilder_test_(data, pa.array(data), sb)
 
 
 def _stringbuilder_test_(values, expected, string_array_builder):
@@ -305,6 +322,7 @@ def _stringbuilder_test_(values, expected, string_array_builder):
         if value is None:
             builder.append_null()
         else:
-            builder.append_value(bytes(value, encoding="utf-8"), len(value))
+            encoded_value = bytes(value, encoding="utf-8")
+            builder.append_value(encoded_value, len(encoded_value))
     result = finalize_string_array(builder, pa.string())
     npt.assert_array_equal(result, expected)
