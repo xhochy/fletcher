@@ -840,7 +840,7 @@ class TestBaseArithmeticOpsTests(BaseArithmeticOpsTests):
                     other_is_np_int64 = (
                         isinstance(other, pd.Series)
                         and isinstance(other.values, np.ndarray)
-                        and other.dtype.char == "l"
+                        and other.dtype.char in ("q", "l")
                     )
                     if (
                         pa.types.is_integer(arrow_dtype)
