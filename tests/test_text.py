@@ -170,8 +170,7 @@ def test_text_zfill(data, fletcher_variant):
     tm.assert_series_equal(result_fr, result_pd)
 
 
-def test_fr_str_accessor(fletcher_variant):
-
+def test_fr_str_accessor(fletcher_array):
     data = ["a", "b"]
     ser_pd = pd.Series(data)
 
@@ -190,11 +189,7 @@ def test_fr_str_accessor(fletcher_variant):
 
     # test fletcher functionality and fallback to pandas
     arrow_data = pa.array(data, type=pa.string())
-    if fletcher_variant == "chunked":
-        fr_array = fr.FletcherChunkedArray(arrow_data)
-    else:
-        fr_array = fr.FletcherContinuousArray(arrow_data)
-
+    fr_array = fletcher_array(arrow_data)
     ser_fr = pd.Series(fr_array)
 
     # method available in both
