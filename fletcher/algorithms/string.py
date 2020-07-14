@@ -332,9 +332,6 @@ def _do_strip(valid_buffer, offsets, data_buffer, len_data, to_strip, inout_buil
             inout_builder.append_null()
         prev_offset = crr_offset
 
-    result_array = finalize_string_array(inout_builder, pa.string())
-    return result_array
-
 
 @njit
 def _startswith(sa, needle, na, offset, out):

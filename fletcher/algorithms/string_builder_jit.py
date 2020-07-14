@@ -8,11 +8,13 @@ from cffi import FFI
 ffi = FFI()
 ffi.cdef("void free(void* ptr);")
 ffi.cdef("void* malloc(size_t size);")
-ffi.cdef("void* memcpy( void *dest, const void *src, size_t count );")
+ffi.cdef("void* memset(void * ptr, int value, size_t num);")
+ffi.cdef("void* memcpy(void *dest, const void *src, size_t count);")
 libc = ffi.dlopen(None)
 malloc = libc.malloc
 free = libc.free
 memcpy = libc.memcpy
+memset = libc.memset
 
 
 @numba.jitclass(
@@ -32,8 +34,9 @@ class ByteVector:
     """
 
     def __init__(self, initial_size: int):
-        self.ptr = malloc(initial_size)
-        self.capacity = max(initial_size, 5)
+        self.capacity = max(initial_size, 8)
+        self.ptr = malloc(self.capacity)
+        memset(self.ptr, 0, self.capacity)
         self.buf = numba.carray(self.ptr, self.capacity, numba.byte)
         self.size = 0
 
@@ -43,14 +46,14 @@ class ByteVector:
     def append(self, byte):
         """Append a single byte to the stream."""
         if self.size + 1 > self.capacity:
-            self.expand()
+            self.expand(self.size + 1)
         self.buf[self.size] = byte
         self.size += 1
 
     def append_uint32(self, i32):
         """Append an unsigned 32bit integer."""
         if self.size + 4 > self.capacity:
-            self.expand()
+            self.expand(self.size + 4)
         self.buf[self.size] = i32 & 0xFF
         self.buf[self.size + 1] = (i32 & 0xFF00) >> 8
         self.buf[self.size + 2] = (i32 & 0xFF0000) >> 16
@@ -60,7 +63,7 @@ class ByteVector:
     def append_int16(self, i16):
         """Append a signed 16bit integer."""
         if self.size + 2 > self.capacity:
-            self.expand()
+            self.expand(self.size + 2)
         self.buf[self.size] = i16 & 0xFF
         self.buf[self.size + 1] = (i16 & 0xFF00) >> 8
         self.size += 2
@@ -68,7 +71,7 @@ class ByteVector:
     def append_int32(self, i32):
         """Append a signed 32bit integer."""
         if self.size + 4 > self.capacity:
-            self.expand()
+            self.expand(self.size + 4)
         self.buf[self.size] = i32 & 0xFF
         self.buf[self.size + 1] = (i32 & 0xFF00) >> 8
         self.buf[self.size + 2] = (i32 & 0xFF0000) >> 16
@@ -78,7 +81,7 @@ class ByteVector:
     def append_int64(self, i64):
         """Append a signed 64bit integer."""
         if self.size + 8 > self.capacity:
-            self.expand()
+            self.expand(self.size + 8)
         self.buf[self.size] = i64 & 0xFF
         self.buf[self.size + 1] = (i64 & 0xFF00) >> 8
         self.buf[self.size + 2] = (i64 & 0xFF0000) >> 16
@@ -92,20 +95,22 @@ class ByteVector:
     def append_bytes(self, ptr, length):
         """Append a range of bytes."""
         while self.size + length > self.capacity:
-            self.expand()
+            self.expand(self.size + length)
         for i in range(length):
             self.buf[self.size] = ptr[i]
             self.size += 1
 
-    def expand(self):
+    def expand(self, min_capacity):
         """
         Double the size of the underlying buffer and copy over the existing data.
 
         This allocates a new buffer and copies the data.
         """
-        new_ptr = malloc(2 * self.capacity)
+        new_capacity = max(min_capacity, 2 * self.capacity)
+        new_ptr = malloc(new_capacity)  # TODO: consider using realloc instead of malloc+memcpy+free
+        memset(new_ptr, 0, new_capacity)
         memcpy(new_ptr, self.ptr, self.capacity)
-        self.capacity = 2 * self.capacity
+        self.capacity = new_capacity
         free(self.ptr)
         self.ptr = new_ptr
         self.buf = numba.carray(self.ptr, self.capacity, numba.byte)
@@ -128,14 +133,15 @@ class BitVector:
     """
 
     def __init__(self, initial_size: int):
-        self.ptr = malloc(initial_size)
-        self.capacity = max(initial_size, 5)
+        self.capacity = max(initial_size, 4)
+        self.ptr = malloc(self.capacity)
+        memset(self.ptr, 0, self.capacity)
         self.buf = numba.carray(self.ptr, self.capacity, numba.byte)
         self.size = 0
 
     def append_true(self):
         if self.size + 1 > (8 * self.capacity):
-            self.expand()
+            self.expand(self.size + 1)
 
         byte_offset = self.size // 8
         bit_offset = self.size % 8
@@ -146,7 +152,7 @@ class BitVector:
 
     def append_false(self):
         if self.size + 1 > (8 * self.capacity):
-            self.expand()
+            self.expand(self.size + 1)
 
         byte_offset = self.size // 8
         bit_offset = self.size % 8
@@ -158,25 +164,26 @@ class BitVector:
     def delete(self):
         free(self.ptr)
 
-    def expand(self):
+    def expand(self, min_bit_capacity):
         """
         Double the size of the underlying buffer and copy over the existing data.
 
         This allocates a new buffer and copies the data.
         """
-        new_ptr = malloc(2 * self.capacity)
+        new_capacity = max(2 * self.capacity, (min_bit_capacity + 7) // 8)
+        new_ptr = malloc(new_capacity)
+        memset(new_ptr, 0, new_capacity)
         memcpy(new_ptr, self.ptr, self.capacity)
-        self.capacity = 2 * self.capacity
+        self.capacity = new_capacity
         free(self.ptr)
         self.ptr = new_ptr
         self.buf = numba.carray(self.ptr, self.capacity, numba.byte)
-        print("Cap: ", {self.capacity})
 
 
 @numba.jit
 def byte_for_bits(num_bits):
     # We need to use math as numpy would return a float: https://github.com/numpy/numpy/issues/9068
-    return math.ceil(num_bits / 8)
+    return (num_bits + 7) // 8
 
 
 def bit_vector_to_pa_boolarray(bv: BitVector) -> pa.BooleanArray:
