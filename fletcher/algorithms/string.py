@@ -362,28 +362,33 @@ def _text_replace_case_sensitive_nulls(
     TODO:
     """
 
-    failure_function = _compute_kmp_failure_function(pat)
+    failure_function = compute_kmp_failure_function(pat)
 
     # Computes output buffer offsets
     output_offsets = np.empty(length + 1, dtype=np.int32)
     cumulative_offset = 0
+
     for row_idx in range(length):
         output_offsets[row_idx] = cumulative_offset
         if not _check_valid_row(row_idx, valid_bits, valid_offset):
             continue
 
-        matched_until = 0
+        matched_len = 0
         matches_done = 0
-        for str_idx in range(offsets[row_idx], offsets[row_idx + 1]):
-            while matched_until != -1 and pat[matched_until] != data[str_idx]:
-                matched_until = failure_function[matched_until]
 
-            cumulative_offset += 1
-            matched_until += 1
-            if matched_until == len(pat) and matches_done < n:
-                cumulative_offset += len(repl) - len(pat)
+        for str_idx in range(offsets[row_idx], offsets[row_idx + 1]):
+            matched_len = append_to_kmp_matching(
+                matched_len, data[str_idx], pat, failure_function
+            )
+
+            if matched_len == len(pat):
                 matches_done += 1
-                matched_until = 0
+                matched_len = 0
+                if matches_done == n:
+                    break
+
+        cumulative_offset += offsets[row_idx + 1] - offsets[row_idx]
+        cumulative_offset += matches_done * (len(repl) - len(pat))
 
     output_offsets[length] = cumulative_offset
 
@@ -393,24 +398,26 @@ def _text_replace_case_sensitive_nulls(
         if not _check_valid_row(row_idx, valid_bits, valid_offset):
             continue
 
-        matched_until = 0
+        matched_len = 0
         matches_done = 0
         pos_output = output_offsets[row_idx]
-        for str_idx in range(offsets[row_idx], offsets[row_idx + 1]):
-            while matched_until != -1 and pat[matched_until] != data[str_idx]:
-                matched_until = failure_function[matched_until]
 
+        for str_idx in range(offsets[row_idx], offsets[row_idx + 1]):
             output_buffer[pos_output] = data[str_idx]
             pos_output += 1
-            matched_until += 1
 
-            if matched_until == len(pat) and matches_done < n:
+            matched_len = append_to_kmp_matching(
+                matched_len, data[str_idx], pat, failure_function
+            )
+
+            if matched_len == len(pat) and matches_done < n:
                 pos_output -= len(pat)
-                for i in range(len(repl)):
-                    output_buffer[pos_output] = repl[i]
+                for char in repl:
+                    output_buffer[pos_output] = char
                     pos_output += 1
+
                 matches_done += 1
-                matched_until = 0
+                matched_len = 0
 
     return output_buffer, output_offsets
 
