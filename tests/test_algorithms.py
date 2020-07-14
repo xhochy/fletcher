@@ -295,7 +295,7 @@ def string_bulder_variant(request):
     scope="session",
 )
 def string_builder_test_data(request):
-    """Whether to test the chunked or continuous implementation."""
+    """Explicit test data for test_stringbuilder."""
     return request.param
 
 

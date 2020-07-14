@@ -275,9 +275,7 @@ def _text_strip(data: pa.Array, to_strip) -> pa.Array:
 
 def _do_text_strip(data: pa.Array, to_strip) -> pa.Array:
     """
-    Strip the characters of ``to_strip`` from each element in the data.
-
-    Default strip characters are whitespaces: " ", "\t", "\r", "\n"
+    Strip the characters of ``to_strip`` from start and end of each element in the data.
     """
     if len(data) == 0:
         return data
@@ -307,16 +305,88 @@ def _do_text_strip(data: pa.Array, to_strip) -> pa.Array:
 
 
 @njit
+def _utf8_chr4(arr):
+    return chr(
+        np.int32((arr[0] & 0x7) << 18)
+        | np.int32((arr[1] & 0x3F) << 12)
+        | np.int32((arr[2] & 0x3F) << 6)
+        | np.int32((arr[3] & 0x3F))
+    )
+
+
+@njit
+def _utf8_chr3(arr):
+    return chr(
+        np.int32((arr[0] & 0xF)) << 12
+        | np.int32((arr[1] & 0x3F) << 6)
+        | np.int32((arr[2] & 0x3F))
+    )
+
+
+@njit
+def _utf8_chr2(arr):
+    return chr(np.int32((arr[0] & 0x1F)) << 6 | np.int32((arr[1] & 0x3F)))
+
+
+@njit
 def _extract(last_offset, offset, data_buffer, to_strip):
     if last_offset < offset:
         start_offset = last_offset
-        while start_offset < offset and chr(data_buffer[start_offset]) in to_strip:
-            start_offset += 1
+        while start_offset < offset:
+            if (data_buffer[start_offset] & 0x80) == 0:
+                if chr(data_buffer[start_offset]) in to_strip:
+                    start_offset += 1
+                else:
+                    break
+            # for utf-8 encoding, see: https://en.wikipedia.org/wiki/UTF-8
+            elif (
+                (data_buffer[start_offset] & 0xF8) == 0xF0
+                and start_offset + 3 < offset
+                and _utf8_chr4(data_buffer[start_offset : start_offset + 4]) in to_strip
+            ):
+                start_offset += 4
+            elif (
+                (data_buffer[start_offset] & 0xF0) == 0xE0
+                and start_offset + 2 < offset
+                and _utf8_chr3(data_buffer[start_offset : start_offset + 3]) in to_strip
+            ):
+                start_offset += 3
+            elif (
+                (data_buffer[start_offset] & 0xE0) == 0xC0
+                and start_offset + 1 < offset
+                and _utf8_chr2(data_buffer[start_offset : start_offset + 2]) in to_strip
+            ):
+                start_offset += 2
+            else:
+                break
         end_offset = offset
-        while (
-            end_offset > start_offset and chr(data_buffer[end_offset - 1]) in to_strip
-        ):
-            end_offset -= 1
+        while end_offset > start_offset:
+            if (data_buffer[end_offset - 1] & 0x80) == 0:
+                if chr(data_buffer[end_offset - 1]) in to_strip:
+                    end_offset -= 1
+                else:
+                    break
+            elif (
+                end_offset > start_offset + 3
+                and (data_buffer[end_offset - 4] & 0xF8) == 0xF0
+                and _utf8_chr4(data_buffer[end_offset - 4 : end_offset]) in to_strip
+            ):
+                end_offset -= 4
+            elif (
+                end_offset > start_offset + 2
+                and (data_buffer[end_offset - 3] & 0xF0) == 0xE0
+                and _utf8_chr3(data_buffer[end_offset - 3 : end_offset]) in to_strip
+            ):
+                end_offset -= 3
+            elif (
+                end_offset > start_offset + 1
+                and (data_buffer[end_offset - 2] & 0xE0) == 0xC0
+                and _utf8_chr2(data_buffer[end_offset - 2 : end_offset]) in to_strip
+            ):
+                end_offset -= 2
+            else:
+                break
+
         stripped_str = data_buffer[start_offset:end_offset]
     else:
         stripped_str = data_buffer[0:0]
