@@ -33,11 +33,18 @@ def _gen_string_pattern(
     pat_len = 3,
     pat = None,
     missing_cnt = 0,
-    charset = string.ascii_lowercase
+    charset = 'ab'
 ):
     charset = list(charset)
     if pat is None:
         pat = "".join(np.random.choice(charset, pat_len))
+    else:
+        pat_len = len(pat)
+
+    if max_str_len < pat_len:
+        raise ValueError
+    if missing_cnt > seq_len:
+        raise ValueError
 
     min_str_len = math.ceil(max_str_len * 0.5)
 
@@ -64,39 +71,38 @@ def _gen_string_pattern(
     return (seq, pat)
 
 
+def gen_parameter_product(params_dict):
+    params_list = list(params_dict.items())
+
+    iter_tuples = itertools.product(*[v for _, v in params_list])
+    param_names = [k for k, _ in params_list]
+
+    for test_tuple in iter_tuples:
+        yield {name: val for name, val in zip(param_names, test_tuple)}
+
+
 def _gen_many_string_patterns(seed = 1337):
     np.random.seed(seed)
-    parameter_vals = (
-        ("seq_len", [1, 2, 20, 30]),
-        ("max_str_len", [1, 10, 20, 50]),
-        ("max_pat_in_str", [1, 2, 5]),
-        ("pat", [1, 4, 10, "aab", "aaab"]),
-        ("missing_cnt", [0, 4]),
-        ("charset", [string.ascii_lowercase, "ab"]),
+
+    parameter_combinations = (
+        {"seq_len": [1, 2, 20, 30], "pat_len": [1, 5]},
+        {"max_str_len": [1, 10, 20, 50]},
+        {"max_pat_in_str": [1, 2, 5]},
+        {"pat_len": [1, 4, 10]},
+        {"pat": ["aab", "aaab", "a", "c"]},
+        {"missing_cnt": [0, 4]},
+        {"charset": [string.ascii_lowercase]},
     )
+    test_set = []
+    for params in parameter_combinations:
+        for kw in gen_parameter_product(params):
+            try:
+                test_set.append(_gen_string_pattern(**kw))
+            except ValueError:
+                # Ignore invalid parameter combinations
+                pass
 
-    iter_tuples = itertools.product(*[vals for name, vals in parameter_vals])
-    parameter_names = [name for name, vals in parameter_vals]
-
-    res = []
-    for test_tuple in iter_tuples:
-        t = {name: val for name, val in zip(parameter_names, test_tuple)}
-        #print(t)
-
-        if isinstance(t["pat"], int):
-            t["pat_len"] = t["pat"]
-            t["pat"] = None
-        else:
-            t["pat_len"] = len(t["pat"])
-
-        if t["max_str_len"] < t["pat_len"]:
-            continue
-        if t["missing_cnt"] > t["seq_len"]:
-            continue
-
-        res.append(_gen_string_pattern(**t))
-
-    return res
+    return test_set
 
 
 string_patterns = pytest.mark.parametrize(
@@ -138,17 +144,25 @@ def test_text_cat(data, fletcher_variant, fletcher_variant_2):
     tm.assert_series_equal(result_fr, result_pd)
 
 
-def _check_str_to_t(t, func, data, fletcher_variant, *args, **kwargs):
+def _check_str_to_t(
+    t, func, data, fletcher_variant, test_offset = 0, *args, **kwargs
+):
     """Check a .str. function that returns a series with type t."""
-    ser_pd = pd.Series(data, dtype=str)
-    ser_fr = _fr_series_from_data(data, fletcher_variant)
+    if test_offset > len(data):
+        return
+    tail_len = len(data) - test_offset
 
+    ser_pd = pd.Series(data, dtype=str).tail(tail_len)
     result_pd = getattr(ser_pd.str, func)(*args, **kwargs)
+
+    ser_fr = _fr_series_from_data(data, fletcher_variant).tail(tail_len)
     result_fr = getattr(ser_fr.fr_text, func)(*args, **kwargs)
+
     if result_fr.values.data.null_count > 0:
         result_fr = result_fr.astype(object)
     else:
         result_fr = result_fr.astype(t)
+
     tm.assert_series_equal(result_fr, result_pd)
 
 
@@ -194,6 +208,18 @@ def test_contains_no_regex_ascii(data, pat, expected, fletcher_variant):
         tm.assert_series_equal(result, expected)
 
 
+@many_string_patterns
+@pytest.mark.parametrize("test_offset", [0, 1])
+def test_contains_no_regex_case_sensitive(
+    data, pat, test_offset, fletcher_variant
+):
+    _check_str_to_bool(
+        "contains", data, fletcher_variant, test_offset=test_offset,
+        pat=pat, case=True, regex=False
+    )
+
+
+
 @string_patterns
 def test_contains_no_regex_ignore_case(data, pat, fletcher_variant):
     _check_str_to_bool(
@@ -229,21 +255,22 @@ def test_contains_regex_ignore_case(data, pat, fletcher_variant):
     )
 
 
-replace_values = pytest.mark.parametrize(
-    "repl", ['len4', 'flecher']
-)
-replace_n = pytest.mark.parametrize(
-    "n", [-1, 4]
-)
-
-
 @many_string_patterns
-@replace_values
-@replace_n
-def test_replace_no_regex_case(data, pat, repl, n, fletcher_variant):
+@pytest.mark.parametrize(
+    "repl, n, test_offset",
+    [
+        ("len4", -1, 0),
+        ("z", 2, 3),
+        ("", -1, 0),
+    ]
+)
+def test_replace_no_regex_case_sensitive(
+    data, pat, repl, n, test_offset, fletcher_variant
+):
     _check_str_to_str(
-        "replace", data, fletcher_variant, pat=pat, repl=repl, n=n, regex=False)
-    pass
+        "replace", data, fletcher_variant, test_offset=test_offset,
+        pat=pat, repl=repl, n=n, case=True, regex=False
+    )
 
 
 def _optional_len(x: Optional[str]) -> int:
