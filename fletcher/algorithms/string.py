@@ -3,7 +3,6 @@ from typing import Any, List, Tuple
 
 import numpy as np
 import pyarrow as pa
-from numba import jit
 
 from fletcher._algorithms import _buffer_to_view, _merge_valid_bitmaps
 from fletcher._compat import njit
@@ -269,46 +268,32 @@ def _text_contains_case_sensitive(data: pa.Array, pat: str) -> pa.Array:
     )
 
 
-def _compute_str_len(buffer: np.ndarray, i_start: int, i_end: int) -> int:
-    return (
-        np.bitwise_xor(np.right_shift(buffer[i_start:i_end], 6), 2)
-        .astype(dtype=bool)
-        .sum()
-    )
+@njit
+def _get_zstring(width: int, buffer: np.ndarray) -> np.ndarray:
+    num_zeroes = width
+    for i in np.bitwise_xor(np.right_shift(buffer, 6), 2):
+        if i != 0:
+            num_zeroes -= 1
+    if num_zeroes <= 0:
+        return buffer
+    # Create array of byte-representation of 0s concat'd with buffer
+    return np.concatenate((np.full(num_zeroes, 48, dtype=np.uint8), buffer), axis=0)
 
 
-@jit
+@njit
 def _zfill_nonnull(
     length: int, offsets: np.ndarray, data_buffer: np.ndarray, width: int
 ):
-
     str_builder = StringArrayBuilder(max(len(data_buffer), 2))
     for row_idx in range(length):
-
-        value = np.concatenate(
-            (
-                np.frombuffer(
-                    (
-                        max(
-                            0,
-                            width
-                            - _compute_str_len(
-                                data_buffer, offsets[row_idx], offsets[row_idx + 1]
-                            ),
-                        )
-                        * b"0"
-                    ),
-                    dtype=np.uint8,
-                ),
-                data_buffer[offsets[row_idx] : offsets[row_idx + 1]],
-            ),
-            axis=0,
+        value = _get_zstring(
+            width, data_buffer[offsets[row_idx] : offsets[row_idx + 1]]
         )
         str_builder.append_value(value, len(value))
     return str_builder
 
 
-@jit
+@njit
 def _zfill_nulls(
     length: int,
     valid_bits: np.ndarray,
@@ -329,25 +314,8 @@ def _zfill_nulls(
         if not valid:
             str_builder.append_null()
             continue
-
-        value = np.concatenate(
-            (
-                np.frombuffer(
-                    (
-                        max(
-                            0,
-                            width
-                            - _compute_str_len(
-                                data_buffer, offsets[row_idx], offsets[row_idx + 1]
-                            ),
-                        )
-                        * b"0"
-                    ),
-                    dtype=np.uint8,
-                ),
-                data_buffer[offsets[row_idx] : offsets[row_idx + 1]],
-            ),
-            axis=0,
+        value = _get_zstring(
+            width, data_buffer[offsets[row_idx] : offsets[row_idx + 1]]
         )
         str_builder.append_value(value, len(value))
     return str_builder
@@ -356,7 +324,6 @@ def _zfill_nulls(
 @apply_per_chunk
 def _zfill(data: pa.Array, width: int):
     offsets, data_buffer = _extract_string_buffers(data)
-
     if data.null_count == 0:
         builder = _zfill_nonnull(len(data), offsets, data_buffer, width)
     else:
