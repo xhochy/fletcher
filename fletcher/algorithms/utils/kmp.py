@@ -40,12 +40,10 @@ def compute_kmp_failure_function(pat: bytes) -> np.ndarray:
 
     return f
 
+
 @njit
 def append_to_kmp_matching(
-    matched_len: int,
-    character: int,
-    pat: bytes,
-    failure_function: np.ndarray
+    matched_len: int, character: int, pat: bytes, failure_function: np.ndarray
 ) -> np.ndarray:
     while matched_len > -1 and pat[matched_len] != character:
         matched_len = failure_function[matched_len]

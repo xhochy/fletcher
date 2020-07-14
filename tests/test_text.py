@@ -1,8 +1,7 @@
-from typing import Optional
-import string
-import math
 import itertools
-import collections
+import math
+import string
+from typing import Optional
 
 import hypothesis.strategies as st
 import numpy as np
@@ -11,7 +10,6 @@ import pandas.testing as tm
 import pyarrow as pa
 import pytest
 from hypothesis import given, settings
-
 
 import fletcher as fr
 
@@ -27,13 +25,13 @@ _basic_string_patterns = [
 
 
 def _gen_string_pattern(
-    seq_len = 20,
-    max_str_len = 20,
-    max_pat_in_str = 3,
-    pat_len = 3,
-    pat = None,
-    missing_cnt = 0,
-    charset = 'ab'
+    seq_len=20,
+    max_str_len=20,
+    max_pat_in_str=3,
+    pat_len=3,
+    pat=None,
+    missing_cnt=0,
+    charset="ab",
 ):
     charset = list(charset)
     if pat is None:
@@ -81,7 +79,7 @@ def gen_parameter_product(params_dict):
         yield {name: val for name, val in zip(param_names, test_tuple)}
 
 
-def _gen_many_string_patterns(seed = 1337):
+def _gen_many_string_patterns(seed=1337):
     np.random.seed(seed)
 
     parameter_combinations = (
@@ -105,14 +103,10 @@ def _gen_many_string_patterns(seed = 1337):
     return test_set
 
 
-string_patterns = pytest.mark.parametrize(
-    "data, pat",
-    _basic_string_patterns
-)
+string_patterns = pytest.mark.parametrize("data, pat", _basic_string_patterns)
 
 many_string_patterns = pytest.mark.parametrize(
-    "data, pat",
-    _basic_string_patterns + _gen_many_string_patterns()
+    "data, pat", _basic_string_patterns + _gen_many_string_patterns()
 )
 
 
@@ -144,9 +138,7 @@ def test_text_cat(data, fletcher_variant, fletcher_variant_2):
     tm.assert_series_equal(result_fr, result_pd)
 
 
-def _check_str_to_t(
-    t, func, data, fletcher_variant, test_offset = 0, *args, **kwargs
-):
+def _check_str_to_t(t, func, data, fletcher_variant, test_offset=0, *args, **kwargs):
     """Check a .str. function that returns a series with type t."""
     if test_offset > len(data):
         return
@@ -168,6 +160,7 @@ def _check_str_to_t(
 
 def _check_str_to_bool(func, data, fletcher_variant, *args, **kwargs):
     _check_str_to_t(bool, func, data, fletcher_variant, *args, **kwargs)
+
 
 def _check_str_to_str(func, data, fletcher_variant, *args, **kwargs):
     _check_str_to_t(str, func, data, fletcher_variant, *args, **kwargs)
@@ -210,14 +203,16 @@ def test_contains_no_regex_ascii(data, pat, expected, fletcher_variant):
 
 @many_string_patterns
 @pytest.mark.parametrize("test_offset", [0, 1])
-def test_contains_no_regex_case_sensitive(
-    data, pat, test_offset, fletcher_variant
-):
+def test_contains_no_regex_case_sensitive(data, pat, test_offset, fletcher_variant):
     _check_str_to_bool(
-        "contains", data, fletcher_variant, test_offset=test_offset,
-        pat=pat, case=True, regex=False
+        "contains",
+        data,
+        fletcher_variant,
+        test_offset=test_offset,
+        pat=pat,
+        case=True,
+        regex=False,
     )
-
 
 
 @string_patterns
@@ -257,19 +252,21 @@ def test_contains_regex_ignore_case(data, pat, fletcher_variant):
 
 @many_string_patterns
 @pytest.mark.parametrize(
-    "repl, n, test_offset",
-    [
-        ("len4", -1, 0),
-        ("z", 2, 3),
-        ("", -1, 0),
-    ]
+    "repl, n, test_offset", [("len4", -1, 0), ("z", 2, 3), ("", -1, 0)]
 )
 def test_replace_no_regex_case_sensitive(
     data, pat, repl, n, test_offset, fletcher_variant
 ):
     _check_str_to_str(
-        "replace", data, fletcher_variant, test_offset=test_offset,
-        pat=pat, repl=repl, n=n, case=True, regex=False
+        "replace",
+        data,
+        fletcher_variant,
+        test_offset=test_offset,
+        pat=pat,
+        repl=repl,
+        n=n,
+        case=True,
+        regex=False,
     )
 
 

@@ -12,8 +12,8 @@ from fletcher.algorithms.utils.chunking import (
     apply_per_chunk,
 )
 from fletcher.algorithms.utils.kmp import (
+    append_to_kmp_matching,
     compute_kmp_failure_function,
-    append_to_kmp_matching
 )
 
 
@@ -149,9 +149,7 @@ def _text_contains_case_sensitive_nonnull(
 
 
 @njit
-def _check_valid_row(
-    row_idx: int, valid_bits: np.ndarray, valid_offset: int
-) -> bool:
+def _check_valid_row(row_idx: int, valid_bits: np.ndarray, valid_offset: int) -> bool:
     """ Check whether the current entry is null. """
     byte_offset = (row_idx + valid_offset) // 8
     bit_offset = (row_idx + valid_offset) % 8
@@ -191,6 +189,7 @@ def shift_unaligned_bitmap(
 
     return pa.py_buffer(output)
 
+
 @njit
 def _text_count_case_sensitive_numba(
     length: int,
@@ -208,9 +207,7 @@ def _text_count_case_sensitive_numba(
     has_nulls = valid_bits.size > 0
 
     for row_idx in range(length):
-        if (has_nulls and
-            not _check_valid_row(row_idx, valid_bits, valid_offset)
-        ):
+        if has_nulls and not _check_valid_row(row_idx, valid_bits, valid_offset):
             continue
 
         matched_len = 0
@@ -232,10 +229,7 @@ def _text_count_case_sensitive_numba(
 
 
 @apply_per_chunk
-def _text_count_case_sensitive(
-        data: pa.Array,
-        pat: str
-) -> pa.Array:
+def _text_count_case_sensitive(data: pa.Array, pat: str) -> pa.Array:
     """
     For each row in the data computes the number of occurrences of the pattern ``pat``.
     This implementation does basic byte-by-byte comparison and is independent
@@ -253,12 +247,7 @@ def _text_count_case_sensitive(
         valid_buffer = _buffer_to_view(data.buffers()[0])
 
     output = _text_count_case_sensitive_numba(
-        len(data),
-        valid_buffer,
-        data.offset,
-        offsets_buffer,
-        data_buffer,
-        pat_bytes,
+        len(data), valid_buffer, data.offset, offsets_buffer, data_buffer, pat_bytes
     )
 
     if data.null_count == 0:
@@ -270,12 +259,8 @@ def _text_count_case_sensitive(
                 output_valid, data.offset % 8, len(data)
             )
 
-    buffers = [
-        output_valid, pa.py_buffer(output)
-    ]
-    return pa.Array.from_buffers(
-        pa.int64(), len(data), buffers, data.null_count
-    )
+    buffers = [output_valid, pa.py_buffer(output)]
+    return pa.Array.from_buffers(pa.int64(), len(data), buffers, data.null_count)
 
 
 @njit
@@ -302,9 +287,7 @@ def _text_contains_case_sensitive_numba(
     has_nulls = valid_bits.size > 0
 
     for row_idx in range(length):
-        if (has_nulls and
-            not _check_valid_row(row_idx, valid_bits, valid_offset)
-        ):
+        if has_nulls and not _check_valid_row(row_idx, valid_bits, valid_offset):
             continue
 
         matched_len = 0
@@ -335,10 +318,7 @@ def _text_contains_case_sensitive_numba(
 
 
 @apply_per_chunk
-def _text_contains_case_sensitive(
-        data: pa.Array,
-        pat: str
-) -> pa.Array:
+def _text_contains_case_sensitive(data: pa.Array, pat: str) -> pa.Array:
     """
     Check for each element in the data whether it contains the pattern ``pat``.
 
@@ -357,12 +337,7 @@ def _text_contains_case_sensitive(
         valid_buffer = _buffer_to_view(data.buffers()[0])
 
     output = _text_contains_case_sensitive_numba(
-        len(data),
-        valid_buffer,
-        data.offset,
-        offsets_buffer,
-        data_buffer,
-        pat_bytes,
+        len(data), valid_buffer, data.offset, offsets_buffer, data_buffer, pat_bytes
     )
 
     if data.null_count == 0:
@@ -374,12 +349,8 @@ def _text_contains_case_sensitive(
                 output_valid, data.offset % 8, len(data)
             )
 
-    buffers = [
-        output_valid, pa.py_buffer(output)
-    ]
-    return pa.Array.from_buffers(
-        pa.bool_(), len(data), buffers, data.null_count
-    )
+    buffers = [output_valid, pa.py_buffer(output)]
+    return pa.Array.from_buffers(pa.bool_(), len(data), buffers, data.null_count)
 
 
 @njit
@@ -405,9 +376,7 @@ def _text_replace_case_sensitive_numba(
     for row_idx in range(length):
         output_offsets[row_idx] = cumulative_offset
 
-        if (has_nulls and
-            not _check_valid_row(row_idx, valid_bits, valid_offset)
-        ):
+        if has_nulls and not _check_valid_row(row_idx, valid_bits, valid_offset):
             continue
 
         matched_len = 0
@@ -436,9 +405,7 @@ def _text_replace_case_sensitive_numba(
     output_buffer = np.empty(cumulative_offset, dtype=np.uint8)
     output_pos = 0
     for row_idx in range(length):
-        if (has_nulls and
-            not _check_valid_row(row_idx, valid_bits, valid_offset)
-        ):
+        if has_nulls and not _check_valid_row(row_idx, valid_bits, valid_offset):
             continue
 
         matched_len = 0
@@ -473,10 +440,7 @@ def _text_replace_case_sensitive_numba(
 
 @apply_per_chunk
 def _text_replace_case_sensitive(
-    data: pa.Array,
-    pat: str,
-    repl: str,
-    max_repl: int
+    data: pa.Array, pat: str, repl: str, max_repl: int
 ) -> pa.Array:
     """
     Replace occurrences of ``pat`` with ``repl`` in the Series/Index with some other string. For every
@@ -506,7 +470,7 @@ def _text_replace_case_sensitive(
         data_buffer,
         pat_bytes,
         repl_bytes,
-        max_repl
+        max_repl,
     )
 
     if data.null_count == 0:
@@ -518,12 +482,8 @@ def _text_replace_case_sensitive(
                 output_valid, data.offset % 8, len(data)
             )
 
-    buffers = [
-        output_valid, pa.py_buffer(output_offsets), pa.py_buffer(output_buffer)
-    ]
-    return pa.Array.from_buffers(
-        pa.string(), len(data), buffers, data.null_count
-    )
+    buffers = [output_valid, pa.py_buffer(output_offsets), pa.py_buffer(output_buffer)]
+    return pa.Array.from_buffers(pa.string(), len(data), buffers, data.null_count)
 
 
 @njit
