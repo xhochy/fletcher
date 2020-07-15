@@ -1,4 +1,3 @@
-from inspect import getmodule
 from typing import Optional
 
 import hypothesis.strategies as st
@@ -174,38 +173,23 @@ def test_fr_str_accessor(fletcher_array):
     data = ["a", "b"]
     ser_pd = pd.Series(data)
 
-    pd_stringmethods = getmodule(pd.core.strings.StringMethods).__name__  # type: ignore
-    fr_stringmethods = getmodule(fr.string_array).__name__  # type: ignore
-
-    # method available in both
-    assert (
-        getmodule(ser_pd.fr_str.startswith).__name__ == pd_stringmethods  # type: ignore
-    )
-    # pandas strings only method
-    assert (
-        getmodule(ser_pd.fr_str._make_accessor).__name__  # type: ignore
-        == pd_stringmethods
-    )
+    # object series is returned
+    s = ser_pd.fr_str.encode("utf8")
+    assert s.dtype == np.dtype("O")
 
     # test fletcher functionality and fallback to pandas
     arrow_data = pa.array(data, type=pa.string())
     fr_array = fletcher_array(arrow_data)
     ser_fr = pd.Series(fr_array)
-
-    # method available in both
-    assert (
-        getmodule(ser_fr.fr_str.startswith).__name__ == fr_stringmethods  # type: ignore
-    )
     # pandas strings only method
     s = ser_fr.fr_str.encode("utf8")
     assert isinstance(s.values, fr.FletcherBaseArray)
 
 
-@pytest.mark.xfail
 def test_fr_str_accessor_fail(fletcher_variant):
 
     data = [1, 2]
     ser_pd = pd.Series(data)
 
-    # this should fail
-    ser_pd.fr_str.startswith
+    with pytest.raises(Exception):
+        ser_pd.fr_str.startswith("a")
