@@ -8,7 +8,6 @@ import pandas as pd
 import pyarrow as pa
 import pytest
 from hypothesis import given, settings
-from hypothesis.core import Example
 
 import fletcher.algorithms.string_builder as sb1
 import fletcher.algorithms.string_builder_nojit as sb2
@@ -26,6 +25,7 @@ from fletcher.algorithms.utils.chunking import (
     _combined_in_chunk_offsets,
     _in_chunk_offsets,
 )
+from fletcher.testing import examples
 
 
 def _is_na(a):
@@ -38,18 +38,6 @@ def assert_allclose_na(a, b):
         pass
     else:
         npt.assert_allclose(a, b)
-
-
-def examples(example_list, example_kword):
-    def accept(test):
-        if not hasattr(test, "hypothesis_explicit_examples"):
-            test.hypothesis_explicit_examples = []
-        test.hypothesis_explicit_examples.extend(
-            [Example((), {example_kword: ex}) for ex in example_list]
-        )
-        return test
-
-    return accept
 
 
 @pytest.mark.parametrize(

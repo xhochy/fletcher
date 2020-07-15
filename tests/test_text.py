@@ -9,6 +9,7 @@ import pytest
 from hypothesis import given, settings
 
 import fletcher as fr
+from fletcher.testing import examples
 
 string_patterns = pytest.mark.parametrize(
     "data, pat",
@@ -169,8 +170,10 @@ def test_text_zfill(data, fletcher_variant):
     tm.assert_series_equal(result_fr, result_pd)
 
 
-@pytest.fixture(
-    params=[
+@settings(deadline=None)
+@given(data=st.lists(st.one_of(st.text(), st.none())))
+@examples(
+    example_list=[
         [],
         [""],
         [None],
@@ -197,24 +200,9 @@ def test_text_zfill(data, fletcher_variant):
     + [[chr(c)] for c in range(0x200C, 0x2030)]
     + [[chr(c)] for c in range(0x2060, 0x2070)]
     + [[chr(c)] for c in range(0x10FFFE, 0x110000)],
-    scope="session",
+    example_kword="data",
 )
-def strip_data(request):
-    """Explicit Test data for test_text_strip."""
-    return request.param
-
-
-def test_text_strip(fletcher_variant, strip_data):
-    _do_test_text_strip(fletcher_variant, strip_data)
-
-
-@settings(deadline=None)
-@given(data=st.lists(st.one_of(st.text(), st.none())))
-def test_text_strip_auto(fletcher_variant, data):
-    _do_test_text_strip(fletcher_variant, data)
-
-
-def _do_test_text_strip(fletcher_variant, data):
+def test_text_strip(fletcher_variant, data):
     print(
         f"Testing: {[''.join(['%x' % ord(c) for c in s]) if s is not None else None for s in data]}"
     )
