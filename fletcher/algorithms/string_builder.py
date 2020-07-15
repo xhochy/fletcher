@@ -7,15 +7,13 @@ import numba
 import numpy as np
 import pyarrow as pa
 
+# from cffi import FFI
 # ffi = FFI()
 # ffi.cdef("void free(void* ptr);")
 # ffi.cdef("void* malloc(size_t size);")
 # ffi.cdef("void* memset(void * ptr, int value, size_t num);")
 # ffi.cdef("void* memcpy(void *dest, const void *src, size_t count);")
 # libc = ffi.dlopen(None)
-
-# from cffi import FFI
-
 
 # libc = C.CDLL(find_library('c'))
 libc = C.cdll.LoadLibrary(cast(str, find_library("c")))
@@ -306,26 +304,26 @@ def finalize_string_array(sba, typ) -> pa.Array:
     valid_bits = pa.py_buffer(
         np.copy(
             # np.frombuffer(ffi.buffer(sba.valid_bits.buf, byte_for_bits(sba.valid_bits.size)), np.dtype('uint8'))
-            np.ctypeslib.as_array(
-                sba.valid_bits.buf, shape=(byte_for_bits(sba.valid_bits.size),)
-            )
-            # sba.valid_bits.buf[: byte_for_bits(sba.valid_bits.size)]
+            # np.ctypeslib.as_array(
+            #     sba.valid_bits.buf, shape=(byte_for_bits(sba.valid_bits.size),)
+            # )
+            sba.valid_bits.buf[: byte_for_bits(sba.valid_bits.size)]
         )
     )
 
     value_offsets = np.copy(
         # np.frombuffer(ffi.buffer(sba.value_offsets.buf, sba.value_offsets.size), np.dtype('uint8'))
-        np.ctypeslib.as_array(
-            sba.value_offsets.buf, shape=(byte_for_bits(sba.value_offsets.size),)
-        )
-        # sba.value_offsets.buf[: sba.value_offsets.size]
+        # np.ctypeslib.as_array(
+        #     sba.value_offsets.buf, shape=(byte_for_bits(sba.value_offsets.size),)
+        # )
+        sba.value_offsets.buf[: sba.value_offsets.size]
     )
     value_offsets = pa.py_buffer(value_offsets)
     data = pa.py_buffer(
         np.copy(
             # np.frombuffer(ffi.buffer(sba.data.buf, sba.data.size), np.dtype('uint8'))
-            np.ctypeslib.as_array(sba.data.buf, shape=(byte_for_bits(sba.data.size),))
-            # sba.data.buf[: sba.data.size]
+            # np.ctypeslib.as_array(sba.data.buf, shape=(byte_for_bits(sba.data.size),))
+            sba.data.buf[: sba.data.size]
         )
     )
     sba.delete()
