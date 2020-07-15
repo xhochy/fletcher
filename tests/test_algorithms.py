@@ -298,23 +298,19 @@ def string_builder_variant(request):
     example_kword="data",
 )
 def test_stringbuilder_auto(string_builder_variant, data):
-    _stringbuilder_test_(data, pa.array(data), string_builder_variant)
-
-
-def _stringbuilder_test_(values, expected, string_builder_variant):
     if string_builder_variant == "nojit":
         sb = sb2  # type: Any
     else:
         sb = sb1
     builder = sb.StringArrayBuilder(0)
-    for value in values:
+    for value in data:
         if value is None:
             builder.append_null()
         else:
             encoded_value = bytes(value, encoding="utf-8")
             builder.append_value(encoded_value, len(encoded_value))
     result = sb.finalize_string_array(builder, pa.string())
-    npt.assert_array_equal(result, expected)
+    npt.assert_array_equal(result, pa.array(data))
 
 
 @settings(deadline=None)
