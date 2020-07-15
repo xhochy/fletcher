@@ -195,8 +195,12 @@ def _text_count_case_sensitive_numba(
             if matched_len == len(pat):
                 output[row_idx] += 1
 
-                # `matched_len=0` ensures we don't count overlapping matches.
-                # If want to count them, we need to instead have:
+                # `matched_len=0` ensures overlapping matches are not counted.
+                # This matches the behavior of Python's builtin `count`
+                # function.
+                #
+                # If we wwanted to count overlapping matches, we would instead
+                # have:
                 #     matched_len = failure_function[matched_len]
                 matched_len = 0
 
