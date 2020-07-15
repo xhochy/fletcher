@@ -327,18 +327,37 @@ def get_utf8_size(first_byte: int):
 @apply_per_chunk
 def _slice_handle_chunk(pa_arr, start, end, step):
     offsets, data = _extract_string_buffers(pa_arr)
-    res = _slice(offsets, data, start, end, step)
+    valid = _buffer_to_view(pa_arr.buffers()[0])
+    res = _slice(offsets, data, valid, pa_arr.offset, start, end, step)
     return finalize_string_array(res, pa.string())
 
 
 @njit
-def _slice(offsets, data, start: int, end: int, step: int) -> StringArrayBuilder:
+def _slice(
+    offsets, data, valid_bits, valid_offset, start: int, end: int, step: int
+) -> StringArrayBuilder:
     """
-    Currently: assumes step is positive and 1, and positive bounds
+    Slice each string according to the (start, end, step) inputs.
+
+    This is implemented differently depending on the inputs:
+    - when step == 1: compute when the start and end bytes, then extract from the data
+    - when step > 1: advance to the start of the slice, then add elements to the
+        output string, skipping the next "step" characters until you reach the end.
     """
     builder = StringArrayBuilder(len(offsets) - 1)
 
     for i in prange(len(offsets) - 1):
+
+        if len(valid_bits) > 0:
+            byte_offset = (i + valid_offset) // 8
+            bit_offset = (i + valid_offset) % 8
+            mask = np.uint8(1 << bit_offset)
+            valid = valid_bits[byte_offset] & mask
+
+            if not valid:
+                builder.append_null()
+                continue
+
         str_len_bytes = offsets[i + 1] - offsets[i]
 
         char_idx = 0
