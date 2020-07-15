@@ -342,7 +342,7 @@ def _slice(offsets, data, start: int, end: int, step: int) -> StringArrayBuilder
         str_len_bytes = offsets[i + 1] - offsets[i]
 
         # To do: add more empty cases
-        if start > str_len_bytes:
+        if start > str_len_bytes and step > 0:
             builder.append_empty()
             continue
 
@@ -393,7 +393,7 @@ def _slice(offsets, data, start: int, end: int, step: int) -> StringArrayBuilder
 
         # Other: negative start, end, or step
         else:
-            char_bytes: List[int] = []
+            char_bytes: List[bytes] = []
             byte_idx = 0
 
             while byte_idx < str_len_bytes:
@@ -403,23 +403,23 @@ def _slice(offsets, data, start: int, end: int, step: int) -> StringArrayBuilder
                 )
                 byte_idx += char_size
 
-            include_bytes_2: List[int] = []
+            desired_bytes: List[bytes] = []
             # Convert start and end to positives here
             char_idx = start
 
             # Positive step
             if step > 0:
                 while (end is None or char_idx < end) and char_idx < len(char_bytes):
-                    include_bytes_2.append(char_bytes[char_idx])
+                    desired_bytes.append(char_bytes[char_idx])
                     char_idx += step
 
             # Negative step
             else:
                 while (end is None or char_idx > end) and char_idx >= 0:
                     if char_idx < len(char_bytes):
-                        include_bytes_2.append(char_bytes[char_idx])
+                        desired_bytes.append(char_bytes[char_idx])
                     char_idx += step
 
-            builder.append_value(include_bytes_2, len(include_bytes_2))
+            builder.append_value(desired_bytes, len(desired_bytes))
 
     return builder
