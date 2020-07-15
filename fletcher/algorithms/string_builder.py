@@ -232,6 +232,12 @@ class BitVector:
 
         self.size += 1
 
+    def get(self, idx):
+        byte_offset = idx // 8
+        bit_offset = idx % 8
+        mask = np.uint8(1 << bit_offset)
+        return self.buf[byte_offset] & mask != 0
+
     def delete(self):
         free(self.ptr)
 

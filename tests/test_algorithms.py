@@ -354,9 +354,9 @@ def _test_vector(string_builder_variant, data, np_type):
         assert getattr(vec, f"get_{type_str}")(idx) == np_type(data[idx])
 
 
-# @settings(deadline=None)
-# @given(data=st.lists(st.integers(0, 2 ** 8 - 1)))
-def test_vector8u_auto(string_builder_variant, data=[0, 0, 0, 0, 0]):
+@settings(deadline=None)
+@given(data=st.lists(st.integers(0, 2 ** 8 - 1)))
+def test_vector8u_auto(string_builder_variant, data):
     if string_builder_variant == "nojit":
         sb = sb2  # type: Any
     else:
@@ -373,3 +373,20 @@ def test_vector8u_auto(string_builder_variant, data=[0, 0, 0, 0, 0]):
         assert vec2.get_uint8(idx) == np.uint8(data[idx])
     for idx in range(len(data)):
         assert vec.get_uint8(idx + len(data)) == np.uint8(data[idx])
+
+
+@settings(deadline=None)
+@given(data=st.lists(st.integers(0, 1)))
+def test_bit_vector_auto(string_builder_variant, data):
+    if string_builder_variant == "nojit":
+        sb = sb2  # type: Any
+    else:
+        sb = sb1
+    vec = sb.BitVector(0)
+    for num in data:
+        if num != 0:
+            vec.append_true()
+        else:
+            vec.append_false()
+    for idx in range(len(data)):
+        assert vec.get(idx) == bool(data[idx])
