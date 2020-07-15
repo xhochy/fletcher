@@ -11,11 +11,14 @@ import fletcher as fr
         (["abcd", "defg", "h"], (1, 2, 1), ["b", "e", ""]),
         (["abcd", "defg", "hijk"], (1, 4, 2), ["bd", "eg", "ik"]),
         (["abcd", "defg", "hijk"], (0, -2, 1), ["ab", "de", "hi"]),  # not working
+        (["abcd", "defg", "hijk"], (-5, -2, 1), ["ab", "de", "hi"]),  # not working
         (["aécd", "d🙂fg", "écijk"], (1, 2, 1), ["é", "🙂", "c"]),
-        (["abcd", "defg", "hijk"], (1, 3, -1), ["cb", "fe", "ji"]),  # not working
+        (["abcd", "defg", "hijk"], (3, 1, -1), ["cb", "fe", "ji"]),  # not working
+        (["abcd", "defg", "hijk"], (5, 0, -2), ["db", "ge", "ki"]),  # not working
         (["abcd", "defg", "hijk"], (3, 20, 1), ["d", "g", "k"]),
         (["abcd", "defg", "hijk"], (10, 20, 1), ["", "", ""]),
         (["abcd", "defg", None], (10, 20, 1), ["", "", None]),
+        (["abcd", "defg", "hijk"], (1, None, 1), ["bcd", "efg", "ijk"]),
     ],
 )
 @pytest.mark.parametrize(
