@@ -7,10 +7,7 @@ from numba import prange
 
 from fletcher._algorithms import _buffer_to_view, _merge_valid_bitmaps
 from fletcher._compat import njit
-from fletcher.algorithms.string_builder_jit import (
-    StringArrayBuilder,
-    finalize_string_array,
-)
+from fletcher.algorithms.string_builder import StringArrayBuilder, finalize_string_array
 from fletcher.algorithms.utils.chunking import (
     _calculate_chunk_offsets,
     _combined_in_chunk_offsets,
@@ -319,6 +316,7 @@ def _slice_handle_chunk(pa_arr, start, end, step):
     valid = _buffer_to_view(pa_arr.buffers()[0])
     if step == 0:
         raise ValueError("step cannot be zero.")
+
     if start >= 0 and (end is None or end >= 0) and step >= 1:
         if step == 1:
             res = _slice_pos_inputs_nostep(
@@ -435,6 +433,8 @@ def _slice_pos_inputs_step(
             to_skip -= 1
 
         builder.append_value(include_bytes, len(include_bytes))
+        # print(include_bytes)
+        # print(len(include_bytes))
     return builder
 
 
