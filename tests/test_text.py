@@ -45,7 +45,7 @@ def test_text_cat(data, fletcher_variant, fletcher_variant_2):
     ser_fr_other = _fr_series_from_data(data, fletcher_variant_2)
 
     result_pd = ser_pd.str.cat(ser_pd)
-    result_fr = ser_fr.fr_text.cat(ser_fr_other)
+    result_fr = ser_fr.fr_strx.cat(ser_fr_other)
     result_fr = result_fr.astype(object)
     # Pandas returns np.nan for NA values in cat, keep this in line
     result_fr[result_fr.isna()] = np.nan
@@ -58,7 +58,7 @@ def _check_str_to_bool(func, data, fletcher_variant, *args, **kwargs):
     ser_fr = _fr_series_from_data(data, fletcher_variant)
 
     result_pd = getattr(ser_pd.str, func)(*args, **kwargs)
-    result_fr = getattr(ser_fr.fr_text, func)(*args, **kwargs)
+    result_fr = getattr(ser_fr.fr_strx, func)(*args, **kwargs)
     if result_fr.values.data.null_count > 0:
         result_fr = result_fr.astype(object)
     else:
@@ -97,7 +97,7 @@ def test_contains_no_regex_ascii(data, pat, expected, fletcher_variant):
     for i in range(len(data)):
         ser = fr_series.tail(len(data) - i)
         expected = fr_expected.tail(len(data) - i)
-        result = ser.fr_text.contains(pat, regex=False)
+        result = ser.fr_strx.contains(pat, regex=False)
         tm.assert_series_equal(result, expected)
 
 
@@ -162,8 +162,34 @@ def test_text_zfill(data, fletcher_variant):
     ser_fr = pd.Series(fr_array)
 
     result_pd = ser_pd.str.zfill(max_str_len + 1)
-    result_fr = ser_fr.fr_text.zfill(max_str_len + 1)
+    result_fr = ser_fr.fr_strx.zfill(max_str_len + 1)
     result_fr = result_fr.astype(object)
     # Pandas returns np.nan for NA values in cat, keep this in line
     result_fr[result_fr.isna()] = np.nan
     tm.assert_series_equal(result_fr, result_pd)
+
+
+def test_fr_str_accessor(fletcher_array):
+    data = ["a", "b"]
+    ser_pd = pd.Series(data)
+
+    # object series is returned
+    s = ser_pd.fr_str.encode("utf8")
+    assert s.dtype == np.dtype("O")
+
+    # test fletcher functionality and fallback to pandas
+    arrow_data = pa.array(data, type=pa.string())
+    fr_array = fletcher_array(arrow_data)
+    ser_fr = pd.Series(fr_array)
+    # pandas strings only method
+    s = ser_fr.fr_str.encode("utf8")
+    assert isinstance(s.values, fr.FletcherBaseArray)
+
+
+def test_fr_str_accessor_fail(fletcher_variant):
+
+    data = [1, 2]
+    ser_pd = pd.Series(data)
+
+    with pytest.raises(Exception):
+        ser_pd.fr_str.startswith("a")
