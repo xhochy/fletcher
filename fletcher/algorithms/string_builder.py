@@ -140,6 +140,11 @@ class StringArrayBuilder:
         self.data.append_bytes(ptr, length)
         self.value_offsets.append_uint32(self.current_offset)
 
+    def append_empty(self):
+        self.valid_bits.append_true()
+        self.value_offsets.append_uint32(self.current_offset)
+        self.length += 1
+
     def delete(self):
         # Free all resources
         self.valid_bits.delete()

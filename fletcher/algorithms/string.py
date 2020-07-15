@@ -344,6 +344,10 @@ def _slice(offsets, data, start: int, end: int, step: int) -> StringArrayBuilder
         char_idx = 0
         byte_idx = 0
 
+        if start > str_len_bytes:
+            builder.append_empty()
+            continue
+
         while char_idx < start and byte_idx < str_len_bytes:
             char_idx += 1
             byte_idx += get_utf8_size(data[offsets[i] + byte_idx])
