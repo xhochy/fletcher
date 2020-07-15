@@ -403,23 +403,23 @@ def _slice(offsets, data, start: int, end: int, step: int) -> StringArrayBuilder
                 )
                 byte_idx += char_size
 
-            desired_bytes: List[bytes] = []
+            include_bytes: List[bytes] = []  # type: ignore
             # Convert start and end to positives here
             char_idx = start
 
             # Positive step
             if step > 0:
                 while (end is None or char_idx < end) and char_idx < len(char_bytes):
-                    desired_bytes.append(char_bytes[char_idx])
+                    include_bytes.extend(char_bytes[char_idx])  # type: ignore
                     char_idx += step
 
             # Negative step
             else:
                 while (end is None or char_idx > end) and char_idx >= 0:
                     if char_idx < len(char_bytes):
-                        desired_bytes.append(char_bytes[char_idx])
+                        include_bytes.extend(char_bytes[char_idx])  # type: ignore
                     char_idx += step
 
-            builder.append_value(desired_bytes, len(desired_bytes))
+            builder.append_value(include_bytes, len(include_bytes))
 
     return builder
