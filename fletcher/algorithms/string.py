@@ -270,6 +270,10 @@ def _text_contains_case_sensitive(data: pa.Array, pat: str) -> pa.Array:
 
 @njit
 def _get_zstring(width: int, buffer: np.ndarray, temp_buffer: np.ndarray) -> np.ndarray:
+    """
+    Compute length of a bytestring in ``buffer``, prepend with '0' characters up to ``width``
+    (inside of ``temp_buffer``) and fill the rest of ``temp_buffer`` with actual string values.
+    """
     num_zeros = width
     mask = 192  # corresponds to 11000000
     for i in np.bitwise_and(buffer, mask):
@@ -326,6 +330,7 @@ def _zfill_nulls(
         if not valid:
             str_builder.append_null()
             continue
+
         value = _get_zstring(
             width, data_buffer[offsets[row_idx] : offsets[row_idx + 1]], temp_val_buffer
         )
@@ -334,6 +339,11 @@ def _zfill_nulls(
 
 @apply_per_chunk
 def _zfill(data: pa.Array, width: int) -> pa.Array:
+    """
+    Prepend each element in the data with '0' characters up to ``width``.
+
+    Nulls remain unchanged.
+    """
     offsets, data_buffer = _extract_string_buffers(data)
     str_builder = StringArrayBuilder(max(len(data_buffer), 2))
 

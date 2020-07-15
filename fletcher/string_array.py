@@ -351,7 +351,29 @@ class TextAccessor:
         return self._call_str_accessor("contains", pat=pat, case=case, regex=regex)
 
     def zfill(self, width: int) -> pd.Series:
-        """Pad strings in the Series/Index by prepending '0' characters."""
+        """
+        Pad strings in the Series/Index by prepending '0' characters.
+
+        Return string Series or Index with prepended '0' characters to each string. The final length
+        of each string coincides with width.
+
+        The behaviour does not differ from the one in ``pandas``:
+         * Doesn't have a special handling for ``-`` / ``+`` at the start of string.
+         * If length of a string is greater than width, the string will remain unchanged.
+
+        Parameters
+        ----------
+        width : int
+            Final length of string, up to which the '0' characters will be prepended.
+
+            If less or equal 0: All strings remain unchanged.
+
+        Returns
+        -------
+        Series or Index of string values
+            A Series or Index of string values with prepended '0' characters
+            to each string (up to width).
+        """
         if width < 1 or not len(self.data):
             return self._series_like(self.data)
         return self._series_like(_zfill(self.data, width))
