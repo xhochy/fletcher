@@ -383,8 +383,6 @@ class TextAccessor:
             If True, case sensitive.
         regex : bool, default True
             If True, assumes the pat is a regular expression.
->>>>>>> 41679f2223c5af196b095d49032b443fd59beef0
-
             If False, treats the pat as a literal string.
 
         Returns

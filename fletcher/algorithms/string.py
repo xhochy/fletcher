@@ -194,6 +194,14 @@ def _text_count_case_sensitive_numba(
 
             if matched_len == len(pat):
                 output[row_idx] += 1
+
+                # `matched_len=0` ensures overlapping matches are not counted.
+                # This matches the behavior of Python's builtin `count`
+                # function.
+                #
+                # If we wwanted to count overlapping matches, we would instead
+                # have:
+                #     matched_len = failure_function[matched_len]
                 matched_len = 0
 
     return output
@@ -247,11 +255,12 @@ def _text_contains_case_sensitive_numba(
     failure_function = compute_kmp_failure_function(pat)
 
     # Initialise boolean (bit-packaed) output array.
-    output_size = len(data) // 8
-    if len(data) % 8 > 0:
+    output_size = length // 8
+    if length % 8 > 0:
         output_size += 1
     output = np.empty(output_size, dtype=np.uint8)
-    if len(data) % 8 > 0:
+
+    if length % 8 > 0:
         # Zero trailing bits
         output[-1] = 0
 

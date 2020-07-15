@@ -29,20 +29,18 @@ def string_patterns_st(draw, max_len=50):
     raw_seq_st = st.lists(raw_str_st, max_size=max_len)
     raw_seq = draw(raw_seq_st)
 
-    assume(any(s is not None for s in raw_seq))
-
     for s in raw_seq:
         if s is None:
             continue
 
         """
         There seems to be a bug in pandas for this edge case
-        >>> pd.Series(['']).str.replace('', 'abc', n=1))
+        >>> pd.Series(['']).str.replace('', 'abc', n=1)
         0
         dtype: object
 
         But
-        >>> pd.Series(['']).str.replace('', 'abc'))
+        >>> pd.Series(['']).str.replace('', 'abc')
         0    abc
         dtype: object
 
@@ -226,12 +224,6 @@ def test_contains_regex_ignore_case(data, pat, fletcher_variant):
     )
 
 
-# @many_string_patterns
-# @pytest.mark.parametrize(
-#    "repl, n, test_offset", [("len4", -1, 0), ("z", 2, 3), ("", -1, 0)]
-# )
-
-
 @settings(deadline=None)
 @given(
     data_pat_tuple=string_patterns_st(),
@@ -244,7 +236,7 @@ def test_contains_regex_ignore_case(data, pat, fletcher_variant):
     repl="len4",
     n=1,
     test_offset=0,
-    fletcher_variant="chunked",
+    fletcher_variant="continuous",
 )
 def test_replace_no_regex_case_sensitive(
     data_pat_tuple, repl, n, test_offset, fletcher_variant

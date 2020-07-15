@@ -110,4 +110,4 @@ ENV/
 # experiments
 private_*
 
-df.parquet
+*.parquet
