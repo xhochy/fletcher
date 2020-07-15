@@ -343,14 +343,15 @@ def _slice(
 
     for i in prange(len(offsets) - 1):
 
-        byte_offset = (i + valid_offset) // 8
-        bit_offset = (i + valid_offset) % 8
-        mask = np.uint8(1 << bit_offset)
-        valid = valid_bits[byte_offset] & mask
+        if len(valid_bits) > 0:
+            byte_offset = (i + valid_offset) // 8
+            bit_offset = (i + valid_offset) % 8
+            mask = np.uint8(1 << bit_offset)
+            valid = valid_bits[byte_offset] & mask
 
-        if not valid:
-            builder.append_null()
-            continue
+            if not valid:
+                builder.append_null()
+                continue
 
         str_len_bytes = offsets[i + 1] - offsets[i]
 
