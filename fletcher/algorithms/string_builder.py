@@ -19,7 +19,7 @@ libc.free.argtypes = [C.c_void_p]
 free = libc.free
 memcpy = libc.memcpy
 memset = libc.memset
-numba.byte = numba.byte if os.getenv("NUMBA_DISABLE_JIT", "0") != "1" else "uint8"
+numba_byte = numba.byte if os.getenv("NUMBA_DISABLE_JIT", "0") != "1" else "uint8"
 
 
 class LibcMalloc(numba.types.WrapperAddressProtocol):
@@ -58,7 +58,7 @@ class ByteVector:
         self.capacity = max(initial_size, 8)
         self.ptr = malloc(self.capacity)
         memset(self.ptr, 0, self.capacity)
-        self.buf = numba.carray(self.ptr, self.capacity, numba.byte)
+        self.buf = numba.carray(self.ptr, self.capacity, numba_byte)
         self.size = 0
 
     def delete(self):
@@ -184,7 +184,7 @@ class ByteVector:
         self.capacity = new_capacity
         free(self.ptr)
         self.ptr = new_ptr
-        self.buf = numba.carray(self.ptr, self.capacity, numba.byte)
+        self.buf = numba.carray(self.ptr, self.capacity, numba_byte)
 
 
 @numba.jitclass(
@@ -207,7 +207,7 @@ class BitVector:
         self.capacity = max(initial_size, 4)
         self.ptr = malloc(self.capacity)
         memset(self.ptr, 0, self.capacity)
-        self.buf = numba.carray(self.ptr, self.capacity, numba.byte)
+        self.buf = numba.carray(self.ptr, self.capacity, numba_byte)
         self.size = 0
 
     def append_true(self):
@@ -254,7 +254,7 @@ class BitVector:
         self.capacity = new_capacity
         free(self.ptr)
         self.ptr = new_ptr
-        self.buf = numba.carray(self.ptr, self.capacity, numba.byte)
+        self.buf = numba.carray(self.ptr, self.capacity, numba_byte)
 
 
 @numba.jit
