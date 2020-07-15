@@ -29,6 +29,8 @@ def string_patterns_st(draw, max_len=50):
     raw_seq_st = st.lists(raw_str_st, max_size=max_len)
     raw_seq = draw(raw_seq_st)
 
+    assume(any(s is not None for s in raw_seq))
+
     for s in raw_seq:
         if s is None:
             continue
@@ -107,6 +109,11 @@ def test_text_cat(data, fletcher_variant, fletcher_variant_2):
     tm.assert_series_equal(result_fr, result_pd)
 
 
+def _check_series_equal(result_fr, result_pd):
+    result_fr = result_fr.astype(result_pd.dtype)
+    tm.assert_series_equal(result_fr, result_pd)
+
+
 def _check_str_to_t(t, func, data, fletcher_variant, test_offset=0, *args, **kwargs):
     """Check a .str. function that returns a series with type t."""
     tail_len = len(data) - test_offset
@@ -117,12 +124,7 @@ def _check_str_to_t(t, func, data, fletcher_variant, test_offset=0, *args, **kwa
     ser_fr = _fr_series_from_data(data, fletcher_variant).tail(tail_len)
     result_fr = getattr(ser_fr.fr_text, func)(*args, **kwargs)
 
-    if result_fr.values.data.null_count > 0:
-        result_fr = result_fr.astype(object)
-    else:
-        result_fr = result_fr.astype(t)
-
-    tm.assert_series_equal(result_fr, result_pd)
+    _check_series_equal(result_fr, result_pd)
 
 
 def _check_str_to_str(func, data, fletcher_variant, *args, **kwargs):
@@ -280,12 +282,7 @@ def test_count_no_regex(data_pat_tuple, test_offset, fletcher_variant):
     ser_fr = _fr_series_from_data(data, fletcher_variant).tail(tail_len)
     result_fr = getattr(ser_fr.fr_text, "count")(pat=pat, case=True, regex=False)
 
-    if result_fr.values.data.null_count > 0:
-        result_fr = result_fr.astype(np.float64)
-    else:
-        result_fr = result_fr.astype(np.int64)
-
-    tm.assert_series_equal(result_fr, result_pd)
+    _check_series_equal(result_fr, result_pd)
 
 
 def _optional_len(x: Optional[str]) -> int:

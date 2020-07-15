@@ -120,35 +120,6 @@ def _text_cat(a: pa.Array, b: pa.Array) -> pa.Array:
 
 
 @njit
-def _text_contains_case_sensitive_nonnull(
-    length: int, offsets: np.ndarray, data: np.ndarray, pat: bytes, output: np.ndarray
-) -> None:
-    for row_idx in range(length):
-        str_len = offsets[row_idx + 1] - offsets[row_idx]
-
-        contains = False
-        for str_idx in range(max(0, str_len - len(pat) + 1)):
-            pat_found = True
-            for pat_idx in range(len(pat)):
-                if data[offsets[row_idx] + str_idx + pat_idx] != pat[pat_idx]:
-                    pat_found = False
-                    break
-            if pat_found:
-                contains = True
-                break
-
-        # TODO: Set word-wise for better performance
-        byte_offset_result = row_idx // 8
-        bit_offset_result = row_idx % 8
-        mask_result = np.uint8(1 << bit_offset_result)
-        current = output[byte_offset_result]
-        if contains:  # must be logical, not bit-wise as different bits may be flagged
-            output[byte_offset_result] = current | mask_result
-        else:
-            output[byte_offset_result] = current & ~mask_result
-
-
-@njit
 def _check_valid_row(row_idx: int, valid_bits: np.ndarray, valid_offset: int) -> bool:
     """ Check whether the current entry is null. """
     byte_offset = (row_idx + valid_offset) // 8
