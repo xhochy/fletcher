@@ -26,7 +26,7 @@ import fletcher as fr
 )
 def test_slice(data, slice_, expected, storage_type):
     fr_series = pd.Series(storage_type(data))
-    fr_out = fr_series.text.slice(*slice_).astype(object)
+    fr_out = fr_series.fr_str.slice(*slice_).astype(object)
     pd.testing.assert_series_equal(fr_out, pd.Series(expected))
 
     pd_out = pd.Series(data).str.slice(*slice_)
