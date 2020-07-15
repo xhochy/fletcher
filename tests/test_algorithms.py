@@ -8,6 +8,7 @@ import pandas as pd
 import pyarrow as pa
 import pytest
 from hypothesis import given, settings
+from hypothesis.core import Example
 
 import fletcher.algorithms.string_builder as sb1
 import fletcher.algorithms.string_builder_nojit as sb2
@@ -37,6 +38,18 @@ def assert_allclose_na(a, b):
         pass
     else:
         npt.assert_allclose(a, b)
+
+
+def examples(example_list, example_kword):
+    def accept(test):
+        if not hasattr(test, "hypothesis_explicit_examples"):
+            test.hypothesis_explicit_examples = []
+        test.hypothesis_explicit_examples.extend(
+            [Example((), {example_kword: ex}) for ex in example_list]
+        )
+        return test
+
+    return accept
 
 
 @pytest.mark.parametrize(
@@ -275,8 +288,10 @@ def string_builder_variant(request):
     return request.param
 
 
-@pytest.fixture(
-    params=[
+@settings(deadline=None)
+@given(data=st.lists(st.one_of(st.text(), st.none())))
+@examples(
+    example_list=[
         [
             "000000000000000000000000000000000000000000İࠀࠀࠀࠀ𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐤱000000000000𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀"
         ],
@@ -292,23 +307,8 @@ def string_builder_variant(request):
         [None, "a"],
         ["", "", "", "", None, None, None, None, ""],
     ],
-    scope="session",
+    example_kword="data",
 )
-def string_builder_test_data(request):
-    """Explicit test data for test_stringbuilder."""
-    return request.param
-
-
-def test_stringbuilder(string_builder_variant, string_builder_test_data):
-    _stringbuilder_test_(
-        string_builder_test_data,
-        pa.array(string_builder_test_data),
-        string_builder_variant,
-    )
-
-
-@settings(deadline=None)
-@given(data=st.lists(st.one_of(st.text(), st.none())))
 def test_stringbuilder_auto(string_builder_variant, data):
     _stringbuilder_test_(data, pa.array(data), string_builder_variant)
 
