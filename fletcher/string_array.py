@@ -381,5 +381,5 @@ class TextAccessor:
         )
 
     def slice(self, start, end, step):
-        """Extract slice of strings from `start` to `end`."""
+        """Extract every `step` character from strings from `start` to `end`."""
         return self._series_like(_slice_handle_chunk(self.data, start, end, step))
