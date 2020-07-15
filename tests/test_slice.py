@@ -13,7 +13,7 @@ import fletcher as fr
         (["abcd", "defg", "hijk"], (0, -2, 1), ["ab", "de", "hi"]),
         (["abcd", "defg", "hijk"], (-5, -2, 1), ["ab", "de", "hi"]),
         (["aécd", "d🙂fg", "écijk"], (1, 2, 1), ["é", "🙂", "c"]),
-        (["abcd", "defg", "hijk"], (3, 1, -1), ["cb", "fe", "ji"]),
+        (["abcd", "defg", "hijk"], (3, 1, -1), ["dc", "gf", "kj"]),
         (["abcd", "defg", "hijk"], (5, 0, -2), ["db", "ge", "ki"]),
         (["abcd", "defg", "hijk"], (3, 20, 1), ["d", "g", "k"]),
         (["abcd", "defg", "hijk"], (10, 20, 1), ["", "", ""]),
