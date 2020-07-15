@@ -7,7 +7,11 @@ import numba
 import numpy as np
 import pyarrow as pa
 
-libc = C.cdll.LoadLibrary(cast(str, find_library("c")))
+libc = (
+    C.cdll.LoadLibrary(cast(str, find_library("c")))
+    if os.name != "nt"
+    else C.cdll.msvcrt
+)
 libc.malloc.restype = C.c_void_p
 libc.memset.restype = C.c_void_p
 libc.memcpy.restype = C.c_void_p
