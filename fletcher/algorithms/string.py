@@ -337,7 +337,12 @@ def _slice(
     offsets, data, valid_bits, valid_offset, start: int, end: int, step: int
 ) -> StringArrayBuilder:
     """
-    Currently: assumes step is positive and 1, and positive bounds
+    Slice each string according to the (start, end, step) inputs.
+
+    This is implemented differently depending on the inputs:
+    - when step == 1: compute when the start and end bytes, then extract from the data
+    - when step > 1: advance to the start of the slice, then add elements to the
+        output string, skipping the next "step" characters until you reach the end.
     """
     builder = StringArrayBuilder(len(offsets) - 1)
 
