@@ -313,8 +313,8 @@ def test_stringbuilder_auto(string_builder_variant, data):
     _stringbuilder_test_(data, pa.array(data), string_builder_variant)
 
 
-def _stringbuilder_test_(values, expected, string_bulder_variant):
-    if string_bulder_variant == "nojit":
+def _stringbuilder_test_(values, expected, string_builder_variant):
+    if string_builder_variant == "nojit":
         sb = sb2  # type: Any
     else:
         sb = sb1
@@ -327,3 +327,17 @@ def _stringbuilder_test_(values, expected, string_bulder_variant):
             builder.append_value(encoded_value, len(encoded_value))
     result = sb.finalize_string_array(builder, pa.string())
     npt.assert_array_equal(result, expected)
+
+
+@settings(deadline=None)
+@given(data=st.lists(st.integers(-2 ** 31, 2 ** 31 - 1)))
+def test_vector_auto(string_builder_variant, data):
+    if string_builder_variant == "nojit":
+        sb = sb2  # type: Any
+    else:
+        sb = sb1
+    vec = sb.ByteVector(0)
+    for num in data:
+        vec.append_int32(np.int32(num))
+    for idx in range(len(data)):
+        assert vec.get_int32(idx) == np.int32(data[idx])

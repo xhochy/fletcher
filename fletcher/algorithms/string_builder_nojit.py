@@ -51,6 +51,14 @@ class ByteVector:
         self.buf.append(np.uint8((i64 & 0xFF000000000000) >> 48))
         self.buf.append(np.uint8((i64 & 0xFF00000000000000) >> 56))
 
+    def get_int32(self, idx):
+        return np.int32(
+            np.uint32(self.buf[idx * 4])
+            | (np.uint32(self.buf[idx * 4 + 1]) << 8)
+            | (np.uint32(self.buf[idx * 4 + 2]) << 16)
+            | (np.uint32(self.buf[idx * 4 + 3]) << 24)
+        )
+
     def append_bytes(self, ptr, length):
         """Append a range of bytes."""
         for i in range(length):
