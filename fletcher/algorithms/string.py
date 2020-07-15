@@ -269,52 +269,17 @@ def _text_contains_case_sensitive(data: pa.Array, pat: str) -> pa.Array:
 
 
 @njit
-def _get_zstring(width: int, buffer: np.ndarray) -> np.ndarray:
+def _get_zstring(width: int, buffer: np.ndarray, temp_buffer: np.ndarray) -> np.ndarray:
     num_zeros = width
     for i in np.bitwise_xor(np.right_shift(buffer, 6), 2):
         if i != 0:
             num_zeros -= 1
     if num_zeros <= 0:
         return buffer
-    # Create array of byte-representation of 0s concat'd with buffer
-    return np.concatenate((np.full(num_zeros, 48, dtype=np.uint8), buffer), axis=0)
-
-
-@njit
-def _get_zstring_2(
-    width: int, buffer: np.ndarray, temp_buffer: np.ndarray
-) -> np.ndarray:
-    num_zeros = width
-    for i in np.bitwise_xor(np.right_shift(buffer, 6), 2):
-        if i != 0:
-            num_zeros -= 1
-    if num_zeros <= 0:
-        return buffer
-    # Create array of byte-representation of 0s concat'd with buffer
-    for buff_idx in range(num_zeros):
-        temp_buffer[buff_idx] = 48
-    for buff_idx in range(num_zeros, num_zeros + len(buffer)):
-        temp_buffer[buff_idx] = buffer[buff_idx - num_zeros]
-    return temp_buffer[0 : buff_idx + 1]
-
-
-@njit
-def _get_zstring_3(
-    width: int, buffer: np.ndarray, temp_buffer: np.ndarray
-) -> np.ndarray:
-    num_zeros = width
-    for i in np.bitwise_xor(np.right_shift(buffer, 6), 2):
-        if i != 0:
-            num_zeros -= 1
-    if num_zeros <= 0:
-        return buffer
-    # Create array of byte-representation of 0s concat'd with buffer
-    for buff_idx in range(num_zeros + len(buffer)):
-        if buff_idx < num_zeros:
-            temp_buffer[buff_idx] = 48
-        else:
-            temp_buffer[buff_idx] = buffer[buff_idx - num_zeros]
-    return temp_buffer[0 : buff_idx + 1]
+    # Create array of bytes representing 0s prepended to previous string
+    temp_buffer[0:num_zeros] = 48
+    temp_buffer[num_zeros : num_zeros + len(buffer)] = buffer
+    return temp_buffer[0 : num_zeros + len(buffer)]
 
 
 @njit
@@ -326,10 +291,10 @@ def _zfill_nonnull(
     str_builder: StringArrayBuilder,
 ) -> None:
     if length:
-        temp_val_buffer = np.zeros(4 * width, dtype=np.uint8)
+        temp_val_buffer = np.empty(4 * width, dtype=np.uint8)
 
     for row_idx in range(length):
-        value = _get_zstring_2(
+        value = _get_zstring(
             width, data_buffer[offsets[row_idx] : offsets[row_idx + 1]], temp_val_buffer
         )
         str_builder.append_value(value, len(value))
@@ -346,7 +311,7 @@ def _zfill_nulls(
     str_builder: StringArrayBuilder,
 ) -> None:
     if length:
-        temp_val_buffer = np.zeros(4 * width, dtype=np.uint8)
+        temp_val_buffer = np.empty(4 * width, dtype=np.uint8)
 
     for row_idx in range(length):
         # Check whether the current entry is null.
@@ -358,7 +323,7 @@ def _zfill_nulls(
         if not valid:
             str_builder.append_null()
             continue
-        value = _get_zstring_2(
+        value = _get_zstring(
             width, data_buffer[offsets[row_idx] : offsets[row_idx + 1]], temp_val_buffer
         )
         str_builder.append_value(value, len(value))
