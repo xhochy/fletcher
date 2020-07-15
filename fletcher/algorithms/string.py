@@ -283,14 +283,17 @@ def _do_text_strip(data: pa.Array, to_strip) -> pa.Array:
     offsets, data_buffer = _extract_string_buffers(data)
 
     valid_buffer = data.buffers()[0]
-    if valid_buffer is not None:
-        valid_buffer = valid_buffer.slice(data.offset // 8)
+    valid_offset = data.offset
     builder = StringArrayBuilder(max(len(data_buffer), len(data)))
-    if data.offset % 8 != 0:
-        valid_buffer = shift_unaligned_bitmap(valid_buffer, data.offset % 8, len(data))
 
     _do_strip(
-        valid_buffer, offsets, data_buffer, len(data), to_strip, inout_builder=builder
+        valid_buffer,
+        valid_offset,
+        offsets,
+        data_buffer,
+        len(data),
+        to_strip,
+        inout_builder=builder,
     )
 
     result_array = finalize_string_array(builder, pa.string())
@@ -322,7 +325,7 @@ def _utf8_chr2(arr):
 
 
 @njit
-def _extract(last_offset, offset, data_buffer, to_strip):
+def _extract_striped_string(last_offset, offset, data_buffer, to_strip):
     if last_offset < offset:
         start_offset = last_offset
         while start_offset < offset:
@@ -387,21 +390,28 @@ def _extract(last_offset, offset, data_buffer, to_strip):
 
 
 @njit
-def _do_strip(valid_buffer, offsets, data_buffer, len_data, to_strip, inout_builder):
+def _do_strip(
+    valid_buffer, valid_offset, offsets, data_buffer, len_data, to_strip, inout_builder
+):
     prev_offset = offsets[0]
     for idx in range(len_data):
-        crr_offset = offsets[1 + idx]
+        cur_offset = offsets[1 + idx]
         valid = (
-            bool(valid_buffer[idx // 8] & (1 << (idx % 8)))
+            bool(
+                valid_buffer[(idx + valid_offset) // 8]
+                & (1 << ((idx + valid_offset) % 8))
+            )
             if valid_buffer is not None
             else True
         )
         if valid:
-            crr_str = _extract(prev_offset, crr_offset, data_buffer, to_strip)
-            inout_builder.append_value(crr_str, len(crr_str))
+            cur_str = _extract_striped_string(
+                prev_offset, cur_offset, data_buffer, to_strip
+            )
+            inout_builder.append_value(cur_str, len(cur_str))
         else:
             inout_builder.append_null()
-        prev_offset = crr_offset
+        prev_offset = cur_offset
 
 
 @njit
