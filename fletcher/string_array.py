@@ -295,7 +295,7 @@ class TextAccessorExt(TextAccessorBase):
 
     def __init__(self, obj):
         """Accessor for pandas exposed as ``.fr_str``.
-        fletcher functionality will be used if available otherwise dt functions are invoked."""
+        fletcher functionality will be used if available otherwise str functions are invoked."""
         if not isinstance(obj.values, FletcherBaseArray):
             # call StringMethods to validate the input obj
             StringMethods(obj)
