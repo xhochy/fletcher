@@ -58,7 +58,7 @@ New features / performance improvements:
  * We now check typing in CI using `mypy` and have annotated the code with type hints.
    We only plan to mark the packages as `py.typed` when `pandas` is also marked as `py.typed`.
  * You can query `fletcher` for its version via `fletcher.__version__`
- * Implemented `.str.cat` as `.fr_text.cat` for arrays with `pa.string()` dtype.
+ * Implemented `.str.cat` as `.fr_strx.cat` for arrays with `pa.string()` dtype.
  * `unique` is now supported on all array types where `pyarrow` provides a `unique` implementation.
 
 0.2.0
