@@ -312,6 +312,28 @@ def _endswith(sa, needle, na, offset, out):
                 break
 
 
+@apply_per_chunk
+def _slice_handle_chunk(pa_arr, start, end, step):
+    """Slice each string according to the (start, end, step) inputs."""
+    offsets, data = _extract_string_buffers(pa_arr)
+    valid = _buffer_to_view(pa_arr.buffers()[0])
+    if step == 0:
+        raise ValueError("step cannot be zero.")
+    if start >= 0 and (end is None or end >= 0) and step >= 1:
+        if step == 1:
+            res = _slice_pos_inputs_nostep(
+                offsets, data, valid, pa_arr.offset, start, end
+            )
+        else:
+            res = _slice_pos_inputs_step(
+                offsets, data, valid, pa_arr.offset, start, end, step
+            )
+    else:
+        res = _slice_generic(offsets, data, valid, pa_arr.offset, start, end, step)
+
+    return finalize_string_array(res, pa.string())
+
+
 @njit
 def get_utf8_size(first_byte: int):
     if first_byte < 0b10000000:
@@ -324,36 +346,28 @@ def get_utf8_size(first_byte: int):
         return 4
 
 
-@apply_per_chunk
-def _slice_handle_chunk(pa_arr, start, end, step):
-    offsets, data = _extract_string_buffers(pa_arr)
-    valid = _buffer_to_view(pa_arr.buffers()[0])
-    res = _slice(offsets, data, valid, pa_arr.offset, start, end, step)
-    return finalize_string_array(res, pa.string())
+@njit
+def _check_valid(valid_bits, i, valid_offset) -> bool:
+    byte_offset = (i + valid_offset) // 8
+    bit_offset = (i + valid_offset) % 8
+    mask = np.uint8(1 << bit_offset)
+    return valid_bits[byte_offset] & mask
 
 
 @njit
-def _slice(
-    offsets, data, valid_bits, valid_offset, start: int, end: int, step: int
+def _slice_pos_inputs_nostep(
+    offsets, data, valid_bits, valid_offset, start: int, end: int
 ) -> StringArrayBuilder:
     """
-    Slice each string according to the (start, end, step) inputs.
-
-    This is implemented differently depending on the inputs:
-    - when step == 1: compute when the start and end bytes, then extract from the data
-    - when step > 1: advance to the start of the slice, then add elements to the
-        output string, skipping the next "step" characters until you reach the end.
+    start, end >= 0
+    step == 1
     """
     builder = StringArrayBuilder(len(offsets) - 1)
 
     for i in prange(len(offsets) - 1):
 
         if len(valid_bits) > 0:
-            byte_offset = (i + valid_offset) // 8
-            bit_offset = (i + valid_offset) % 8
-            mask = np.uint8(1 << bit_offset)
-            valid = valid_bits[byte_offset] & mask
-
+            valid = _check_valid(valid_bits, i, valid_offset)
             if not valid:
                 builder.append_null()
                 continue
@@ -363,43 +377,118 @@ def _slice(
         char_idx = 0
         byte_idx = 0
 
-        if start > str_len_bytes:
-            builder.append_empty()
-            continue
+        while char_idx < start and byte_idx < str_len_bytes:
+            char_idx += 1
+            byte_idx += get_utf8_size(data[offsets[i] + byte_idx])
+
+        start_byte = offsets[i] + byte_idx
+
+        while (end is None or char_idx < end) and byte_idx < str_len_bytes:
+            char_idx += 1
+            byte_idx += get_utf8_size(data[offsets[i] + byte_idx])
+
+        end_byte = offsets[i] + byte_idx
+        builder.append_value(data[start_byte:end_byte], end_byte - start_byte)
+    return builder
+
+
+@njit
+def _slice_pos_inputs_step(
+    offsets, data, valid_bits, valid_offset, start: int, end: int, step: int
+) -> StringArrayBuilder:
+    """
+    start, end >= 0
+    step > 1
+    """
+    builder = StringArrayBuilder(len(offsets) - 1)
+
+    for i in prange(len(offsets) - 1):
+        if len(valid_bits) > 0:
+            valid = _check_valid(valid_bits, i, valid_offset)
+            if not valid:
+                builder.append_null()
+                continue
+
+        str_len_bytes = offsets[i + 1] - offsets[i]
+
+        char_idx = 0
+        byte_idx = 0
 
         while char_idx < start and byte_idx < str_len_bytes:
             char_idx += 1
             byte_idx += get_utf8_size(data[offsets[i] + byte_idx])
 
-        # positive start, end; step > 1
-        if step > 1:
-            to_skip = 0
-            include_bytes: List[bytes] = []
+        to_skip = 0
+        include_bytes: List[bytes] = []
 
-            while char_idx < end and byte_idx < str_len_bytes:
-                char_size = get_utf8_size(data[offsets[i] + byte_idx])
+        while (end is None or char_idx < end) and byte_idx < str_len_bytes:
+            char_size = get_utf8_size(data[offsets[i] + byte_idx])
 
-                if not to_skip:
-                    include_bytes.extend(
-                        data[offsets[i] + byte_idx : offsets[i] + byte_idx + char_size]
-                    )
-                    to_skip = step
+            if not to_skip:
+                include_bytes.extend(
+                    data[offsets[i] + byte_idx : offsets[i] + byte_idx + char_size]
+                )
+                to_skip = step
 
-                char_idx += 1
-                byte_idx += char_size
-                to_skip -= 1
+            char_idx += 1
+            byte_idx += char_size
+            to_skip -= 1
 
-            builder.append_value(include_bytes, len(include_bytes))
+        builder.append_value(include_bytes, len(include_bytes))
+    return builder
 
-        # positive start, end; step = 1
-        elif step == 1:
-            start_byte = offsets[i] + byte_idx
 
-            while char_idx < end and byte_idx < str_len_bytes:
-                char_idx += 1
-                byte_idx += get_utf8_size(data[offsets[i] + byte_idx])
+@njit
+def _slice_generic(
+    offsets, data, valid_bits, valid_offset, start: int, end: int, step: int
+) -> StringArrayBuilder:
+    builder = StringArrayBuilder(len(offsets) - 1)
 
-            end_byte = offsets[i] + byte_idx
-            builder.append_value(data[start_byte:end_byte], end_byte - start_byte)
+    for i in prange(len(offsets) - 1):
+        if len(valid_bits) > 0:
+            valid = _check_valid(valid_bits, i, valid_offset)
+            if not valid:
+                builder.append_null()
+                continue
+
+        str_len_bytes = offsets[i + 1] - offsets[i]
+        char_bytes: List[bytes] = []
+        byte_idx = 0
+
+        while byte_idx < str_len_bytes:
+            char_size = get_utf8_size(data[offsets[i] + byte_idx])
+            char_bytes.append(
+                data[offsets[i] + byte_idx : offsets[i] + byte_idx + char_size]
+            )
+            byte_idx += char_size
+
+        include_bytes: List[bytes] = []  # type: ignore
+
+        char_idx = start
+        if start >= -len(char_bytes) and start < 0:
+            char_idx += len(char_bytes)
+
+        true_end = end
+        if end >= -len(char_bytes) and end < 0:
+            true_end += len(char_bytes)
+
+        # Positive step
+        if step > 0:
+            if char_idx < 0:
+                char_idx = 0
+            while (end is None or char_idx < true_end) and char_idx < len(char_bytes):
+                include_bytes.extend(char_bytes[char_idx])  # type: ignore
+                char_idx += step
+
+        # Negative step
+        else:
+            if char_idx >= len(char_bytes):
+                char_idx = len(char_bytes) - 1
+            while (end is None or char_idx > true_end) and char_idx >= 0:
+                if char_idx < len(char_bytes):
+                    include_bytes.extend(char_bytes[char_idx])  # type: ignore
+                char_idx += step
+
+        builder.append_value(include_bytes, len(include_bytes))
 
     return builder
