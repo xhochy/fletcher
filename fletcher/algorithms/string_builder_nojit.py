@@ -26,15 +26,15 @@ class ByteVector:
 
     def append_uint32(self, i32):
         """Append an unsigned 32bit integer."""
-        self.buf.append(numba.byte(i32 & 0xFF))
-        self.buf.append(numba.byte((i32 & 0xFF00) >> 8))
-        self.buf.append(numba.byte((i32 & 0xFF0000) >> 16))
-        self.buf.append(numba.byte((i32 & 0xFF000000) >> 24))
+        self.buf.append(np.uint8(i32 & 0xFF))
+        self.buf.append(np.uint8((i32 & 0xFF00) >> 8))
+        self.buf.append(np.uint8((i32 & 0xFF0000) >> 16))
+        self.buf.append(np.uint8((i32 & 0xFF000000) >> 24))
 
     def append_int16(self, i16):
         """Append a signed 16bit integer."""
-        self.buf.append(numba.byte(i16 & 0xFF))
-        self.buf.append(numba.byte((i16 & 0xFF00) >> 8))
+        self.buf.append(np.uint8(i16 & 0xFF))
+        self.buf.append(np.uint8((i16 & 0xFF00) >> 8))
 
     def append_int32(self, i32):
         """Append a signed 32bit integer."""
@@ -42,19 +42,19 @@ class ByteVector:
 
     def append_int64(self, i64):
         """Append a signed 64bit integer."""
-        self.buf.append(numba.byte(i64 & 0xFF))
-        self.buf.append(numba.byte((i64 & 0xFF00) >> 8))
-        self.buf.append(numba.byte((i64 & 0xFF0000) >> 16))
-        self.buf.append(numba.byte((i64 & 0xFF000000) >> 24))
-        self.buf.append(numba.byte((i64 & 0xFF00000000) >> 32))
-        self.buf.append(numba.byte((i64 & 0xFF0000000000) >> 40))
-        self.buf.append(numba.byte((i64 & 0xFF000000000000) >> 48))
-        self.buf.append(numba.byte((i64 & 0xFF00000000000000) >> 56))
+        self.buf.append(np.uint8(i64 & 0xFF))
+        self.buf.append(np.uint8((i64 & 0xFF00) >> 8))
+        self.buf.append(np.uint8((i64 & 0xFF0000) >> 16))
+        self.buf.append(np.uint8((i64 & 0xFF000000) >> 24))
+        self.buf.append(np.uint8((i64 & 0xFF00000000) >> 32))
+        self.buf.append(np.uint8((i64 & 0xFF0000000000) >> 40))
+        self.buf.append(np.uint8((i64 & 0xFF000000000000) >> 48))
+        self.buf.append(np.uint8((i64 & 0xFF00000000000000) >> 56))
 
     def append_bytes(self, ptr, length):
         """Append a range of bytes."""
         for i in range(length):
-            self.buf.append(numba.byte(ptr[i]))
+            self.buf.append(np.uint8(ptr[i]))
 
     def expand(self):
         """
@@ -74,18 +74,18 @@ class BitVector:
     """
 
     def __init__(self, initial_size: int):
-        self.buf = []  # type: List[numba.byte]
+        self.buf = []  # type: List[np.uint8]
         self.size = 0
 
     def append_true(self):
         if self.size % 8 == 0:
-            self.buf.append(numba.byte(0))
+            self.buf.append(np.uint8(0))
         self.buf[-1] |= 1 << (self.size % 8)
         self.size += 1
 
     def append_false(self):
         if self.size % 8 == 0:
-            self.buf.append(numba.byte(0))
+            self.buf.append(np.uint8(0))
         self.size += 1
 
     def delete(self):
