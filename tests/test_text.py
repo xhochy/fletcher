@@ -168,3 +168,25 @@ def test_text_zfill(data, fletcher_variant):
     # Pandas returns np.nan for NA values in cat, keep this in line
     result_fr[result_fr.isna()] = np.nan
     tm.assert_series_equal(result_fr, result_pd)
+
+
+@pytest.mark.parametrize(
+    "data, width, expected",
+    [
+        ([], -1, []),
+        ([None], 7, [None]),
+        ([""], 3, ["000"]),
+        (
+            ["a", "_xyz", "aBcDe", "ä", None, "æ", "-01", "+1"],
+            4,
+            ["000a", "_xyz", "aBcDe", "000ä", None, "000æ", "0-01", "00+1"],
+        ),
+    ],
+)
+def test_zfill_simple(data, width, expected, fletcher_variant):
+    fr_series = _fr_series_from_data(data, fletcher_variant)
+    fr_expected = _fr_series_from_data(expected, fletcher_variant, pa.string())
+
+    for i in range(len(data)):
+        result = fr_series.fr_text.zfill(width)
+        tm.assert_series_equal(result, fr_expected)
