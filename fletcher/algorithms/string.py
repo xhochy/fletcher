@@ -406,11 +406,11 @@ def _slice(offsets, data, start: int, end: int, step: int) -> StringArrayBuilder
             include_bytes: List[bytes] = []  # type: ignore
 
             char_idx = start
-            if start > -len(char_bytes) and start < 0:
+            if start >= -len(char_bytes) and start < 0:
                 char_idx += len(char_bytes)
 
             true_end = end
-            if end > -len(char_bytes) and end < 0:
+            if end >= -len(char_bytes) and end < 0:
                 true_end += len(char_bytes)
 
             # Positive step
