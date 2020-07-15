@@ -372,6 +372,7 @@ def _text_replace_case_sensitive_numba(
     cumulative_offset = 0
 
     has_nulls = valid_bits.size > 0
+    match_len_change = len(repl) - len(pat)
 
     for row_idx in range(length):
         output_offsets[row_idx] = cumulative_offset
@@ -379,11 +380,16 @@ def _text_replace_case_sensitive_numba(
         if has_nulls and not _check_valid_row(row_idx, valid_bits, valid_offset):
             continue
 
+        cumulative_offset += offsets[row_idx + 1] - offsets[row_idx]
+
         matched_len = 0
         matches_done = 0
 
         if matched_len == len(pat):
             matches_done += 1
+            cumulative_offset += match_len_change
+            if matches_done == max_repl:
+                continue
 
         for str_idx in range(offsets[row_idx], offsets[row_idx + 1]):
             matched_len = append_to_kmp_matching(
@@ -392,12 +398,10 @@ def _text_replace_case_sensitive_numba(
 
             if matched_len == len(pat):
                 matches_done += 1
+                cumulative_offset += match_len_change
                 matched_len = 0
                 if matches_done == max_repl:
                     break
-
-        cumulative_offset += offsets[row_idx + 1] - offsets[row_idx]
-        cumulative_offset += matches_done * (len(repl) - len(pat))
 
     output_offsets[length] = cumulative_offset
 
