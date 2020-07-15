@@ -272,12 +272,10 @@ class TextAccessorBase:
         """Return a str accessor function that includes the transformation from Arrow series
         to pandas series and back."""
 
-        def _wrapped_str_fn(*args, **kwargs) -> pd.Series:
-            pd_series = self.data.to_pandas()
-            array = pa.array(getattr(pd_series.str, func)(*args, **kwargs).values)
-            return self._series_like(array)
+        def _wrapped_str_accessor(*args, **kwargs) -> pd.Series:
+            return self._call_str_accessor(func, *args, **kwargs)
 
-        return _wrapped_str_fn
+        return _wrapped_str_accessor
 
     @staticmethod
     def _validate_str_accessor(func):
