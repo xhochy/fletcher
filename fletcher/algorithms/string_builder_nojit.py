@@ -26,15 +26,19 @@ class ByteVector:
 
     def append_uint32(self, i32):
         """Append an unsigned 32bit integer."""
-        self.buf.append(np.uint8(i32 & 0xFF))
-        self.buf.append(np.uint8((i32 & 0xFF00) >> 8))
-        self.buf.append(np.uint8((i32 & 0xFF0000) >> 16))
-        self.buf.append(np.uint8((i32 & 0xFF000000) >> 24))
+        self.buf.append(np.uint8(np.uint32(i32) & np.uint32(0xFF)))
+        self.buf.append(np.uint8((np.uint32(i32) & np.uint32(0xFF00)) >> np.uint32(8)))
+        self.buf.append(
+            np.uint8((np.uint32(i32) & np.uint32(0xFF0000)) >> np.uint32(16))
+        )
+        self.buf.append(
+            np.uint8((np.uint32(i32) & np.uint32(0xFF000000)) >> np.uint32(24))
+        )
 
     def append_int16(self, i16):
         """Append a signed 16bit integer."""
-        self.buf.append(np.uint8(i16 & 0xFF))
-        self.buf.append(np.uint8((i16 & 0xFF00) >> 8))
+        self.buf.append(np.uint8(i16 & np.uint16(0xFF)))
+        self.buf.append(np.uint8((i16 & np.uint16(0xFF00)) >> np.uint16(8)))
 
     def append_int32(self, i32):
         """Append a signed 32bit integer."""
@@ -42,14 +46,39 @@ class ByteVector:
 
     def append_int64(self, i64):
         """Append a signed 64bit integer."""
-        self.buf.append(np.uint8(i64 & 0xFF))
-        self.buf.append(np.uint8((i64 & 0xFF00) >> 8))
-        self.buf.append(np.uint8((i64 & 0xFF0000) >> 16))
-        self.buf.append(np.uint8((i64 & 0xFF000000) >> 24))
-        self.buf.append(np.uint8((i64 & 0xFF00000000) >> 32))
-        self.buf.append(np.uint8((i64 & 0xFF0000000000) >> 40))
-        self.buf.append(np.uint8((i64 & 0xFF000000000000) >> 48))
-        self.buf.append(np.uint8((i64 & 0xFF00000000000000) >> 56))
+        self.buf.append(np.uint8(np.uint64(i64) & np.uint64(0xFF)))
+        self.buf.append(np.uint8((np.uint64(i64) & np.uint64(0xFF00)) >> np.uint64(8)))
+        self.buf.append(
+            np.uint8((np.uint64(i64) & np.uint64(0xFF0000)) >> np.uint64(16))
+        )
+        self.buf.append(
+            np.uint8((np.uint64(i64) & np.uint64(0xFF000000)) >> np.uint64(24))
+        )
+        self.buf.append(
+            np.uint8((np.uint64(i64) & np.uint64(0xFF00000000)) >> np.uint64(32))
+        )
+        self.buf.append(
+            np.uint8((np.uint64(i64) & np.uint64(0xFF0000000000)) >> np.uint64(40))
+        )
+        self.buf.append(
+            np.uint8((np.uint64(i64) & np.uint64(0xFF000000000000)) >> np.uint64(48))
+        )
+        self.buf.append(
+            np.uint8((np.uint64(i64) & np.uint64(0xFF00000000000000)) >> np.uint64(56))
+        )
+
+    def append_bytes(self, ptr, length):
+        """Append a range of bytes."""
+        for i in range(length):
+            self.buf.append(np.uint8(ptr[i]))
+
+    def get_uint8(self, idx):
+        return np.uint8(self.buf[idx])
+
+    def get_int16(self, idx):
+        return np.int16(
+            np.uint16(self.buf[idx * 2]) | (np.uint16(self.buf[idx * 2 + 1]) << 8)
+        )
 
     def get_int32(self, idx):
         return np.int32(
@@ -59,10 +88,25 @@ class ByteVector:
             | (np.uint32(self.buf[idx * 4 + 3]) << 24)
         )
 
-    def append_bytes(self, ptr, length):
-        """Append a range of bytes."""
-        for i in range(length):
-            self.buf.append(np.uint8(ptr[i]))
+    def get_uint32(self, idx):
+        return (
+            np.uint32(self.buf[idx * 4])
+            | (np.uint32(self.buf[idx * 4 + 1]) << 8)
+            | (np.uint32(self.buf[idx * 4 + 2]) << 16)
+            | (np.uint32(self.buf[idx * 4 + 3]) << 24)
+        )
+
+    def get_int64(self, idx):
+        return np.int64(
+            np.uint64(self.buf[idx * 8])
+            | (np.uint64(self.buf[idx * 8 + 1]) << np.uint64(8))
+            | (np.uint64(self.buf[idx * 8 + 2]) << np.uint64(16))
+            | (np.uint64(self.buf[idx * 8 + 3]) << np.uint64(24))
+            | (np.uint64(self.buf[idx * 8 + 4]) << np.uint64(32))
+            | (np.uint64(self.buf[idx * 8 + 5]) << np.uint64(40))
+            | (np.uint64(self.buf[idx * 8 + 6]) << np.uint64(48))
+            | (np.uint64(self.buf[idx * 8 + 7]) << np.uint64(56))
+        )
 
     def expand(self):
         """
@@ -113,11 +157,11 @@ def byte_for_bits(num_bits):
     return math.ceil(num_bits / 8)
 
 
-def bit_vector_to_pa_boolarray(bv: BitVector) -> pa.BooleanArray:
-    bools = pa.py_buffer(np.copy(bv.buf[: byte_for_bits(len(bv.buf))]))
-    return pa.BooleanArray.from_buffers(
-        pa.bool_(), len(bv.buf), [None, bools], null_count=0
-    )
+# def bit_vector_to_pa_boolarray(bv: BitVector) -> pa.BooleanArray:
+#     bools = pa.py_buffer(np.copy(bv.buf[: byte_for_bits(len(bv.buf))]))
+#     return pa.BooleanArray.from_buffers(
+#         pa.bool_(), len(bv.buf), [None, bools], null_count=0
+#     )
 
 
 class StringArrayBuilder:

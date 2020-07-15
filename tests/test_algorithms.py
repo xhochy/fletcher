@@ -330,14 +330,58 @@ def _stringbuilder_test_(values, expected, string_builder_variant):
 
 
 @settings(deadline=None)
+@given(data=st.lists(st.integers(-2 ** 15, 2 ** 15 - 1)))
+def test_vector16_auto(string_builder_variant, data):
+    _test_vector(string_builder_variant, data, np.int16)
+
+
+@settings(deadline=None)
 @given(data=st.lists(st.integers(-2 ** 31, 2 ** 31 - 1)))
-def test_vector_auto(string_builder_variant, data):
+def test_vector32_auto(string_builder_variant, data):
+    _test_vector(string_builder_variant, data, np.int32)
+
+
+@settings(deadline=None)
+@given(data=st.lists(st.integers(-2 ** 63, 2 ** 63 - 1)))
+def test_vector64_auto(string_builder_variant, data):
+    _test_vector(string_builder_variant, data, np.int64)
+
+
+@settings(deadline=None)
+@given(data=st.lists(st.integers(0, 2 ** 32 - 1)))
+def test_vector32u_auto(string_builder_variant, data):
+    _test_vector(string_builder_variant, data, np.uint32)
+
+
+def _test_vector(string_builder_variant, data, np_type):
+    type_str = str(np_type).split(".")[1].split("'")[0]
     if string_builder_variant == "nojit":
         sb = sb2  # type: Any
     else:
         sb = sb1
     vec = sb.ByteVector(0)
     for num in data:
-        vec.append_int32(np.int32(num))
+        getattr(vec, f"append_{type_str}")(np_type(num))
     for idx in range(len(data)):
-        assert vec.get_int32(idx) == np.int32(data[idx])
+        assert getattr(vec, f"get_{type_str}")(idx) == np_type(data[idx])
+
+
+# @settings(deadline=None)
+# @given(data=st.lists(st.integers(0, 2 ** 8 - 1)))
+def test_vector8u_auto(string_builder_variant, data=[0, 0, 0, 0, 0]):
+    if string_builder_variant == "nojit":
+        sb = sb2  # type: Any
+    else:
+        sb = sb1
+    vec = sb.ByteVector(0)
+    vec2 = sb.ByteVector(0)
+    for num in data:
+        vec.append(np.uint8(num))
+    vec2.append_bytes(vec.buf, len(data))
+    vec.append_bytes(vec2.buf, len(data))
+    for idx in range(len(data)):
+        assert vec.get_uint8(idx) == np.uint8(data[idx])
+    for idx in range(len(data)):
+        assert vec2.get_uint8(idx) == np.uint8(data[idx])
+    for idx in range(len(data)):
+        assert vec.get_uint8(idx + len(data)) == np.uint8(data[idx])

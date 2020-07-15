@@ -123,23 +123,44 @@ class ByteVector:
         """Append a signed 64bit integer."""
         if self.size + 8 > self.capacity:
             self.expand(self.size + 8)
-        self.buf[self.size] = i64 & 0xFF
-        self.buf[self.size + 1] = (i64 & 0xFF00) >> 8
-        self.buf[self.size + 2] = (i64 & 0xFF0000) >> 16
-        self.buf[self.size + 3] = (i64 & 0xFF000000) >> 24
-        self.buf[self.size + 4] = (i64 & 0xFF00000000) >> 32
-        self.buf[self.size + 5] = (i64 & 0xFF0000000000) >> 40
-        self.buf[self.size + 6] = (i64 & 0xFF000000000000) >> 48
-        self.buf[self.size + 7] = (i64 & 0xFF00000000000000) >> 56
+        self.buf[self.size] = np.uint8(np.uint64(i64) & np.uint64(0xFF))
+        self.buf[self.size + 1] = np.uint8(
+            (np.uint64(i64) & np.uint64(0xFF00)) >> np.uint64(8)
+        )
+        self.buf[self.size + 2] = np.uint8(
+            (np.uint64(i64) & np.uint64(0xFF0000)) >> np.uint64(16)
+        )
+        self.buf[self.size + 3] = np.uint8(
+            (np.uint64(i64) & np.uint64(0xFF000000)) >> np.uint64(24)
+        )
+        self.buf[self.size + 4] = np.uint8(
+            (np.uint64(i64) & np.uint64(0xFF00000000)) >> np.uint64(32)
+        )
+        self.buf[self.size + 5] = np.uint8(
+            (np.uint64(i64) & np.uint64(0xFF0000000000)) >> np.uint64(40)
+        )
+        self.buf[self.size + 6] = np.uint8(
+            (np.uint64(i64) & np.uint64(0xFF000000000000)) >> np.uint64(48)
+        )
+        self.buf[self.size + 7] = np.uint8(
+            (np.uint64(i64) & np.uint64(0xFF00000000000000)) >> np.uint64(56)
+        )
         self.size += 8
 
     def append_bytes(self, ptr, length):
         """Append a range of bytes."""
-        while self.size + length > self.capacity:
-            self.expand(self.size + length)
+        self.expand(self.size + length)
         for i in range(length):
             self.buf[self.size] = ptr[i]
             self.size += 1
+
+    def get_uint8(self, idx):
+        return np.uint8(self.buf[idx])
+
+    def get_int16(self, idx):
+        return np.int16(
+            np.uint16(self.buf[idx * 2]) | (np.uint16(self.buf[idx * 2 + 1]) << 8)
+        )
 
     def get_int32(self, idx):
         return np.int32(
@@ -147,6 +168,26 @@ class ByteVector:
             | (np.uint32(self.buf[idx * 4 + 1]) << 8)
             | (np.uint32(self.buf[idx * 4 + 2]) << 16)
             | (np.uint32(self.buf[idx * 4 + 3]) << 24)
+        )
+
+    def get_uint32(self, idx):
+        return (
+            np.uint32(self.buf[idx * 4])
+            | (np.uint32(self.buf[idx * 4 + 1]) << 8)
+            | (np.uint32(self.buf[idx * 4 + 2]) << 16)
+            | (np.uint32(self.buf[idx * 4 + 3]) << 24)
+        )
+
+    def get_int64(self, idx):
+        return np.int64(
+            np.uint64(self.buf[idx * 8])
+            | (np.uint64(self.buf[idx * 8 + 1]) << np.uint64(8))
+            | (np.uint64(self.buf[idx * 8 + 2]) << np.uint64(16))
+            | (np.uint64(self.buf[idx * 8 + 3]) << np.uint64(24))
+            | (np.uint64(self.buf[idx * 8 + 4]) << np.uint64(32))
+            | (np.uint64(self.buf[idx * 8 + 5]) << np.uint64(40))
+            | (np.uint64(self.buf[idx * 8 + 6]) << np.uint64(48))
+            | (np.uint64(self.buf[idx * 8 + 7]) << np.uint64(56))
         )
 
     def expand(self, min_capacity):
