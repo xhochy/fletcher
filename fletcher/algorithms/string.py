@@ -294,13 +294,6 @@ def _do_text_strip(data: pa.Array, to_strip) -> pa.Array:
     )
 
     result_array = finalize_string_array(builder, pa.string())
-
-    """result_valid = valid_buffer
-    result_offsets = offsets
-    result_data = data_buffer
-
-    buffers = [pa.py_buffer(x) if x is not None else None for x in [result_valid, result_offsets, result_data]]
-    return pa.Array.from_buffers(pa.string(), len(data), buffers)"""
     return result_array
 
 
