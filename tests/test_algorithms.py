@@ -270,7 +270,7 @@ def test_merge_valid_bitmaps():
 
 
 @pytest.fixture(params=["jit", "nojit"], scope="session")
-def string_bulder_variant(request):
+def string_builder_variant(request):
     """Whether to test the chunked or continuous implementation."""
     return request.param
 
@@ -299,18 +299,18 @@ def string_builder_test_data(request):
     return request.param
 
 
-def test_stringbuilder(string_bulder_variant, string_builder_test_data):
+def test_stringbuilder(string_builder_variant, string_builder_test_data):
     _stringbuilder_test_(
         string_builder_test_data,
         pa.array(string_builder_test_data),
-        string_bulder_variant,
+        string_builder_variant,
     )
 
 
 @settings(deadline=None)
 @given(data=st.lists(st.one_of(st.text(), st.none())))
-def test_stringbuilder_auto(string_bulder_variant, data):
-    _stringbuilder_test_(data, pa.array(data), string_bulder_variant)
+def test_stringbuilder_auto(string_builder_variant, data):
+    _stringbuilder_test_(data, pa.array(data), string_builder_variant)
 
 
 def _stringbuilder_test_(values, expected, string_bulder_variant):
