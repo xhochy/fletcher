@@ -312,6 +312,28 @@ def _endswith(sa, needle, na, offset, out):
                 break
 
 
+@apply_per_chunk
+def _slice_handle_chunk(pa_arr, start, end, step):
+    """Slice each string according to the (start, end, step) inputs."""
+    offsets, data = _extract_string_buffers(pa_arr)
+    valid = _buffer_to_view(pa_arr.buffers()[0])
+    if step == 0:
+        raise ValueError("step cannot be zero.")
+    if start >= 0 and (end is None or end >= 0) and step >= 1:
+        if step == 1:
+            res = _slice_pos_inputs_nostep(
+                offsets, data, valid, pa_arr.offset, start, end
+            )
+        else:
+            res = _slice_pos_inputs_step(
+                offsets, data, valid, pa_arr.offset, start, end, step
+            )
+    else:
+        res = _slice_generic(offsets, data, valid, pa_arr.offset, start, end, step)
+
+    return finalize_string_array(res, pa.string())
+
+
 @njit
 def get_utf8_size(first_byte: int):
     if first_byte < 0b10000000:
@@ -324,23 +346,18 @@ def get_utf8_size(first_byte: int):
         return 4
 
 
-@apply_per_chunk
-def _slice_handle_chunk(pa_arr, start, end, step):
-    offsets, data = _extract_string_buffers(pa_arr)
-    if step == 0:
-        raise ValueError("step cannot be zero.")
-    if start >= 0 and (end is None or end >= 0) and step >= 1:
-        if step == 1:
-            res = _slice_pos_inputs_nostep(offsets, data, start, end)
-        else:
-            res = _slice_pos_inputs_step(offsets, data, start, end, step)
-    else:
-        res = _slice_generic(offsets, data, start, end, step)
-    return finalize_string_array(res, pa.string())
+@njit
+def _check_valid(valid_bits, i, valid_offset) -> bool:
+    byte_offset = (i + valid_offset) // 8
+    bit_offset = (i + valid_offset) % 8
+    mask = np.uint8(1 << bit_offset)
+    return valid_bits[byte_offset] & mask
 
 
 @njit
-def _slice_pos_inputs_nostep(offsets, data, start: int, end: int) -> StringArrayBuilder:
+def _slice_pos_inputs_nostep(
+    offsets, data, valid_bits, valid_offset, start: int, end: int
+) -> StringArrayBuilder:
     """
     start, end >= 0
     step == 1
@@ -348,6 +365,13 @@ def _slice_pos_inputs_nostep(offsets, data, start: int, end: int) -> StringArray
     builder = StringArrayBuilder(len(offsets) - 1)
 
     for i in prange(len(offsets) - 1):
+
+        if len(valid_bits) > 0:
+            valid = _check_valid(valid_bits, i, valid_offset)
+            if not valid:
+                builder.append_null()
+                continue
+
         str_len_bytes = offsets[i + 1] - offsets[i]
 
         char_idx = 0
@@ -370,7 +394,7 @@ def _slice_pos_inputs_nostep(offsets, data, start: int, end: int) -> StringArray
 
 @njit
 def _slice_pos_inputs_step(
-    offsets, data, start: int, end: int, step: int
+    offsets, data, valid_bits, valid_offset, start: int, end: int, step: int
 ) -> StringArrayBuilder:
     """
     start, end >= 0
@@ -379,6 +403,12 @@ def _slice_pos_inputs_step(
     builder = StringArrayBuilder(len(offsets) - 1)
 
     for i in prange(len(offsets) - 1):
+        if len(valid_bits) > 0:
+            valid = _check_valid(valid_bits, i, valid_offset)
+            if not valid:
+                builder.append_null()
+                continue
+
         str_len_bytes = offsets[i + 1] - offsets[i]
 
         char_idx = 0
@@ -410,11 +440,17 @@ def _slice_pos_inputs_step(
 
 @njit
 def _slice_generic(
-    offsets, data, start: int, end: int, step: int
+    offsets, data, valid_bits, valid_offset, start: int, end: int, step: int
 ) -> StringArrayBuilder:
     builder = StringArrayBuilder(len(offsets) - 1)
 
     for i in prange(len(offsets) - 1):
+        if len(valid_bits) > 0:
+            valid = _check_valid(valid_bits, i, valid_offset)
+            if not valid:
+                builder.append_null()
+                continue
+
         str_len_bytes = offsets[i + 1] - offsets[i]
         char_bytes: List[bytes] = []
         byte_idx = 0
