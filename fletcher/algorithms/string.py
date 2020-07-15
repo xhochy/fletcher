@@ -271,8 +271,11 @@ def _text_contains_case_sensitive(data: pa.Array, pat: str) -> pa.Array:
 @njit
 def _get_zstring(width: int, buffer: np.ndarray, temp_buffer: np.ndarray) -> np.ndarray:
     num_zeros = width
-    for i in np.bitwise_xor(np.right_shift(buffer, 6), 2):
-        if i != 0:
+    mask = 192  # corresponds to 11000000
+    for i in np.bitwise_and(buffer, mask):
+        if (
+            i != 128
+        ):  # is 10000000 -> 10xxxxxx corresponds to neither utf-8 nor ascii character
             num_zeros -= 1
     if num_zeros <= 0:
         return buffer
