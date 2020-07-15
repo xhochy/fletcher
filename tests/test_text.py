@@ -170,6 +170,22 @@ def test_text_zfill(data, fletcher_variant):
     tm.assert_series_equal(result_fr, result_pd)
 
 
+@settings(deadline=None, max_examples=3)
+@given(data=st.lists(st.one_of(st.text(), st.none())))
+@examples(
+    example_list=[
+        [
+            " 000000000000000000000000000000000000000000İࠀࠀࠀࠀ𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐤱000000000000𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀"
+        ],
+        ["\x80 "],
+        [],
+    ],
+    example_kword="data",
+)
+def test_text_strip_offset(fletcher_variant, fletcher_slice_offset, data):
+    _do_test_text_strip(fletcher_variant, fletcher_slice_offset, data)
+
+
 @settings(deadline=None)
 @given(data=st.lists(st.one_of(st.text(), st.none())))
 @examples(
@@ -203,6 +219,10 @@ def test_text_zfill(data, fletcher_variant):
     example_kword="data",
 )
 def test_text_strip(fletcher_variant, data):
+    _do_test_text_strip(fletcher_variant, 1, data)
+
+
+def _do_test_text_strip(fletcher_variant, fletcher_slice_offset, data):
     print(
         f"Testing: {[''.join(['%x' % ord(c) for c in s]) if s is not None else None for s in data]}"
     )
@@ -211,12 +231,14 @@ def test_text_strip(fletcher_variant, data):
         # Skip is not working properly with hypothesis
         return
     ser_pd = pd.Series(data, dtype=str)
-    arrow_data = pa.array(data, type=pa.string())
+    arrow_data = pa.array(
+        [None for _ in range(fletcher_slice_offset)] + data, type=pa.string()
+    )
     if fletcher_variant == "chunked":
         fr_array = fr.FletcherChunkedArray(arrow_data)
     else:
         fr_array = fr.FletcherContinuousArray(arrow_data)
-    ser_fr = pd.Series(fr_array)
+    ser_fr = pd.Series(fr_array[fletcher_slice_offset:])
 
     result_pd = ser_pd.str.strip()
     result_fr = ser_fr.fr_text.strip()

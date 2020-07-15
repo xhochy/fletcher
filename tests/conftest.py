@@ -137,6 +137,12 @@ def fletcher_variant(request):
     return request.param
 
 
+@pytest.fixture(params=[0, 3, 7, 8, 9, 256], scope="session")
+def fletcher_slice_offset(request):
+    """Whether to test the chunked or continuous implementation."""
+    return request.param
+
+
 @pytest.fixture
 def fletcher_dtype(fletcher_variant):
     if fletcher_variant == "chunked":
