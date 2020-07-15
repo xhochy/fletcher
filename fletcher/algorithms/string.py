@@ -333,54 +333,93 @@ def _slice_handle_chunk(pa_arr, start, end, step):
 
 @njit
 def _slice(offsets, data, start: int, end: int, step: int) -> StringArrayBuilder:
-    """
-    Currently: assumes step is positive and 1, and positive bounds
-    """
     builder = StringArrayBuilder(len(offsets) - 1)
 
     for i in prange(len(offsets) - 1):
+        # To do: throw error for step = 0
+        # if step == 0:
+
         str_len_bytes = offsets[i + 1] - offsets[i]
 
-        char_idx = 0
-        byte_idx = 0
-
+        # To do: add more empty cases
         if start > str_len_bytes:
             builder.append_empty()
             continue
 
-        while char_idx < start and byte_idx < str_len_bytes:
-            char_idx += 1
-            byte_idx += get_utf8_size(data[offsets[i] + byte_idx])
+        # Positive start, end, and step
+        if start >= 0 and (end is None or end >= 0) and step > 0:
+            char_idx = 0
+            byte_idx = 0
 
-        # positive start, end; step > 1
-        if step > 1:
-            to_skip = 0
-            include_bytes: List[bytes] = []
-
-            while char_idx < end and byte_idx < str_len_bytes:
-                char_size = get_utf8_size(data[offsets[i] + byte_idx])
-
-                if not to_skip:
-                    include_bytes.extend(
-                        data[offsets[i] + byte_idx : offsets[i] + byte_idx + char_size]
-                    )
-                    to_skip = step
-
-                char_idx += 1
-                byte_idx += char_size
-                to_skip -= 1
-
-            builder.append_value(include_bytes, len(include_bytes))
-
-        # positive start, end; step = 1
-        elif step == 1:
-            start_byte = offsets[i] + byte_idx
-
-            while char_idx < end and byte_idx < str_len_bytes:
+            while char_idx < start and byte_idx < str_len_bytes:
                 char_idx += 1
                 byte_idx += get_utf8_size(data[offsets[i] + byte_idx])
 
-            end_byte = offsets[i] + byte_idx
-            builder.append_value(data[start_byte:end_byte], end_byte - start_byte)
+            # Step = 1
+            if step == 1:
+                start_byte = offsets[i] + byte_idx
+
+                while (end is None or char_idx < end) and byte_idx < str_len_bytes:
+                    char_idx += 1
+                    byte_idx += get_utf8_size(data[offsets[i] + byte_idx])
+
+                end_byte = offsets[i] + byte_idx
+                builder.append_value(data[start_byte:end_byte], end_byte - start_byte)
+
+            # Step > 1
+            else:
+                to_skip = 0
+                include_bytes: List[bytes] = []
+
+                while (end is None or char_idx < end) and byte_idx < str_len_bytes:
+                    char_size = get_utf8_size(data[offsets[i] + byte_idx])
+
+                    if not to_skip:
+                        include_bytes.extend(
+                            data[
+                                offsets[i]
+                                + byte_idx : offsets[i]
+                                + byte_idx
+                                + char_size
+                            ]
+                        )
+                        to_skip = step
+
+                    char_idx += 1
+                    byte_idx += char_size
+                    to_skip -= 1
+
+                builder.append_value(include_bytes, len(include_bytes))
+
+        # Other: negative start, end, or step
+        else:
+            char_bytes: List[int] = []
+            byte_idx = 0
+
+            while byte_idx < str_len_bytes:
+                char_size = get_utf8_size(data[offsets[i] + byte_idx])
+                char_bytes.append(
+                    data[offsets[i] + byte_idx : offsets[i] + byte_idx + char_size]
+                )
+                byte_idx += char_size
+
+            include_bytes_2: List[int] = []
+            # Convert start and end to positives here
+            char_idx = start
+
+            # Positive step
+            if step > 0:
+                while (end is None or char_idx < end) and char_idx < len(char_bytes):
+                    include_bytes_2.append(char_bytes[char_idx])
+                    char_idx += step
+
+            # Negative step
+            else:
+                while (end is None or char_idx > end) and char_idx >= 0:
+                    if char_idx < len(char_bytes):
+                        include_bytes_2.append(char_bytes[char_idx])
+                    char_idx += step
+
+            builder.append_value(include_bytes_2, len(include_bytes_2))
 
     return builder
