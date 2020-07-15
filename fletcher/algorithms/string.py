@@ -393,9 +393,9 @@ def _extract_striped_string(last_offset, offset, data_buffer, to_strip):
 def _do_strip(
     valid_buffer, valid_offset, offsets, data_buffer, len_data, to_strip, inout_builder
 ):
-    prev_offset = offsets[0]
+    previous_offset = offsets[0]
     for idx in range(len_data):
-        cur_offset = offsets[1 + idx]
+        current_offset = offsets[1 + idx]
         valid = (
             bool(
                 valid_buffer[(idx + valid_offset) // 8]
@@ -405,13 +405,13 @@ def _do_strip(
             else True
         )
         if valid:
-            cur_str = _extract_striped_string(
-                prev_offset, cur_offset, data_buffer, to_strip
+            current_str = _extract_striped_string(
+                previous_offset, current_offset, data_buffer, to_strip
             )
-            inout_builder.append_value(cur_str, len(cur_str))
+            inout_builder.append_value(current_str, len(current_str))
         else:
             inout_builder.append_null()
-        prev_offset = cur_offset
+        previous_offset = current_offset
 
 
 @njit
