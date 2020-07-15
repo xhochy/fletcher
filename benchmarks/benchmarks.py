@@ -15,29 +15,35 @@ def generate_test_array(n):
     ]
 
 
-def generate_test_array_non_null(n):
-    return ['abc'*(x % 100 + 1) for x in range(n)]
-
-
-class TimeSuiteNonNull:
+class TimeSuiteText:
     def setup(self):
-        array = generate_test_array_non_null(2 ** 20)
+        array = [
+            ("a" * 50 + "b" if i % 2 == 0 else "c") * 5 + str(i) for i in range(2 ** 16)
+        ]
+        self.pattern = "a" * 30 + "b"
+
         self.df = pd.DataFrame({"str": array})
         self.df_ext = pd.DataFrame(
             {"str": fr.FletcherChunkedArray(pa.array(array, pa.string()))}
         )
 
-    def time_contains_no_regex(self):
-        self.df["str"].str.contains("abcabcabcabcabc", regex=False)
-
-    def time_contains_no_regex_ext(self):
-        self.df_ext["str"].text.contains("abcabcabcabcabc", regex=False)
-
     def time_count_no_regex(self):
-        self.df["str"].str.count("abcabcabcabcabc")
+        self.df["str"].str.count(self.pattern)
 
     def time_count_no_regex_ext(self):
-        self.df_ext["str"].text.count("abcabcabcabcabc", regex=False)
+        self.df_ext["str"].text.count(self.pattern, regex=False)
+
+    def time_contains_no_regex(self):
+        self.df["str"].str.contains(self.pattern, regex=False)
+
+    def time_contains_no_regex_ext(self):
+        self.df_ext["str"].text.contains(self.pattern, regex=False)
+
+    def time_replace_no_regex(self):
+        self.df["str"].str.replace(self.pattern, "bc")
+
+    def time_replace_no_regex_ext(self):
+        self.df_ext["str"].text.count(self.pattern, "bc", regex=False)
 
 
 class TimeSuite:
@@ -84,7 +90,7 @@ class TimeSuite:
     def time_contains_no_regex_ext(self):
         self.df_ext["str"].text.contains("1012102", regex=False)
 
-    def time_contains_no_regex_ignore_cast(self):
+    def time_contains_no_regex_ignore_case(self):
         self.df["str"].str.contains("0", regex=False, case=False)
 
     def time_contains_no_regex_ignore_case_ext(self):
@@ -107,6 +113,18 @@ class TimeSuite:
 
     def time_concat_ext(self):
         pd.concat([self.df_ext["str"]] * 2)
+
+    def time_count_no_regex(self):
+        self.df["str"].str.count("001")
+
+    def time_count_no_regex_ext(self):
+        self.df_ext["str"].text.count("001", regex=False)
+
+    def time_replace_no_regex(self):
+        self.df["str"].str.replace("001", "23")
+
+    def time_replace_no_regex_ext(self):
+        self.df_ext["str"].text.count("001", "23", regex=False)
 
 
 class Indexing(object):

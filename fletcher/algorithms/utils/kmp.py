@@ -4,7 +4,7 @@ import numpy as np
 from fletcher._compat import njit
 
 
-@njit
+@njit(inline="always")
 def compute_kmp_failure_function(pat: bytes) -> np.ndarray:
     """Compute the Knuth Moris Pratt failure function.
     Parameters
@@ -36,7 +36,7 @@ def compute_kmp_failure_function(pat: bytes) -> np.ndarray:
     return f
 
 
-@njit
+@njit(inline="always")
 def append_to_kmp_matching(
     matched_len: int, character: int, pat: bytes, failure_function: np.ndarray
 ) -> int:

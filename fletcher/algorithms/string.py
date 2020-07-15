@@ -11,10 +11,7 @@ from fletcher.algorithms.utils.chunking import (
     _combined_in_chunk_offsets,
     apply_per_chunk,
 )
-from fletcher.algorithms.utils.kmp import (
-    append_to_kmp_matching,
-    compute_kmp_failure_function,
-)
+from fletcher.algorithms.utils.kmp import compute_kmp_failure_function
 
 
 def _extract_string_buffers(arr: pa.Array) -> Tuple[np.ndarray, np.ndarray]:
@@ -170,7 +167,6 @@ def _text_count_case_sensitive_numba(
     data: np.ndarray,
     pat: bytes,
 ) -> np.ndarray:
-
     failure_function = compute_kmp_failure_function(pat)
 
     output = np.empty(length, dtype=np.int64)
@@ -182,16 +178,9 @@ def _text_count_case_sensitive_numba(
             continue
 
         matched_len = 0
-        if matched_len == len(pat):
-            output[row_idx] = 1
-        else:
-            output[row_idx] = 0
+        output[row_idx] = 0
 
         for str_idx in range(offsets[row_idx], offsets[row_idx + 1]):
-            matched_len = append_to_kmp_matching(
-                matched_len, data[str_idx], pat, failure_function
-            )
-
             if matched_len == len(pat):
                 output[row_idx] += 1
 
@@ -199,10 +188,18 @@ def _text_count_case_sensitive_numba(
                 # This matches the behavior of Python's builtin `count`
                 # function.
                 #
-                # If we wwanted to count overlapping matches, we would instead
+                # If we wanted to count overlapping matches, we would instead
                 # have:
                 #     matched_len = failure_function[matched_len]
                 matched_len = 0
+
+            # Manually inlined utils.kmp.append_to_kmp_matching for performance
+            while matched_len > -1 and pat[matched_len] != data[str_idx]:
+                matched_len = failure_function[matched_len]
+            matched_len = matched_len + 1
+
+        if matched_len == len(pat):
+            output[row_idx] += 1
 
     return output
 
@@ -251,7 +248,6 @@ def _text_contains_case_sensitive_numba(
     data: np.ndarray,
     pat: bytes,
 ) -> np.ndarray:
-
     failure_function = compute_kmp_failure_function(pat)
 
     # Initialise boolean (bit-packaed) output array.
@@ -272,17 +268,19 @@ def _text_contains_case_sensitive_numba(
 
         matched_len = 0
         contains = False
+        for str_idx in range(offsets[row_idx], offsets[row_idx + 1]):
+            if matched_len == len(pat):
+                contains = True
+                break
+
+            # Manually inlined utils.kmp.append_to_kmp_matching for
+            # performance
+            while matched_len > -1 and pat[matched_len] != data[str_idx]:
+                matched_len = failure_function[matched_len]
+            matched_len = matched_len + 1
+
         if matched_len == len(pat):
             contains = True
-        else:
-            for str_idx in range(offsets[row_idx], offsets[row_idx + 1]):
-                matched_len = append_to_kmp_matching(
-                    matched_len, data[str_idx], pat, failure_function
-                )
-
-                if matched_len == len(pat):
-                    contains = True
-                    break
 
         # Write out the result into the bit-mask
         byte_offset_result = row_idx // 8
@@ -305,7 +303,6 @@ def _text_contains_case_sensitive(data: pa.Array, pat: str) -> pa.Array:
     This implementation does basic byte-by-byte comparison and is independent
     of any locales or encodings.
     """
-
     # Convert to UTF-8 bytes
     pat_bytes: bytes = pat.encode()
 
@@ -372,9 +369,10 @@ def _text_replace_case_sensitive_numba(
                 continue
 
         for str_idx in range(offsets[row_idx], offsets[row_idx + 1]):
-            matched_len = append_to_kmp_matching(
-                matched_len, data[str_idx], pat, failure_function
-            )
+            # Manually inlined utils.kmp.append_to_kmp_matching for performance
+            while matched_len > -1 and pat[matched_len] != data[str_idx]:
+                matched_len = failure_function[matched_len]
+            matched_len = matched_len + 1
 
             if matched_len == len(pat):
                 matches_done += 1
@@ -406,9 +404,10 @@ def _text_replace_case_sensitive_numba(
             output_buffer[output_pos] = data[str_idx]
             output_pos += 1
 
-            matched_len = append_to_kmp_matching(
-                matched_len, data[str_idx], pat, failure_function
-            )
+            # Manually inlined utils.kmp.append_to_kmp_matching for performance
+            while matched_len > -1 and pat[matched_len] != data[str_idx]:
+                matched_len = failure_function[matched_len]
+            matched_len = matched_len + 1
 
             if matched_len == len(pat) and matches_done != max_repl:
                 output_pos -= len(pat)
