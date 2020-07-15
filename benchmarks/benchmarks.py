@@ -33,6 +33,12 @@ class TimeSuiteNonNull:
     def time_contains_no_regex_ext(self):
         self.df_ext["str"].text.contains("0", regex=False)
 
+    def time_zfill(self):
+        self.df["str"].str.zfill(10)
+
+    def time_zfill_ext(self):
+        self.df_ext["str"].text.zfill(10)
+
 
 class TimeSuite:
     def setup(self):
