@@ -141,6 +141,14 @@ class ByteVector:
             self.buf[self.size] = ptr[i]
             self.size += 1
 
+    def get_int32(self, idx):
+        return np.int32(
+            np.uint32(self.buf[idx * 4])
+            | (np.uint32(self.buf[idx * 4 + 1]) << 8)
+            | (np.uint32(self.buf[idx * 4 + 2]) << 16)
+            | (np.uint32(self.buf[idx * 4 + 3]) << 24)
+        )
+
     def expand(self, min_capacity):
         """
         Double the size of the underlying buffer and copy over the existing data.
@@ -236,11 +244,11 @@ def byte_for_bits(num_bits):
     return (num_bits + 7) // 8
 
 
-def bit_vector_to_pa_boolarray(bv: BitVector) -> pa.BooleanArray:
-    bools = pa.py_buffer(np.copy(bv.buf[: byte_for_bits(bv.size)]))
-    return pa.BooleanArray.from_buffers(
-        pa.bool_(), bv.size, [None, bools], null_count=0
-    )
+# def bit_vector_to_pa_boolarray(bv: BitVector) -> pa.BooleanArray:
+#     bools = pa.py_buffer(np.copy(bv.buf[: byte_for_bits(bv.size)]))
+#     return pa.BooleanArray.from_buffers(
+#         pa.bool_(), bv.size, [None, bools], null_count=0
+#     )
 
 
 @numba.jitclass(
