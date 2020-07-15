@@ -425,6 +425,8 @@ def _slice(offsets, data, start: int, end: int, step: int) -> StringArrayBuilder
 
             # Negative step
             else:
+                if char_idx >= len(char_bytes):
+                    char_idx = len(char_bytes) - 1
                 while (end is None or char_idx > true_end) and char_idx >= 0:
                     if char_idx < len(char_bytes):
                         include_bytes.extend(char_bytes[char_idx])  # type: ignore
