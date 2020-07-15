@@ -1,14 +1,10 @@
-name: CI
-on: [pull_request, push]
-
 jobs:
-    linux:
-      name: "Linux Py${{ matrix.PYTHON_VERSION }} - ${{ matrix.UPSTREAM_DEV }}"
-      runs-on: ubuntu-latest
+    win:
+      name: "Windwos Py${{ matrix.PYTHON_VERSION }} - ${{ matrix.UPSTREAM_DEV }}"
+      runs-on: windows-latest
       env:
         CI: True
         PYTHON_VERSION: ${{ matrix.PYTHON_VERSION }}
-        CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       strategy:
         fail-fast: false
         matrix:
@@ -19,11 +15,16 @@ jobs:
               PYTHON_VERSION: '3.8'
       steps:
         - name: Checkout branch
-          uses: actions/checkout@v1.2.0
-        - name: Run CI
-          shell: bash -l {0}
-          run: ./ci/circle_build_linux.sh ${{ matrix.PYTHON_VERSION }} ${{ matrix.UPSTREAM_DEV }}
-        - uses: codecov/codecov-action@v1
+          uses: actions/checkout@v2
+        - name: Setup conda
+          uses: s-weigand/setup-conda@v1
           with:
-            token: ${{ secrets.CODECOV_TOKEN }}
-            file: ./coverage.xml
+            update-conda: true
+            python-version: ${{ matrix.PYTHON_VERSION }}
+            conda-channels: conda-forge, anaconda
+        - run: conda --version
+        - run: conda config --show channels
+        - run: which python
+        # - name: Run CI
+        #   shell: bash -l {0}
+        #   run: ./ci/circle_build_linux.sh ${{ matrix.PYTHON_VERSION }} ${{ matrix.UPSTREAM_DEV }}
