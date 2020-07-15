@@ -247,11 +247,12 @@ def _text_contains_case_sensitive_numba(
     failure_function = compute_kmp_failure_function(pat)
 
     # Initialise boolean (bit-packaed) output array.
-    output_size = len(data) // 8
-    if len(data) % 8 > 0:
+    output_size = length // 8
+    if length % 8 > 0:
         output_size += 1
     output = np.empty(output_size, dtype=np.uint8)
-    if len(data) % 8 > 0:
+
+    if length % 8 > 0:
         # Zero trailing bits
         output[-1] = 0
 
