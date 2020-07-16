@@ -345,14 +345,6 @@ def get_utf8_size(first_byte: int):
 
 
 @njit
-def _check_valid(valid_bits, i, valid_offset) -> bool:
-    byte_offset = (i + valid_offset) // 8
-    bit_offset = (i + valid_offset) % 8
-    mask = np.uint8(1 << bit_offset)
-    return valid_bits[byte_offset] & mask
-
-
-@njit
 def _slice_pos_inputs_nostep(
     offsets, data, valid_bits, valid_offset, start: int, end: int
 ) -> StringArrayBuilder:
@@ -365,7 +357,10 @@ def _slice_pos_inputs_nostep(
     for i in prange(len(offsets) - 1):
 
         if len(valid_bits) > 0:
-            valid = _check_valid(valid_bits, i, valid_offset)
+            byte_offset = (i + valid_offset) // 8
+            bit_offset = (i + valid_offset) % 8
+            mask = np.uint8(1 << bit_offset)
+            valid = valid_bits[byte_offset] & mask
             if not valid:
                 builder.append_null()
                 continue
@@ -402,7 +397,10 @@ def _slice_pos_inputs_step(
 
     for i in prange(len(offsets) - 1):
         if len(valid_bits) > 0:
-            valid = _check_valid(valid_bits, i, valid_offset)
+            byte_offset = (i + valid_offset) // 8
+            bit_offset = (i + valid_offset) % 8
+            mask = np.uint8(1 << bit_offset)
+            valid = valid_bits[byte_offset] & mask
             if not valid:
                 builder.append_null()
                 continue
@@ -446,7 +444,10 @@ def _slice_generic(
 
     for i in prange(len(offsets) - 1):
         if len(valid_bits) > 0:
-            valid = _check_valid(valid_bits, i, valid_offset)
+            byte_offset = (i + valid_offset) // 8
+            bit_offset = (i + valid_offset) % 8
+            mask = np.uint8(1 << bit_offset)
+            valid = valid_bits[byte_offset] & mask
             if not valid:
                 builder.append_null()
                 continue
