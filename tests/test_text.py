@@ -124,8 +124,6 @@ def _check_str_to_t(t, func, data, fletcher_variant, test_offset=0, *args, **kwa
     result_pd = getattr(ser_pd.str, func)(*args, **kwargs)
 
     ser_fr = _fr_series_from_data(data, fletcher_variant).tail(tail_len)
-    print(type(data))
-    print(ser_fr)
     result_fr = getattr(ser_fr.fr_strx, func)(*args, **kwargs)
 
     _check_series_equal(result_fr, result_pd)
