@@ -1,6 +1,6 @@
 import math
 import string
-from typing import Optional
+from typing import Optional, Sequence, Tuple
 
 import hypothesis.strategies as st
 import numpy as np
@@ -8,14 +8,14 @@ import pandas as pd
 import pandas.testing as tm
 import pyarrow as pa
 import pytest
-from hypothesis import assume, example, given, settings
+from hypothesis import example, given, settings
 
 import fletcher as fr
 from fletcher.testing import examples
 
 
 @st.composite
-def string_patterns_st(draw, max_len=50):
+def string_patterns_st(draw, max_len=50) -> Tuple[Sequence[Optional[str]], str, int]:
     ab_charset_st = st.sampled_from("ab")
     ascii_charset_st = st.sampled_from(string.ascii_letters)
     charset_st = st.sampled_from((ab_charset_st, ascii_charset_st))
@@ -64,8 +64,9 @@ def string_patterns_st(draw, max_len=50):
             s[j : j + len(pattern)] = pattern
 
     seq = ["".join(s) if s is not None else None for s in raw_seq]
+    offset = draw(st.integers(min_value=0, max_value=len(seq)))
 
-    return (seq, pattern)
+    return (seq, pattern, offset)
 
 
 string_patterns = pytest.mark.parametrize(
@@ -173,16 +174,9 @@ def test_contains_no_regex_ascii(data, pat, expected, fletcher_variant):
         tm.assert_series_equal(result, expected)
 
 
-# @settings(deadline=None)
-@given(
-    data_pat_tuple=string_patterns_st(),
-    test_offset=st.integers(min_value=0, max_value=15),
-)
-def test_contains_no_regex_case_sensitive(
-    data_pat_tuple, test_offset, fletcher_variant
-):
-    data, pat = data_pat_tuple
-    assume(test_offset < len(data))
+@given(data_tuple=string_patterns_st())
+def test_contains_no_regex_case_sensitive(data_tuple, fletcher_variant):
+    data, pat, test_offset = data_tuple
     _check_str_to_bool(
         "contains",
         data,
@@ -231,30 +225,19 @@ def test_contains_regex_ignore_case(data, pat, fletcher_variant):
 
 @settings(deadline=None)
 @given(
-    data_pat_tuple=string_patterns_st(),
-    test_offset=st.integers(min_value=0, max_value=15),
+    data_tuple=string_patterns_st(),
     n=st.integers(min_value=0, max_value=10),
     repl=st.sampled_from(["len4", "", "z"]),
 )
 @example(
-    data_pat_tuple=(["aababaa"], "aabaa"),
+    data_tuple=(["aababaa"], "aabaa", 0),
     repl="len4",
     n=1,
-    test_offset=0,
     fletcher_variant="continuous",
 )
-@example(
-    data_pat_tuple=(["aaa"], "a"),
-    repl="len4",
-    n=1,
-    test_offset=0,
-    fletcher_variant="continuous",
-)
-def test_replace_no_regex_case_sensitive(
-    data_pat_tuple, repl, n, test_offset, fletcher_variant
-):
-    data, pat = data_pat_tuple
-    assume(test_offset < len(data))
+@example(data_tuple=(["aaa"], "a", 0), repl="len4", n=1, fletcher_variant="continuous")
+def test_replace_no_regex_case_sensitive(data_tuple, repl, n, fletcher_variant):
+    data, pat, test_offset = data_tuple
     _check_str_to_str(
         "replace",
         data,
@@ -269,16 +252,12 @@ def test_replace_no_regex_case_sensitive(
 
 
 @settings(deadline=None)
-@given(
-    data_pat_tuple=string_patterns_st(),
-    test_offset=st.integers(min_value=0, max_value=15),
-)
-@example(data_pat_tuple=(["a"], ""), test_offset=0, fletcher_variant="chunked")
-def test_count_no_regex(data_pat_tuple, test_offset, fletcher_variant):
+@given(data_tuple=string_patterns_st())
+@example(data_tuple=(["a"], "", 0), fletcher_variant="chunked")
+def test_count_no_regex(data_tuple, fletcher_variant):
     """Check a .str. function that returns a series with type t."""
-    data, pat = data_pat_tuple
+    data, pat, test_offset = data_tuple
 
-    assume(test_offset < len(data))
     tail_len = len(data) - test_offset
 
     ser_pd = pd.Series(data, dtype=str).tail(tail_len)
