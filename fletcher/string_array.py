@@ -19,6 +19,7 @@ from fletcher.algorithms.string import (
     _text_cat_chunked,
     _text_cat_chunked_mixed,
     _text_contains_case_sensitive,
+    _text_strip,
 )
 from fletcher.base import (
     FletcherBaseArray,
@@ -397,6 +398,17 @@ class TextAccessor(TextAccessorBase):
                 # else: use libutf8proc
                 pass
         return self._call_str_accessor("contains", pat=pat, case=case, regex=regex)
+
+    def strip(self, to_strip=None):
+        """Strip whitespaces from both ends of strings."""
+        # see for unicode spaces: https://en.wikibooks.org/wiki/Unicode/Character_reference/2000-2FFF
+        # for whatever reason 0x200B (zero width space) is not considered a space by pandas.split()
+        if to_strip is None:
+            to_strip = (
+                " \t\r\n\x1f\x1e\x1d\x1c\x0c\x0b"
+                "\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2000\u2009\u200A\u2028\u2029\u202F"
+            )
+        return self._series_like(_text_strip(self.data, to_strip))
 
     def zfill(self, width: int) -> pd.Series:
         """Pad strings in the Series/Index by prepending '0' characters."""

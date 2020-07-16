@@ -6,6 +6,7 @@ import pyarrow as pa
 
 from fletcher._algorithms import _buffer_to_view, _merge_valid_bitmaps
 from fletcher._compat import njit
+from fletcher.algorithms.string_builder import StringArrayBuilder, finalize_string_array
 from fletcher.algorithms.utils.chunking import (
     _calculate_chunk_offsets,
     _combined_in_chunk_offsets,
@@ -265,6 +266,148 @@ def _text_contains_case_sensitive(data: pa.Array, pat: str) -> pa.Array:
     return pa.Array.from_buffers(
         pa.bool_(), len(data), [valid_buffer, pa.py_buffer(output)], data.null_count
     )
+
+
+@apply_per_chunk
+def _text_strip(data: pa.Array, to_strip) -> pa.Array:
+    """
+    Strip the characters of ``to_strip`` from start and end of each element in the data.
+    """
+    if len(data) == 0:
+        return data
+
+    offsets, data_buffer = _extract_string_buffers(data)
+
+    valid_buffer = data.buffers()[0]
+    valid_offset = data.offset
+    builder = StringArrayBuilder(max(len(data_buffer), len(data)))
+
+    _do_strip(
+        valid_buffer,
+        valid_offset,
+        offsets,
+        data_buffer,
+        len(data),
+        to_strip,
+        inout_builder=builder,
+    )
+
+    result_array = finalize_string_array(builder, pa.string())
+    return result_array
+
+
+@njit
+def _utf8_chr4(arr):
+    return chr(
+        np.int32((arr[0] & 0x7) << 18)
+        | np.int32((arr[1] & 0x3F) << 12)
+        | np.int32((arr[2] & 0x3F) << 6)
+        | np.int32((arr[3] & 0x3F))
+    )
+
+
+@njit
+def _utf8_chr3(arr):
+    return chr(
+        np.int32((arr[0] & 0xF)) << 12
+        | np.int32((arr[1] & 0x3F) << 6)
+        | np.int32((arr[2] & 0x3F))
+    )
+
+
+@njit
+def _utf8_chr2(arr):
+    return chr(np.int32((arr[0] & 0x1F)) << 6 | np.int32((arr[1] & 0x3F)))
+
+
+@njit
+def _extract_striped_string(last_offset, offset, data_buffer, to_strip):
+    if last_offset < offset:
+        start_offset = last_offset
+        while start_offset < offset:
+            if (data_buffer[start_offset] & 0x80) == 0:
+                if chr(data_buffer[start_offset]) in to_strip:
+                    start_offset += 1
+                else:
+                    break
+            # for utf-8 encoding, see: https://en.wikipedia.org/wiki/UTF-8
+            elif (
+                (data_buffer[start_offset] & 0xF8) == 0xF0
+                and start_offset + 3 < offset
+                and _utf8_chr4(data_buffer[start_offset : start_offset + 4]) in to_strip
+            ):
+                start_offset += 4
+            elif (
+                (data_buffer[start_offset] & 0xF0) == 0xE0
+                and start_offset + 2 < offset
+                and _utf8_chr3(data_buffer[start_offset : start_offset + 3]) in to_strip
+            ):
+                start_offset += 3
+            elif (
+                (data_buffer[start_offset] & 0xE0) == 0xC0
+                and start_offset + 1 < offset
+                and _utf8_chr2(data_buffer[start_offset : start_offset + 2]) in to_strip
+            ):
+                start_offset += 2
+            else:
+                break
+        end_offset = offset
+        while end_offset > start_offset:
+            if (data_buffer[end_offset - 1] & 0x80) == 0:
+                if chr(data_buffer[end_offset - 1]) in to_strip:
+                    end_offset -= 1
+                else:
+                    break
+            elif (
+                end_offset > start_offset + 3
+                and (data_buffer[end_offset - 4] & 0xF8) == 0xF0
+                and _utf8_chr4(data_buffer[end_offset - 4 : end_offset]) in to_strip
+            ):
+                end_offset -= 4
+            elif (
+                end_offset > start_offset + 2
+                and (data_buffer[end_offset - 3] & 0xF0) == 0xE0
+                and _utf8_chr3(data_buffer[end_offset - 3 : end_offset]) in to_strip
+            ):
+                end_offset -= 3
+            elif (
+                end_offset > start_offset + 1
+                and (data_buffer[end_offset - 2] & 0xE0) == 0xC0
+                and _utf8_chr2(data_buffer[end_offset - 2 : end_offset]) in to_strip
+            ):
+                end_offset -= 2
+            else:
+                break
+
+        stripped_str = data_buffer[start_offset:end_offset]
+    else:
+        stripped_str = data_buffer[0:0]
+    return stripped_str
+
+
+@njit
+def _do_strip(
+    valid_buffer, valid_offset, offsets, data_buffer, len_data, to_strip, inout_builder
+):
+    previous_offset = offsets[0]
+    for idx in range(len_data):
+        current_offset = offsets[1 + idx]
+        valid = (
+            bool(
+                valid_buffer[(idx + valid_offset) // 8]
+                & (1 << ((idx + valid_offset) % 8))
+            )
+            if valid_buffer is not None
+            else True
+        )
+        if valid:
+            current_str = _extract_striped_string(
+                previous_offset, current_offset, data_buffer, to_strip
+            )
+            inout_builder.append_value(current_str, len(current_str))
+        else:
+            inout_builder.append_null()
+        previous_offset = current_offset
 
 
 @njit

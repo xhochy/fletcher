@@ -9,6 +9,7 @@ import pytest
 from hypothesis import given, settings
 
 import fletcher as fr
+from fletcher.testing import examples
 
 string_patterns = pytest.mark.parametrize(
     "data, pat",
@@ -166,6 +167,82 @@ def test_text_zfill(data, fletcher_variant):
     result_fr = result_fr.astype(object)
     # Pandas returns np.nan for NA values in cat, keep this in line
     result_fr[result_fr.isna()] = np.nan
+    tm.assert_series_equal(result_fr, result_pd)
+
+
+@settings(deadline=None, max_examples=3)
+@given(data=st.lists(st.one_of(st.text(), st.none())))
+@examples(
+    example_list=[
+        [
+            " 000000000000000000000000000000000000000000İࠀࠀࠀࠀ𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐤱000000000000𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀"
+        ],
+        ["\x80 "],
+        [],
+    ],
+    example_kword="data",
+)
+def test_text_strip_offset(fletcher_variant, fletcher_slice_offset, data):
+    _do_test_text_strip(fletcher_variant, fletcher_slice_offset, data)
+
+
+@settings(deadline=None)
+@given(data=st.lists(st.one_of(st.text(), st.none())))
+@examples(
+    example_list=[
+        [],
+        [""],
+        [None],
+        [" "],
+        ["\u2000"],
+        [" a"],
+        ["a "],
+        [" a "],
+        ["\u2000a\u2000"],
+        ["\u2000\u200C\u2000"],
+        ["\n\u200C\r"],
+        ["\u2000\x80\u2000"],
+        ["\t\x80\x0b"],
+        ["\u2000\u10FFFF\u2000"],
+        [" \u10FFFF "],
+    ]
+    + [
+        [c]
+        for c in " \t\r\n\x1f\x1e\x1d\x1c\x0c\x0b"
+        "\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2000\u2009\u200A\u200B\u2028\u2029\u202F"
+    ]
+    + [[chr(c)] for c in range(0x32)]
+    + [[chr(c)] for c in range(0x80, 0x85)]
+    + [[chr(c)] for c in range(0x200C, 0x2030)]
+    + [[chr(c)] for c in range(0x2060, 0x2070)]
+    + [[chr(c)] for c in range(0x10FFFE, 0x110000)],
+    example_kword="data",
+)
+def test_text_strip(fletcher_variant, data):
+    _do_test_text_strip(fletcher_variant, 1, data)
+
+
+def _do_test_text_strip(fletcher_variant, fletcher_slice_offset, data):
+    if any("\x00" in x for x in data if x):
+        # pytest.skip("pandas cannot handle \\x00 characters in tests")
+        # Skip is not working properly with hypothesis
+        return
+    ser_pd = pd.Series(data, dtype=str)
+    arrow_data = pa.array(
+        [None for _ in range(fletcher_slice_offset)] + data, type=pa.string()
+    )
+    if fletcher_variant == "chunked":
+        fr_array = fr.FletcherChunkedArray(arrow_data)
+    else:
+        fr_array = fr.FletcherContinuousArray(arrow_data)
+    ser_fr = pd.Series(fr_array[fletcher_slice_offset:])
+
+    result_pd = ser_pd.str.strip()
+    result_fr = ser_fr.fr_strx.strip()
+    result_fr = result_fr.astype(object)
+    # Pandas returns np.nan for NA values in cat, keep this in line
+    result_fr[result_fr.isna()] = np.nan
+    result_pd[result_pd.isna()] = np.nan
     tm.assert_series_equal(result_fr, result_pd)
 
 
