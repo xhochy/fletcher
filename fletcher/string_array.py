@@ -19,6 +19,8 @@ from fletcher.algorithms.string import (
     _text_cat_chunked,
     _text_cat_chunked_mixed,
     _text_contains_case_sensitive,
+    _text_count_case_sensitive,
+    _text_replace_case_sensitive,
     _text_strip,
 )
 from fletcher.base import (
@@ -398,6 +400,55 @@ class TextAccessor(TextAccessorBase):
                 # else: use libutf8proc
                 pass
         return self._call_str_accessor("contains", pat=pat, case=case, regex=regex)
+
+    def count(self, pat: str, case: bool = True, regex: bool = True) -> pd.Series:
+        if not regex:
+            if case:
+                return self._series_like(_text_count_case_sensitive(self.data, pat))
+        return self._call_str_accessor("count", pat=pat)
+
+    def replace(
+        self, pat: str, repl: str, n: int = -1, case: bool = True, regex: bool = True
+    ):
+        """
+        Replace occurrences of pattern/regex in the Series/Index with some other string.
+        Equivalent to str.replace() or re.sub().
+
+        Return а string Series where in each row the occurrences of the given
+        pattern or regex ``pat`` are replaced by ``repl``.
+
+        This implementation differs to the one in ``pandas``:
+         * We always return a missing for missing data.
+         * You cannot pass flags for the regular expression module.
+
+        Parameters
+        ----------
+        pat : str
+            Character sequence or regular expression.
+        repl : str
+            Replacement string.
+        n : int
+            Number of replacements to make from start.
+        case : bool, default True
+            If True, case sensitive.
+        regex : bool, default True
+            If True, assumes the pat is a regular expression.
+            If False, treats the pat as a literal string.
+
+        Returns
+        -------
+        Series of string values.
+        """
+        if n == 0:
+            return self._series_like(self.data)
+        if not regex:
+            if case:
+                return self._series_like(
+                    _text_replace_case_sensitive(self.data, pat, repl, n)
+                )
+        return self._call_str_accessor(
+            "replace", pat=pat, repl=repl, n=n, case=case, regex=regex
+        )
 
     def strip(self, to_strip=None):
         """Strip whitespaces from both ends of strings."""
