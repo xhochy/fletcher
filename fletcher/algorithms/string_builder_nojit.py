@@ -163,7 +163,6 @@ def byte_for_bits(num_bits):
     return math.ceil(num_bits / 8)
 
 
-
 class StringArrayBuilder:
     """
     Numba-based builder to construct pyarrow.StringArray instances.
