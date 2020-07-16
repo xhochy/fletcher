@@ -25,7 +25,11 @@ def string_patterns_st(draw, max_len=50):
     pattern_st = st.one_of(fixed_pattern_st, generated_pattern_st)
     pattern = draw(pattern_st)
 
-    raw_str_st = st.one_of(st.none(), st.lists(charset, max_size=max_len))
+    min_str_size = 0 if len(pattern) > 0 else 1
+
+    raw_str_st = st.one_of(
+        st.none(), st.lists(charset, min_size=min_str_size, max_size=max_len)
+    )
     raw_seq_st = st.lists(raw_str_st, max_size=max_len)
     raw_seq = draw(raw_seq_st)
 
@@ -47,8 +51,6 @@ def string_patterns_st(draw, max_len=50):
         I believe the second result is the correct one and this is what the
         fletcher implementation returns.
         """
-
-        assume(len(s) > 0 or len(pattern) > 0)
 
         max_ind = len(s) - len(pattern)
         if max_ind < 0:
@@ -238,11 +240,18 @@ def test_contains_regex_ignore_case(data, pat, fletcher_variant):
     test_offset=0,
     fletcher_variant="continuous",
 )
+@example(
+    data_pat_tuple=(["aaa"], "a"),
+    repl="len4",
+    n=1,
+    test_offset=0,
+    fletcher_variant="continuous",
+)
 def test_replace_no_regex_case_sensitive(
     data_pat_tuple, repl, n, test_offset, fletcher_variant
 ):
     data, pat = data_pat_tuple
-    assume(len(data) > test_offset)
+    assume(test_offset < len(data))
     _check_str_to_str(
         "replace",
         data,
@@ -261,6 +270,7 @@ def test_replace_no_regex_case_sensitive(
     data_pat_tuple=string_patterns_st(),
     test_offset=st.integers(min_value=0, max_value=15),
 )
+@example(data_pat_tuple=(["a"], ""), test_offset=0, fletcher_variant="chunked")
 def test_count_no_regex(data_pat_tuple, test_offset, fletcher_variant):
     """Check a .str. function that returns a series with type t."""
     data, pat = data_pat_tuple

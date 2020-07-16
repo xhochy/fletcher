@@ -180,26 +180,22 @@ def _text_count_case_sensitive_numba(
         matched_len = 0
         output[row_idx] = 0
 
+        if len(pat) == 0:
+            output[row_idx] = offsets[row_idx + 1] - offsets[row_idx] + 1
+            continue
+
         for str_idx in range(offsets[row_idx], offsets[row_idx + 1]):
-            if matched_len == len(pat):
-                output[row_idx] += 1
-
-                # `matched_len=0` ensures overlapping matches are not counted.
-                # This matches the behavior of Python's builtin `count`
-                # function.
-                #
-                # If we wanted to count overlapping matches, we would instead
-                # have:
-                #     matched_len = failure_function[matched_len]
-                matched_len = 0
-
             # Manually inlined utils.kmp.append_to_kmp_matching for performance
             while matched_len > -1 and pat[matched_len] != data[str_idx]:
                 matched_len = failure_function[matched_len]
             matched_len = matched_len + 1
 
-        if matched_len == len(pat):
-            output[row_idx] += 1
+            if matched_len == len(pat):
+                output[row_idx] += 1
+                # `matched_len=0` ensures overlapping matches are not counted.
+                # This matches the behavior of Python's builtin `count`
+                # function.
+                matched_len = 0
 
     return output
 
@@ -331,6 +327,71 @@ def _text_contains_case_sensitive(data: pa.Array, pat: str) -> pa.Array:
 
 
 @njit
+def _text_replace_case_sensitive_empty_pattern(
+    length: int,
+    valid_bits: np.ndarray,
+    valid_offset: int,
+    offsets: np.ndarray,
+    data: np.ndarray,
+    repl: bytes,
+    max_repl: int,
+):
+    """
+    A special case for replace when pat=''.
+
+    Assumes max_repl != 0.
+    """
+    output_offsets = np.empty(length + 1, dtype=np.int32)
+    cumulative_offset = 0
+
+    has_nulls = valid_bits.size > 0
+
+    for row_idx in range(length):
+        output_offsets[row_idx] = cumulative_offset
+
+        if has_nulls and not _check_valid_row(row_idx, valid_bits, valid_offset):
+            continue
+
+        row_len = offsets[row_idx + 1] - offsets[row_idx]
+
+        if max_repl < 0:
+            matches_done = row_len + 1
+        else:
+            matches_done = min(max_repl, row_len + 1)
+
+        cumulative_offset += row_len + matches_done * len(repl)
+
+    output_offsets[length] = cumulative_offset
+
+    # Replace in the output_buffer
+    output_buffer = np.empty(cumulative_offset, dtype=np.uint8)
+    output_pos = 0
+    for row_idx in range(length):
+        if has_nulls and not _check_valid_row(row_idx, valid_bits, valid_offset):
+            continue
+
+        matches_done = 0
+
+        if max_repl != 0:
+            matches_done += 1
+            for char in repl:
+                output_buffer[output_pos] = char
+                output_pos += 1
+
+        for str_idx in range(offsets[row_idx], offsets[row_idx + 1]):
+            output_buffer[output_pos] = data[str_idx]
+            output_pos += 1
+
+            if matches_done != max_repl:
+                matches_done += 1
+                for char in repl:
+                    output_buffer[output_pos] = char
+                    output_pos += 1
+
+    return output_offsets, output_buffer
+
+
+@njit
 def _text_replace_case_sensitive_numba(
     length: int,
     valid_bits: np.ndarray,
@@ -357,16 +418,11 @@ def _text_replace_case_sensitive_numba(
         if has_nulls and not _check_valid_row(row_idx, valid_bits, valid_offset):
             continue
 
-        cumulative_offset += offsets[row_idx + 1] - offsets[row_idx]
+        row_len = offsets[row_idx + 1] - offsets[row_idx]
+        cumulative_offset += row_len
 
         matched_len = 0
         matches_done = 0
-
-        if matched_len == len(pat):
-            matches_done += 1
-            cumulative_offset += match_len_change
-            if matches_done == max_repl:
-                continue
 
         for str_idx in range(offsets[row_idx], offsets[row_idx + 1]):
             # Manually inlined utils.kmp.append_to_kmp_matching for performance
@@ -376,14 +432,14 @@ def _text_replace_case_sensitive_numba(
 
             if matched_len == len(pat):
                 matches_done += 1
-                cumulative_offset += match_len_change
                 matched_len = 0
                 if matches_done == max_repl:
                     break
 
+        cumulative_offset += match_len_change * matches_done
+
     output_offsets[length] = cumulative_offset
 
-    # Replace in the output_buffer
     output_buffer = np.empty(cumulative_offset, dtype=np.uint8)
     output_pos = 0
     for row_idx in range(length):
@@ -393,30 +449,35 @@ def _text_replace_case_sensitive_numba(
         matched_len = 0
         matches_done = 0
 
-        if matched_len == len(pat):
-            for char in repl:
-                output_buffer[output_pos] = char
-                output_pos += 1
-
-            matches_done += 1
-
         for str_idx in range(offsets[row_idx], offsets[row_idx + 1]):
-            output_buffer[output_pos] = data[str_idx]
-            output_pos += 1
-
-            # Manually inlined utils.kmp.append_to_kmp_matching for performance
+            # A modified version of utils.kmp.append_to_kmp_matching
             while matched_len > -1 and pat[matched_len] != data[str_idx]:
-                matched_len = failure_function[matched_len]
+                new_len = failure_function[matched_len]
+                while matched_len > new_len:
+                    output_buffer[output_pos] = data[str_idx - matched_len]
+                    output_pos += 1
+                    matched_len -= 1
             matched_len = matched_len + 1
 
-            if matched_len == len(pat) and matches_done != max_repl:
-                output_pos -= len(pat)
-                for char in repl:
-                    output_buffer[output_pos] = char
-                    output_pos += 1
+            if matched_len == len(pat):
+                if matches_done != max_repl:
+                    matches_done += 1
+                    matched_len = 0
 
-                matches_done += 1
-                matched_len = 0
+                    # output_pos -= len(pat)
+                    for char in repl:
+                        output_buffer[output_pos] = char
+                        output_pos += 1
+                else:
+                    while matched_len > 0:
+                        output_buffer[output_pos] = data[1 + str_idx - matched_len]
+                        output_pos += 1
+                        matched_len -= 1
+
+        while matched_len > 0:
+            output_buffer[output_pos] = data[1 + str_idx - matched_len]
+            output_pos += 1
+            matched_len -= 1
 
     return output_offsets, output_buffer
 
@@ -445,16 +506,29 @@ def _text_replace_case_sensitive(
     else:
         valid_buffer = _buffer_to_view(data.buffers()[0])
 
-    output_offsets, output_buffer = _text_replace_case_sensitive_numba(
-        len(data),
-        valid_buffer,
-        data.offset,
-        offsets_buffer,
-        data_buffer,
-        pat_bytes,
-        repl_bytes,
-        max_repl,
-    )
+    if len(pat) > 0:
+        output_t = _text_replace_case_sensitive_numba(
+            len(data),
+            valid_buffer,
+            data.offset,
+            offsets_buffer,
+            data_buffer,
+            pat_bytes,
+            repl_bytes,
+            max_repl,
+        )
+    else:
+        output_t = _text_replace_case_sensitive_empty_pattern(
+            len(data),
+            valid_buffer,
+            data.offset,
+            offsets_buffer,
+            data_buffer,
+            repl_bytes,
+            max_repl,
+        )
+
+    output_offsets, output_buffer = output_t
 
     if data.null_count == 0:
         output_valid = None
