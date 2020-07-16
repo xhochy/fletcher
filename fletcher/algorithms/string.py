@@ -270,10 +270,6 @@ def _text_contains_case_sensitive(data: pa.Array, pat: str) -> pa.Array:
 
 @apply_per_chunk
 def _text_strip(data: pa.Array, to_strip) -> pa.Array:
-    return _do_text_strip(data, to_strip)
-
-
-def _do_text_strip(data: pa.Array, to_strip) -> pa.Array:
     """
     Strip the characters of ``to_strip`` from start and end of each element in the data.
     """

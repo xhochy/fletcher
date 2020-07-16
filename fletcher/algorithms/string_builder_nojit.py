@@ -163,12 +163,6 @@ def byte_for_bits(num_bits):
     return math.ceil(num_bits / 8)
 
 
-# def bit_vector_to_pa_boolarray(bv: BitVector) -> pa.BooleanArray:
-#     bools = pa.py_buffer(np.copy(bv.buf[: byte_for_bits(len(bv.buf))]))
-#     return pa.BooleanArray.from_buffers(
-#         pa.bool_(), len(bv.buf), [None, bools], null_count=0
-#     )
-
 
 class StringArrayBuilder:
     """
