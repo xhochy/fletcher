@@ -39,6 +39,8 @@ PANDAS_GE_0_26_0 = LooseVersion(pd.__version__) >= "0.26.0"
 if PANDAS_GE_0_26_0:
     from pandas.core.indexers import check_array_indexer
 
+ARROW_GE_0_18_0 = LooseVersion(pa.__version__) >= "0.18.0"
+
 _python_type_map = {
     pa.null().id: str,
     pa.bool_().id: bool,
@@ -971,9 +973,8 @@ class FletcherContinuousArray(FletcherBaseArray):
         if PANDAS_GE_0_26_0:
             item = check_array_indexer(self, item)
 
-        # Workaround for Arrow bug that segfaults on empty slice.
-        # This is fixed in Arrow master, will be released in 0.10
-        if isinstance(item, slice):
+        # Arrow 0.18+ supports slices perfectly
+        if isinstance(item, slice) and not ARROW_GE_0_18_0:
             start = item.start or 0
             stop = item.stop if item.stop is not None else len(self.data)
             stop = min(stop, len(self.data))
@@ -1390,9 +1391,8 @@ class FletcherChunkedArray(FletcherBaseArray):
         if PANDAS_GE_0_26_0:
             item = check_array_indexer(self, item)
 
-        # Workaround for Arrow bug that segfaults on empty slice.
-        # This is fixed in Arrow master, will be released in 0.10
-        if isinstance(item, slice):
+        # Arrow 0.18+ supports slices perfectly
+        if isinstance(item, slice) and not ARROW_GE_0_18_0:
             start = item.start or 0
             stop = item.stop if item.stop is not None else len(self.data)
             stop = min(stop, len(self.data))

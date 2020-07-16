@@ -11,6 +11,7 @@ import pytest
 from hypothesis import assume, example, given, settings
 
 import fletcher as fr
+from fletcher.testing import examples
 
 
 @st.composite
@@ -102,7 +103,7 @@ def test_text_cat(data, fletcher_variant, fletcher_variant_2):
     ser_fr_other = _fr_series_from_data(data, fletcher_variant_2)
 
     result_pd = ser_pd.str.cat(ser_pd)
-    result_fr = ser_fr.fr_text.cat(ser_fr_other)
+    result_fr = ser_fr.fr_strx.cat(ser_fr_other)
     result_fr = result_fr.astype(object)
     # Pandas returns np.nan for NA values in cat, keep this in line
     result_fr[result_fr.isna()] = np.nan
@@ -166,7 +167,7 @@ def test_contains_no_regex_ascii(data, pat, expected, fletcher_variant):
     for i in range(len(data)):
         ser = fr_series.tail(len(data) - i)
         expected = fr_expected.tail(len(data) - i)
-        result = ser.fr_text.contains(pat, regex=False)
+        result = ser.fr_strx.contains(pat, regex=False)
         tm.assert_series_equal(result, expected)
 
 
@@ -313,8 +314,110 @@ def test_text_zfill(data, fletcher_variant):
     ser_fr = pd.Series(fr_array)
 
     result_pd = ser_pd.str.zfill(max_str_len + 1)
-    result_fr = ser_fr.fr_text.zfill(max_str_len + 1)
+    result_fr = ser_fr.fr_strx.zfill(max_str_len + 1)
     result_fr = result_fr.astype(object)
     # Pandas returns np.nan for NA values in cat, keep this in line
     result_fr[result_fr.isna()] = np.nan
     tm.assert_series_equal(result_fr, result_pd)
+
+
+@settings(deadline=None, max_examples=3)
+@given(data=st.lists(st.one_of(st.text(), st.none())))
+@examples(
+    example_list=[
+        [
+            " 000000000000000000000000000000000000000000İࠀࠀࠀࠀ𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐤱000000000000𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀"
+        ],
+        ["\x80 "],
+        [],
+    ],
+    example_kword="data",
+)
+def test_text_strip_offset(fletcher_variant, fletcher_slice_offset, data):
+    _do_test_text_strip(fletcher_variant, fletcher_slice_offset, data)
+
+
+@settings(deadline=None)
+@given(data=st.lists(st.one_of(st.text(), st.none())))
+@examples(
+    example_list=[
+        [],
+        [""],
+        [None],
+        [" "],
+        ["\u2000"],
+        [" a"],
+        ["a "],
+        [" a "],
+        ["\u2000a\u2000"],
+        ["\u2000\u200C\u2000"],
+        ["\n\u200C\r"],
+        ["\u2000\x80\u2000"],
+        ["\t\x80\x0b"],
+        ["\u2000\u10FFFF\u2000"],
+        [" \u10FFFF "],
+    ]
+    + [
+        [c]
+        for c in " \t\r\n\x1f\x1e\x1d\x1c\x0c\x0b"
+        "\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2000\u2009\u200A\u200B\u2028\u2029\u202F"
+    ]
+    + [[chr(c)] for c in range(0x32)]
+    + [[chr(c)] for c in range(0x80, 0x85)]
+    + [[chr(c)] for c in range(0x200C, 0x2030)]
+    + [[chr(c)] for c in range(0x2060, 0x2070)]
+    + [[chr(c)] for c in range(0x10FFFE, 0x110000)],
+    example_kword="data",
+)
+def test_text_strip(fletcher_variant, data):
+    _do_test_text_strip(fletcher_variant, 1, data)
+
+
+def _do_test_text_strip(fletcher_variant, fletcher_slice_offset, data):
+    if any("\x00" in x for x in data if x):
+        # pytest.skip("pandas cannot handle \\x00 characters in tests")
+        # Skip is not working properly with hypothesis
+        return
+    ser_pd = pd.Series(data, dtype=str)
+    arrow_data = pa.array(
+        [None for _ in range(fletcher_slice_offset)] + data, type=pa.string()
+    )
+    if fletcher_variant == "chunked":
+        fr_array = fr.FletcherChunkedArray(arrow_data)
+    else:
+        fr_array = fr.FletcherContinuousArray(arrow_data)
+    ser_fr = pd.Series(fr_array[fletcher_slice_offset:])
+
+    result_pd = ser_pd.str.strip()
+    result_fr = ser_fr.fr_strx.strip()
+    result_fr = result_fr.astype(object)
+    # Pandas returns np.nan for NA values in cat, keep this in line
+    result_fr[result_fr.isna()] = np.nan
+    result_pd[result_pd.isna()] = np.nan
+    tm.assert_series_equal(result_fr, result_pd)
+
+
+def test_fr_str_accessor(fletcher_array):
+    data = ["a", "b"]
+    ser_pd = pd.Series(data)
+
+    # object series is returned
+    s = ser_pd.fr_str.encode("utf8")
+    assert s.dtype == np.dtype("O")
+
+    # test fletcher functionality and fallback to pandas
+    arrow_data = pa.array(data, type=pa.string())
+    fr_array = fletcher_array(arrow_data)
+    ser_fr = pd.Series(fr_array)
+    # pandas strings only method
+    s = ser_fr.fr_str.encode("utf8")
+    assert isinstance(s.values, fr.FletcherBaseArray)
+
+
+def test_fr_str_accessor_fail(fletcher_variant):
+
+    data = [1, 2]
+    ser_pd = pd.Series(data)
+
+    with pytest.raises(Exception):
+        ser_pd.fr_str.startswith("a")

@@ -1,5 +1,5 @@
 from datetime import timedelta
-from typing import List, Tuple
+from typing import Any, List, Tuple
 
 import hypothesis.strategies as st
 import numpy as np
@@ -9,6 +9,8 @@ import pyarrow as pa
 import pytest
 from hypothesis import given, settings
 
+import fletcher.algorithms.string_builder as sb1
+import fletcher.algorithms.string_builder_nojit as sb2
 from fletcher._algorithms import (
     _extract_data_buffer_as_np_array,
     _merge_valid_bitmaps,
@@ -23,6 +25,7 @@ from fletcher.algorithms.utils.chunking import (
     _combined_in_chunk_offsets,
     _in_chunk_offsets,
 )
+from fletcher.testing import examples
 
 
 def _is_na(a):
@@ -265,3 +268,121 @@ def test_merge_valid_bitmaps():
     expected = np.array([0x0], dtype=np.uint8)
     result = _merge_valid_bitmaps(a.slice(5, 2), b.slice(3, 2))
     npt.assert_array_equal(result, expected)
+
+
+@pytest.fixture(params=["jit", "nojit"], scope="session")
+def string_builder_variant(request):
+    """Whether to test the chunked or continuous implementation."""
+    return request.param
+
+
+@settings(deadline=None)
+@given(data=st.lists(st.one_of(st.text(), st.none())))
+@examples(
+    example_list=[
+        [
+            "000000000000000000000000000000000000000000İࠀࠀࠀࠀ𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐤱000000000000𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀𐀀"
+        ],
+        ["\x80"],
+        [],
+        [""],
+        [None],
+        ["a"],
+        ["aa"],
+        ["", None],
+        ["a", None],
+        [None, ""],
+        [None, "a"],
+        ["", "", "", "", None, None, None, None, ""],
+    ],
+    example_kword="data",
+)
+def test_stringbuilder_auto(string_builder_variant, data):
+    if string_builder_variant == "nojit":
+        sb = sb2  # type: Any
+    else:
+        sb = sb1
+    builder = sb.StringArrayBuilder(0)
+    for value in data:
+        if value is None:
+            builder.append_null()
+        else:
+            encoded_value = bytes(value, encoding="utf-8")
+            builder.append_value(encoded_value, len(encoded_value))
+    result = sb.finalize_string_array(builder, pa.string())
+    npt.assert_array_equal(result, pa.array(data))
+
+
+@settings(deadline=None)
+@given(data=st.lists(st.integers(-2 ** 15, 2 ** 15 - 1)))
+def test_vector16_auto(string_builder_variant, data):
+    _test_vector(string_builder_variant, data, np.int16)
+
+
+@settings(deadline=None)
+@given(data=st.lists(st.integers(-2 ** 31, 2 ** 31 - 1)))
+def test_vector32_auto(string_builder_variant, data):
+    _test_vector(string_builder_variant, data, np.int32)
+
+
+@settings(deadline=None)
+@given(data=st.lists(st.integers(-2 ** 63, 2 ** 63 - 1)))
+def test_vector64_auto(string_builder_variant, data):
+    _test_vector(string_builder_variant, data, np.int64)
+
+
+@settings(deadline=None)
+@given(data=st.lists(st.integers(0, 2 ** 32 - 1)))
+def test_vector32u_auto(string_builder_variant, data):
+    _test_vector(string_builder_variant, data, np.uint32)
+
+
+def _test_vector(string_builder_variant, data, np_type):
+    type_str = str(np_type).split(".")[1].split("'")[0]
+    if string_builder_variant == "nojit":
+        sb = sb2  # type: Any
+    else:
+        sb = sb1
+    vec = sb.ByteVector(0)
+    for num in data:
+        getattr(vec, f"append_{type_str}")(np_type(num))
+    for idx in range(len(data)):
+        assert getattr(vec, f"get_{type_str}")(idx) == np_type(data[idx])
+
+
+@settings(deadline=None)
+@given(data=st.lists(st.integers(0, 2 ** 8 - 1)))
+def test_vector8u_auto(string_builder_variant, data):
+    if string_builder_variant == "nojit":
+        sb = sb2  # type: Any
+    else:
+        sb = sb1
+    vec = sb.ByteVector(0)
+    vec2 = sb.ByteVector(0)
+    for num in data:
+        vec.append(np.uint8(num))
+    vec2.append_bytes(vec.buf, len(data))
+    vec.append_bytes(vec2.buf, len(data))
+    for idx in range(len(data)):
+        assert vec.get_uint8(idx) == np.uint8(data[idx])
+    for idx in range(len(data)):
+        assert vec2.get_uint8(idx) == np.uint8(data[idx])
+    for idx in range(len(data)):
+        assert vec.get_uint8(idx + len(data)) == np.uint8(data[idx])
+
+
+@settings(deadline=None)
+@given(data=st.lists(st.integers(0, 1)))
+def test_bit_vector_auto(string_builder_variant, data):
+    if string_builder_variant == "nojit":
+        sb = sb2  # type: Any
+    else:
+        sb = sb1
+    vec = sb.BitVector(0)
+    for num in data:
+        if num != 0:
+            vec.append_true()
+        else:
+            vec.append_false()
+    for idx in range(len(data)):
+        assert vec.get(idx) == bool(data[idx])

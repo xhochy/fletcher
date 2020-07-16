@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 import pyarrow as pa
 import pyarrow.compute as pc
+from pandas.core.strings import StringMethods
 
 from fletcher._algorithms import _extract_isnull_bitmap
 from fletcher.algorithms.bool import all_true_like
@@ -20,6 +21,7 @@ from fletcher.algorithms.string import (
     _text_contains_case_sensitive,
     _text_count_case_sensitive,
     _text_replace_case_sensitive,
+    _text_strip,
 )
 from fletcher.base import (
     FletcherBaseArray,
@@ -247,18 +249,80 @@ def _missing_capactiy(capacity):
     return int(math.ceil(capacity / 8))
 
 
-@pd.api.extensions.register_series_accessor("fr_text")
-@pd.api.extensions.register_series_accessor("text")
-class TextAccessor:
-    """Accessor for pandas exposed as ``.str``."""
+class TextAccessorBase:
+    """Base class for ``.fr_str`` and ``.fr_strx`` accessors."""
+
+    def __init__(self, obj):
+        self.obj = obj
+        self.data = self.obj.values.data
+
+    def _series_like(self, array: Union[pa.Array, pa.ChunkedArray]) -> pd.Series:
+        """Return an Arrow result as a series with the same base classes as the input."""
+        return pd.Series(
+            type(self.obj.values)(array),
+            dtype=type(self.obj.dtype)(array.type),
+            index=self.obj.index,
+        )
+
+    def _call_str_accessor(self, func, *args, **kwargs) -> pd.Series:
+        """Call the str accessor function with transforming the Arrow series to pandas series
+         and back."""
+        pd_series = self.data.to_pandas()
+        array = pa.array(getattr(pd_series.str, func)(*args, **kwargs).values)
+        return self._series_like(array)
+
+    def _wrap_str_accessor(self, func):
+        """Return a str accessor function that includes the transformation from Arrow series
+        to pandas series and back."""
+
+        def _wrapped_str_accessor(*args, **kwargs) -> pd.Series:
+            return self._call_str_accessor(func, *args, **kwargs)
+
+        return _wrapped_str_accessor
+
+    @staticmethod
+    def _validate_str_accessor(func):
+        """Raise an exception if the given function name is not a valid function of StringMethods."""
+        if not (
+            hasattr(pd.core.strings.StringMethods, func)
+            and callable(getattr(pd.core.strings.StringMethods, func))
+        ):
+            raise AttributeError(
+                f"{func} not available in pd.core.strings.StringMethods nor in fletcher.string_array.TextAccessor"
+            )
+
+
+@pd.api.extensions.register_series_accessor("fr_str")
+class TextAccessorExt(TextAccessorBase):
+    """Accessor for pandas exposed as ``.fr_str``."""
+
+    def __init__(self, obj):
+        """Accessor for pandas exposed as ``.fr_str``.
+        fletcher functionality will be used if available otherwise str functions are invoked."""
+        if not isinstance(obj.values, FletcherBaseArray):
+            # call StringMethods to validate the input obj
+            StringMethods(obj)
+        super().__init__(obj)
+
+    def __getattr__(self, name):
+        TextAccessorBase._validate_str_accessor(name)
+        if isinstance(self.obj.values, FletcherBaseArray):
+            if hasattr(TextAccessor, name) and callable(getattr(TextAccessor, name)):
+                return getattr(TextAccessor(self.obj), name)
+            return self._wrap_str_accessor(name)
+        return getattr(self.obj.str, name)
+
+
+@pd.api.extensions.register_series_accessor("fr_strx")
+class TextAccessor(TextAccessorBase):
+    """Accessor for pandas exposed as ``.fr_strx``."""
 
     def __init__(self, obj):
         if not isinstance(obj.values, FletcherBaseArray):
             raise AttributeError(
                 "only Fletcher{Continuous,Chunked}Array[string] has text accessor"
             )
-        self.obj = obj
-        self.data = self.obj.values.data
+        super().__init__(obj)
 
     def cat(self, others: Optional[FletcherBaseArray]) -> pd.Series:
         """
@@ -290,20 +354,6 @@ class TextAccessor:
             return pd.Series(
                 FletcherContinuousArray(_text_cat(self.data, others.values.data))
             )
-
-    def _call_str_accessor(self, func, *args, **kwargs) -> pd.Series:
-        pd_series = self.data.to_pandas()
-        return self._series_like(
-            pa.array(getattr(pd_series.str, func)(*args, **kwargs).values)
-        )
-
-    def _series_like(self, array: Union[pa.Array, pa.ChunkedArray]) -> pd.Series:
-        """Return an Arrow result as a series with the same base classes as the input."""
-        return pd.Series(
-            type(self.obj.values)(array),
-            dtype=type(self.obj.dtype)(array.type),
-            index=self.obj.index,
-        )
 
     def contains(self, pat: str, case: bool = True, regex: bool = True) -> pd.Series:
         """
@@ -399,6 +449,17 @@ class TextAccessor:
         return self._call_str_accessor(
             "replace", pat=pat, repl=repl, n=n, case=case, regex=regex
         )
+
+    def strip(self, to_strip=None):
+        """Strip whitespaces from both ends of strings."""
+        # see for unicode spaces: https://en.wikibooks.org/wiki/Unicode/Character_reference/2000-2FFF
+        # for whatever reason 0x200B (zero width space) is not considered a space by pandas.split()
+        if to_strip is None:
+            to_strip = (
+                " \t\r\n\x1f\x1e\x1d\x1c\x0c\x0b"
+                "\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2000\u2009\u200A\u2028\u2029\u202F"
+            )
+        return self._series_like(_text_strip(self.data, to_strip))
 
     def zfill(self, width: int) -> pd.Series:
         """Pad strings in the Series/Index by prepending '0' characters."""
