@@ -277,9 +277,8 @@ def _get_zstring(width: int, buffer: np.ndarray, temp_buffer: np.ndarray) -> np.
     num_zeros = width
     mask = 192  # corresponds to 11000000
     for i in np.bitwise_and(buffer, mask):
-        if (
-            i != 128
-        ):  # is 10000000 -> 10xxxxxx corresponds to neither utf-8 nor ascii character
+        # i = 10000000 => 10xxxxxx corresponds to neither utf-8 nor ascii character
+        if i != 128:
             num_zeros -= 1
     if num_zeros <= 0:
         return buffer
@@ -354,8 +353,7 @@ def _zfill(data: pa.Array, width: int) -> pa.Array:
         _zfill_nulls(
             len(data), valid, data.offset, offsets, data_buffer, width, str_builder
         )
-    arr = finalize_string_array(str_builder, pa.string())
-    return arr
+    return finalize_string_array(str_builder, pa.string())
 
 
 @njit
