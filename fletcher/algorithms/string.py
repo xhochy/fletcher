@@ -449,35 +449,32 @@ def _text_replace_case_sensitive_numba(
         matched_len = 0
         matches_done = 0
 
-        for str_idx in range(offsets[row_idx], offsets[row_idx + 1]):
+        write_idx = offsets[row_idx]
+        for read_idx in range(offsets[row_idx], offsets[row_idx + 1]):
             # A modified version of utils.kmp.append_to_kmp_matching
-            while matched_len > -1 and pat[matched_len] != data[str_idx]:
-                new_len = failure_function[matched_len]
-                while matched_len > new_len:
-                    output_buffer[output_pos] = data[str_idx - matched_len]
-                    output_pos += 1
-                    matched_len -= 1
+            while matched_len > -1 and pat[matched_len] != data[read_idx]:
+                matched_len = failure_function[matched_len]
             matched_len = matched_len + 1
 
+            if read_idx - write_idx == len(pat):
+                output_buffer[output_pos] = data[write_idx]
+                output_pos += 1
+                write_idx += 1
+
             if matched_len == len(pat):
+                matched_len = 0
                 if matches_done != max_repl:
                     matches_done += 1
-                    matched_len = 0
+                    write_idx = read_idx + 1
 
-                    # output_pos -= len(pat)
                     for char in repl:
                         output_buffer[output_pos] = char
                         output_pos += 1
-                else:
-                    while matched_len > 0:
-                        output_buffer[output_pos] = data[1 + str_idx - matched_len]
-                        output_pos += 1
-                        matched_len -= 1
 
-        while matched_len > 0:
-            output_buffer[output_pos] = data[1 + str_idx - matched_len]
+        while write_idx < offsets[row_idx + 1]:
+            output_buffer[output_pos] = data[write_idx]
             output_pos += 1
-            matched_len -= 1
+            write_idx += 1
 
     return output_offsets, output_buffer
 
