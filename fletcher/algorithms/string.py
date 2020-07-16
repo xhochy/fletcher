@@ -431,8 +431,6 @@ def _slice_pos_inputs_step(
             to_skip -= 1
 
         builder.append_value(include_bytes, len(include_bytes))
-        # print(include_bytes)
-        # print(len(include_bytes))
     return builder
 
 
