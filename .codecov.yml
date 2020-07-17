@@ -1,0 +1,5 @@
+coverage:
+  status:
+    project:
+      default:
+        threshold: 0.03% # due to hypothesis coverage is slightly changing
