@@ -339,7 +339,7 @@ def test_text_strip_offset(fletcher_variant, fletcher_slice_offset, data):
     + [
         [c]
         for c in " \t\r\n\x1f\x1e\x1d\x1c\x0c\x0b"
-        "\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2000\u2009\u200A\u200B\u2028\u2029\u202F"
+        "\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2000\u2009\u200A\u200B\u2028\u2029\u202F\u205F"
     ]
     + [[chr(c)] for c in range(0x32)]
     + [[chr(c)] for c in range(0x80, 0x85)]
