@@ -373,6 +373,7 @@ def test_vector8u_auto(string_builder_variant, data):
 
 @settings(deadline=None)
 @given(data=st.lists(st.integers(0, 1)))
+@examples(example_list=[[1] * 33, [0] * 33], example_kword="data")
 def test_bit_vector_auto(string_builder_variant, data):
     if string_builder_variant == "nojit":
         sb = sb2  # type: Any
