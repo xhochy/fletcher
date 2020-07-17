@@ -27,3 +27,26 @@ jobs:
           with:
             token: ${{ secrets.CODECOV_TOKEN }}
             file: ./coverage.xml
+    win:
+      name: "Windows Py${{ matrix.PYTHON_VERSION }}"
+      runs-on: windows-latest
+      env:
+        CI: True
+        PYTHON_VERSION: ${{ matrix.PYTHON_VERSION }}
+      strategy:
+        fail-fast: false
+        matrix:
+          PYTHON_VERSION: ['3.6', '3.7', '3.8']
+      steps:
+        - name: Checkout branch
+          uses: actions/checkout@v2
+        - uses: goanpeca/setup-miniconda@v1
+          with:
+            auto-update-conda: true
+            mamba-version: "*"
+            python-version: ${{ matrix.PYTHON_VERSION }}
+            activate-environment: fletcher
+            environment-file: environment.yml
+            channels: conda-forge
+        - run: python -m pip install -e . --no-build-isolation --no-use-pep517
+        - run: pytest
