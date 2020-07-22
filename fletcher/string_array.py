@@ -14,6 +14,7 @@ from fletcher._algorithms import _extract_isnull_bitmap
 from fletcher.algorithms.bool import all_true_like
 from fletcher.algorithms.string import (
     _endswith,
+    _slice_handle_chunk,
     _startswith,
     _text_cat,
     _text_cat_chunked,
@@ -490,3 +491,7 @@ class TextAccessor(TextAccessorBase):
         return pd.Series(
             type(self.obj.values)(pa.array(result.astype(bool), mask=(result == 2)))
         )
+
+    def slice(self, start=0, end=None, step=1):
+        """Extract every `step` character from strings from `start` to `end`."""
+        return self._series_like(_slice_handle_chunk(self.data, start, end, step))

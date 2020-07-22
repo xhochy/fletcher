@@ -400,3 +400,37 @@ def test_fr_str_accessor_fail(fletcher_variant):
 
     with pytest.raises(Exception):
         ser_pd.fr_str.startswith("a")
+
+
+@settings(deadline=None)
+@given(
+    data=st.lists(st.one_of(st.text(), st.none())),
+    slice_=st.tuples(st.integers(-20, 20), st.integers(-20, 20), st.integers(-20, 20)),
+)
+def test_slice(data, slice_, fletcher_variant):
+    if slice_[2] == 0:
+        pytest.raises(ValueError)
+        return
+    if data == [None] or data == [""]:
+        return
+
+    ser_fr = _fr_series_from_data(data, fletcher_variant)
+    result_fr = ser_fr.fr_str.slice(*slice_)
+    result_fr = result_fr.astype(object)
+    # Pandas returns np.nan for NA values in cat, keep this in line
+    result_fr[result_fr.isna()] = np.nan
+
+    ser_pd = pd.Series(data, dtype=object)
+    result_pd = ser_pd.str.slice(*slice_)
+
+    tm.assert_series_equal(result_fr, result_pd)
+
+
+@settings(deadline=None)
+@given(char=st.characters())
+def test_utf8_size(char):
+    char_bytes = char.encode("utf-8")
+    expected = len(char_bytes)
+    computed = fr.algorithms.string.get_utf8_size(char_bytes[0])
+
+    assert computed == expected

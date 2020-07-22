@@ -3,6 +3,7 @@ from typing import Any, List, Tuple
 
 import numpy as np
 import pyarrow as pa
+from numba import prange
 
 from fletcher._algorithms import _buffer_to_view, _merge_valid_bitmaps
 from fletcher._compat import njit
@@ -721,3 +722,187 @@ def _endswith(sa, needle, na, offset, out):
             if sa.get_byte(i, string_length - needle_length + j) != needle.get_byte(j):
                 out[offset + i] = 0
                 break
+
+
+@apply_per_chunk
+def _slice_handle_chunk(pa_arr, start, end, step):
+    """Slice each string according to the (start, end, step) inputs."""
+    offsets, data = _extract_string_buffers(pa_arr)
+    valid = _buffer_to_view(pa_arr.buffers()[0])
+    if step == 0:
+        raise ValueError("step cannot be zero.")
+
+    if start >= 0 and (end is None or end >= 0) and step >= 1:
+        if step == 1:
+            res = _slice_pos_inputs_nostep(
+                offsets, data, valid, pa_arr.offset, start, end
+            )
+        else:
+            res = _slice_pos_inputs_step(
+                offsets, data, valid, pa_arr.offset, start, end, step
+            )
+    else:
+        res = _slice_generic(offsets, data, valid, pa_arr.offset, start, end, step)
+
+    return finalize_string_array(res, pa.string())
+
+
+@njit
+def get_utf8_size(first_byte: int):
+    if first_byte < 0b10000000:
+        return 1
+    elif first_byte < 0b11100000:
+        return 2
+    elif first_byte < 0b11110000:
+        return 3
+    else:
+        return 4
+
+
+@njit
+def _slice_pos_inputs_nostep(
+    offsets, data, valid_bits, valid_offset, start: int, end: int
+) -> StringArrayBuilder:
+    """
+    start, end >= 0
+    step == 1
+    """
+    builder = StringArrayBuilder(len(offsets) - 1)
+
+    for i in prange(len(offsets) - 1):
+
+        if len(valid_bits) > 0:
+            byte_offset = (i + valid_offset) // 8
+            bit_offset = (i + valid_offset) % 8
+            mask = np.uint8(1 << bit_offset)
+            valid = valid_bits[byte_offset] & mask
+            if not valid:
+                builder.append_null()
+                continue
+
+        str_len_bytes = offsets[i + 1] - offsets[i]
+
+        char_idx = 0
+        byte_idx = 0
+
+        while char_idx < start and byte_idx < str_len_bytes:
+            char_idx += 1
+            byte_idx += get_utf8_size(data[offsets[i] + byte_idx])
+
+        start_byte = offsets[i] + byte_idx
+
+        while (end is None or char_idx < end) and byte_idx < str_len_bytes:
+            char_idx += 1
+            byte_idx += get_utf8_size(data[offsets[i] + byte_idx])
+
+        end_byte = offsets[i] + byte_idx
+        builder.append_value(data[start_byte:end_byte], end_byte - start_byte)
+    return builder
+
+
+@njit
+def _slice_pos_inputs_step(
+    offsets, data, valid_bits, valid_offset, start: int, end: int, step: int
+) -> StringArrayBuilder:
+    """
+    start, end >= 0
+    step > 1
+    """
+    builder = StringArrayBuilder(len(offsets) - 1)
+
+    for i in prange(len(offsets) - 1):
+        if len(valid_bits) > 0:
+            byte_offset = (i + valid_offset) // 8
+            bit_offset = (i + valid_offset) % 8
+            mask = np.uint8(1 << bit_offset)
+            valid = valid_bits[byte_offset] & mask
+            if not valid:
+                builder.append_null()
+                continue
+
+        str_len_bytes = offsets[i + 1] - offsets[i]
+
+        char_idx = 0
+        byte_idx = 0
+
+        while char_idx < start and byte_idx < str_len_bytes:
+            char_idx += 1
+            byte_idx += get_utf8_size(data[offsets[i] + byte_idx])
+
+        to_skip = 0
+        include_bytes: List[bytes] = []
+
+        while (end is None or char_idx < end) and byte_idx < str_len_bytes:
+            char_size = get_utf8_size(data[offsets[i] + byte_idx])
+
+            if not to_skip:
+                include_bytes.extend(
+                    data[offsets[i] + byte_idx : offsets[i] + byte_idx + char_size]
+                )
+                to_skip = step
+
+            char_idx += 1
+            byte_idx += char_size
+            to_skip -= 1
+
+        builder.append_value(include_bytes, len(include_bytes))
+    return builder
+
+
+@njit
+def _slice_generic(
+    offsets, data, valid_bits, valid_offset, start: int, end: int, step: int
+) -> StringArrayBuilder:
+    builder = StringArrayBuilder(len(offsets) - 1)
+
+    for i in prange(len(offsets) - 1):
+        if len(valid_bits) > 0:
+            byte_offset = (i + valid_offset) // 8
+            bit_offset = (i + valid_offset) % 8
+            mask = np.uint8(1 << bit_offset)
+            valid = valid_bits[byte_offset] & mask
+            if not valid:
+                builder.append_null()
+                continue
+
+        str_len_bytes = offsets[i + 1] - offsets[i]
+        char_bytes: List[bytes] = []
+        byte_idx = 0
+
+        while byte_idx < str_len_bytes:
+            char_size = get_utf8_size(data[offsets[i] + byte_idx])
+            char_bytes.append(
+                data[offsets[i] + byte_idx : offsets[i] + byte_idx + char_size]
+            )
+            byte_idx += char_size
+
+        include_bytes: List[bytes] = []  # type: ignore
+
+        char_idx = start
+        if start >= -len(char_bytes) and start < 0:
+            char_idx += len(char_bytes)
+
+        true_end = end
+        if end >= -len(char_bytes) and end < 0:
+            true_end += len(char_bytes)
+
+        # Positive step
+        if step > 0:
+            if char_idx < 0:
+                char_idx = 0
+            while (end is None or char_idx < true_end) and char_idx < len(char_bytes):
+                include_bytes.extend(char_bytes[char_idx])  # type: ignore
+                char_idx += step
+
+        # Negative step
+        else:
+            if char_idx >= len(char_bytes):
+                char_idx = len(char_bytes) - 1
+            while (end is None or char_idx > true_end) and char_idx >= 0:
+                if char_idx < len(char_bytes):
+                    include_bytes.extend(char_bytes[char_idx])  # type: ignore
+                char_idx += step
+
+        builder.append_value(include_bytes, len(include_bytes))
+
+    return builder
