@@ -53,6 +53,7 @@ malloc = malloc_callable if os.getenv("NUMBA_DISABLE_JIT", "0") != "1" else mall
 class ByteVector:
     """
     Builder that constructs a buffer based on byte-sized chunks.
+
     As the memory is owned by this object but we cannot override __del__,
     you need to explicitly call delete() to free the native memory.
     """
@@ -176,6 +177,7 @@ class ByteVector:
     def expand(self, min_capacity):
         """
         Double the size of the underlying buffer and copy over the existing data.
+
         This allocates a new buffer and copies the data.
         """
         new_capacity = max(min_capacity, 2 * self.capacity)
@@ -200,6 +202,7 @@ class ByteVector:
 class BitVector:
     """
     Builder that constructs a buffer based on bit-packed chunks.
+
     As the memory is owned by this object but we cannot override __del__,
     you need to explicitly call delete() to free the native memory.
     """
@@ -245,6 +248,7 @@ class BitVector:
     def expand(self, min_bit_capacity):
         """
         Double the size of the underlying buffer and copy over the existing data.
+
         This allocates a new buffer and copies the data.
         """
         new_capacity = max(2 * self.capacity, (min_bit_capacity + 7) // 8)
@@ -278,6 +282,7 @@ def byte_for_bits(num_bits):
 class StringArrayBuilder:
     """
     Numba-based builder to construct pyarrow.StringArray instances.
+
     As Numba doesn't allow us to override __del__, we must always call delete
     to free up the used (native) memory.
     """

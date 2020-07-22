@@ -13,6 +13,7 @@ from fletcher.algorithms.utils.chunking import (
     _combined_in_chunk_offsets,
     apply_per_chunk,
 )
+from fletcher.algorithms.utils.kmp import compute_kmp_failure_function
 
 
 def _extract_string_buffers(arr: pa.Array) -> Tuple[np.ndarray, np.ndarray]:
@@ -118,80 +119,13 @@ def _text_cat(a: pa.Array, b: pa.Array) -> pa.Array:
 
 
 @njit
-def _text_contains_case_sensitive_nonnull(
-    length: int, offsets: np.ndarray, data: np.ndarray, pat, output: np.ndarray
-) -> None:
-    for row_idx in range(length):
-        str_len = offsets[row_idx + 1] - offsets[row_idx]
-
-        contains = False
-        for str_idx in range(max(0, str_len - len(pat) + 1)):
-            pat_found = True
-            for pat_idx in range(len(pat)):
-                if data[offsets[row_idx] + str_idx + pat_idx] != pat[pat_idx]:
-                    pat_found = False
-                    break
-            if pat_found:
-                contains = True
-                break
-
-        # TODO: Set word-wise for better performance
-        byte_offset_result = row_idx // 8
-        bit_offset_result = row_idx % 8
-        mask_result = np.uint8(1 << bit_offset_result)
-        current = output[byte_offset_result]
-        if contains:  # must be logical, not bit-wise as different bits may be flagged
-            output[byte_offset_result] = current | mask_result
-        else:
-            output[byte_offset_result] = current & ~mask_result
-
-
-@njit
-def _text_contains_case_sensitive_nulls(
-    length: int,
-    valid_bits: np.ndarray,
-    valid_offset: int,
-    offsets: np.ndarray,
-    data: np.ndarray,
-    pat: bytes,
-    output: np.ndarray,
-) -> None:
-    for row_idx in range(length):
-        # Check whether the current entry is null.
-        byte_offset = (row_idx + valid_offset) // 8
-        bit_offset = (row_idx + valid_offset) % 8
-        mask = np.uint8(1 << bit_offset)
-        valid = valid_bits[byte_offset] & mask
-
-        # We don't need to set the result for nulls, the calling code is
-        # already dealing with them by zero'ing the output.
-        if not valid:
-            continue
-
-        str_len = offsets[row_idx + 1] - offsets[row_idx]
-
-        contains = False
-        # Try to find the pattern at each starting position
-        for str_idx in range(max(0, str_len - len(pat) + 1)):
-            pat_found = True
-            # Compare at the current position byte-by-byte
-            for pat_idx in range(len(pat)):
-                if data[offsets[row_idx] + str_idx + pat_idx] != pat[pat_idx]:
-                    pat_found = False
-                    break
-            if pat_found:
-                contains = True
-                break
-
-        # Write out the result into the bit-mask
-        byte_offset_result = row_idx // 8
-        bit_offset_result = row_idx % 8
-        mask_result = np.uint8(1 << bit_offset_result)
-        current = output[byte_offset_result]
-        if contains:  # must be logical, not bit-wise as different bits may be flagged
-            output[byte_offset_result] = current | mask_result
-        else:
-            output[byte_offset_result] = current & ~mask_result
+def _check_valid_row(row_idx: int, valid_bits: np.ndarray, valid_offset: int) -> bool:
+    """ Check whether the current entry is null. """
+    byte_offset = (row_idx + valid_offset) // 8
+    bit_offset = (row_idx + valid_offset) % 8
+    mask = np.uint8(1 << bit_offset)
+    valid = valid_bits[byte_offset] & mask
+    return valid
 
 
 @njit
@@ -226,6 +160,139 @@ def shift_unaligned_bitmap(
     return pa.py_buffer(output)
 
 
+@njit
+def _text_count_case_sensitive_numba(
+    length: int,
+    valid_bits: np.ndarray,
+    valid_offset: int,
+    offsets: np.ndarray,
+    data: np.ndarray,
+    pat: bytes,
+) -> np.ndarray:
+    failure_function = compute_kmp_failure_function(pat)
+
+    output = np.empty(length, dtype=np.int64)
+
+    has_nulls = valid_bits.size > 0
+
+    for row_idx in range(length):
+        if has_nulls and not _check_valid_row(row_idx, valid_bits, valid_offset):
+            continue
+
+        matched_len = 0
+        output[row_idx] = 0
+
+        if len(pat) == 0:
+            output[row_idx] = offsets[row_idx + 1] - offsets[row_idx] + 1
+            continue
+
+        for str_idx in range(offsets[row_idx], offsets[row_idx + 1]):
+            # Manually inlined utils.kmp.append_to_kmp_matching for performance
+            while matched_len > -1 and pat[matched_len] != data[str_idx]:
+                matched_len = failure_function[matched_len]
+            matched_len = matched_len + 1
+
+            if matched_len == len(pat):
+                output[row_idx] += 1
+                # `matched_len=0` ensures overlapping matches are not counted.
+                # This matches the behavior of Python's builtin `count`
+                # function.
+                matched_len = 0
+
+    return output
+
+
+@apply_per_chunk
+def _text_count_case_sensitive(data: pa.Array, pat: str) -> pa.Array:
+    """
+    For each row in the data computes the number of occurrences of the pattern ``pat``.
+    This implementation does basic byte-by-byte comparison and is independent
+    of any locales or encodings.
+    """
+
+    # Convert to UTF-8 bytes
+    pat_bytes: bytes = pat.encode()
+
+    offsets_buffer, data_buffer = _extract_string_buffers(data)
+
+    if data.null_count == 0:
+        valid_buffer = np.empty(0, dtype=np.uint8)
+    else:
+        valid_buffer = _buffer_to_view(data.buffers()[0])
+
+    output = _text_count_case_sensitive_numba(
+        len(data), valid_buffer, data.offset, offsets_buffer, data_buffer, pat_bytes
+    )
+
+    if data.null_count == 0:
+        output_valid = None
+    else:
+        output_valid = data.buffers()[0].slice(data.offset // 8)
+        if data.offset % 8 != 0:
+            output_valid = shift_unaligned_bitmap(
+                output_valid, data.offset % 8, len(data)
+            )
+
+    buffers = [output_valid, pa.py_buffer(output)]
+    return pa.Array.from_buffers(pa.int64(), len(data), buffers, data.null_count)
+
+
+@njit
+def _text_contains_case_sensitive_numba(
+    length: int,
+    valid_bits: np.ndarray,
+    valid_offset: int,
+    offsets: np.ndarray,
+    data: np.ndarray,
+    pat: bytes,
+) -> np.ndarray:
+    failure_function = compute_kmp_failure_function(pat)
+
+    # Initialise boolean (bit-packaed) output array.
+    output_size = length // 8
+    if length % 8 > 0:
+        output_size += 1
+    output = np.empty(output_size, dtype=np.uint8)
+
+    if length % 8 > 0:
+        # Zero trailing bits
+        output[-1] = 0
+
+    has_nulls = valid_bits.size > 0
+
+    for row_idx in range(length):
+        if has_nulls and not _check_valid_row(row_idx, valid_bits, valid_offset):
+            continue
+
+        matched_len = 0
+        contains = False
+        for str_idx in range(offsets[row_idx], offsets[row_idx + 1]):
+            if matched_len == len(pat):
+                contains = True
+                break
+
+            # Manually inlined utils.kmp.append_to_kmp_matching for
+            # performance
+            while matched_len > -1 and pat[matched_len] != data[str_idx]:
+                matched_len = failure_function[matched_len]
+            matched_len = matched_len + 1
+
+        if matched_len == len(pat):
+            contains = True
+
+        # Write out the result into the bit-mask
+        byte_offset_result = row_idx // 8
+        bit_offset_result = row_idx % 8
+        mask_result = np.uint8(1 << bit_offset_result)
+        current = output[byte_offset_result]
+        if contains:  # must be logical, not bit-wise as different bits may be flagged
+            output[byte_offset_result] = current | mask_result
+        else:
+            output[byte_offset_result] = current & ~mask_result
+
+    return output
+
+
 @apply_per_chunk
 def _text_contains_case_sensitive(data: pa.Array, pat: str) -> pa.Array:
     """
@@ -237,36 +304,384 @@ def _text_contains_case_sensitive(data: pa.Array, pat: str) -> pa.Array:
     # Convert to UTF-8 bytes
     pat_bytes: bytes = pat.encode()
 
-    # Initialise boolean (bit-packaed) output array.
-    output_size = len(data) // 8
-    if len(data) % 8 > 0:
-        output_size += 1
-    output = np.empty(output_size, dtype=np.uint8)
-    if len(data) % 8 > 0:
-        # Zero trailing bits
-        output[-1] = 0
+    offsets_buffer, data_buffer = _extract_string_buffers(data)
+
+    if data.null_count == 0:
+        valid_buffer = np.empty(0, dtype=np.uint8)
+    else:
+        valid_buffer = _buffer_to_view(data.buffers()[0])
+
+    output = _text_contains_case_sensitive_numba(
+        len(data), valid_buffer, data.offset, offsets_buffer, data_buffer, pat_bytes
+    )
+
+    if data.null_count == 0:
+        output_valid = None
+    else:
+        output_valid = data.buffers()[0].slice(data.offset // 8)
+        if data.offset % 8 != 0:
+            output_valid = shift_unaligned_bitmap(
+                output_valid, data.offset % 8, len(data)
+            )
+
+    buffers = [output_valid, pa.py_buffer(output)]
+    return pa.Array.from_buffers(pa.bool_(), len(data), buffers, data.null_count)
+
+
+@njit
+def _text_replace_case_sensitive_empty_pattern(
+    length: int,
+    valid_bits: np.ndarray,
+    valid_offset: int,
+    offsets: np.ndarray,
+    data: np.ndarray,
+    repl: bytes,
+    max_repl: int,
+):
+    """
+    A special case for replace when pat=''.
+
+    Assumes max_repl != 0.
+    """
+    output_offsets = np.empty(length + 1, dtype=np.int32)
+    cumulative_offset = 0
+
+    has_nulls = valid_bits.size > 0
+
+    for row_idx in range(length):
+        output_offsets[row_idx] = cumulative_offset
+
+        if has_nulls and not _check_valid_row(row_idx, valid_bits, valid_offset):
+            continue
+
+        row_len = offsets[row_idx + 1] - offsets[row_idx]
+
+        if max_repl < 0:
+            matches_done = row_len + 1
+        else:
+            matches_done = min(max_repl, row_len + 1)
+
+        cumulative_offset += row_len + matches_done * len(repl)
+
+    output_offsets[length] = cumulative_offset
+
+    # Replace in the output_buffer
+    output_buffer = np.empty(cumulative_offset, dtype=np.uint8)
+    output_pos = 0
+    for row_idx in range(length):
+        if has_nulls and not _check_valid_row(row_idx, valid_bits, valid_offset):
+            continue
+
+        matches_done = 0
+
+        if max_repl != 0:
+            matches_done += 1
+            for char in repl:
+                output_buffer[output_pos] = char
+                output_pos += 1
+
+        for str_idx in range(offsets[row_idx], offsets[row_idx + 1]):
+            output_buffer[output_pos] = data[str_idx]
+            output_pos += 1
+
+            if matches_done != max_repl:
+                matches_done += 1
+                for char in repl:
+                    output_buffer[output_pos] = char
+                    output_pos += 1
+
+    return output_offsets, output_buffer
+
+
+@njit
+def _text_replace_case_sensitive_numba(
+    length: int,
+    valid_bits: np.ndarray,
+    valid_offset: int,
+    offsets: np.ndarray,
+    data: np.ndarray,
+    pat: bytes,
+    repl: bytes,
+    max_repl: int,
+) -> Tuple[np.ndarray, np.ndarray]:
+
+    failure_function = compute_kmp_failure_function(pat)
+
+    # Computes output buffer offsets
+    output_offsets = np.empty(length + 1, dtype=np.int32)
+    cumulative_offset = 0
+
+    has_nulls = valid_bits.size > 0
+    match_len_change = len(repl) - len(pat)
+
+    for row_idx in range(length):
+        output_offsets[row_idx] = cumulative_offset
+
+        if has_nulls and not _check_valid_row(row_idx, valid_bits, valid_offset):
+            continue
+
+        row_len = offsets[row_idx + 1] - offsets[row_idx]
+        cumulative_offset += row_len
+
+        matched_len = 0
+        matches_done = 0
+
+        for str_idx in range(offsets[row_idx], offsets[row_idx + 1]):
+            # Manually inlined utils.kmp.append_to_kmp_matching for performance
+            while matched_len > -1 and pat[matched_len] != data[str_idx]:
+                matched_len = failure_function[matched_len]
+            matched_len = matched_len + 1
+
+            if matched_len == len(pat):
+                matches_done += 1
+                matched_len = 0
+                if matches_done == max_repl:
+                    break
+
+        cumulative_offset += match_len_change * matches_done
+
+    output_offsets[length] = cumulative_offset
+
+    output_buffer = np.empty(cumulative_offset, dtype=np.uint8)
+    output_pos = 0
+    for row_idx in range(length):
+        if has_nulls and not _check_valid_row(row_idx, valid_bits, valid_offset):
+            continue
+
+        matched_len = 0
+        matches_done = 0
+
+        write_idx = offsets[row_idx]
+        for read_idx in range(offsets[row_idx], offsets[row_idx + 1]):
+            # A modified version of utils.kmp.append_to_kmp_matching
+            while matched_len > -1 and pat[matched_len] != data[read_idx]:
+                matched_len = failure_function[matched_len]
+            matched_len = matched_len + 1
+
+            if read_idx - write_idx == len(pat):
+                output_buffer[output_pos] = data[write_idx]
+                output_pos += 1
+                write_idx += 1
+
+            if matched_len == len(pat):
+                matched_len = 0
+                if matches_done != max_repl:
+                    matches_done += 1
+                    write_idx = read_idx + 1
+
+                    for char in repl:
+                        output_buffer[output_pos] = char
+                        output_pos += 1
+
+        while write_idx < offsets[row_idx + 1]:
+            output_buffer[output_pos] = data[write_idx]
+            output_pos += 1
+            write_idx += 1
+
+    return output_offsets, output_buffer
+
+
+@apply_per_chunk
+def _text_replace_case_sensitive(
+    data: pa.Array, pat: str, repl: str, max_repl: int
+) -> pa.Array:
+    """
+    Replace occurrences of ``pat`` with ``repl`` in the Series/Index with some other string. For every
+    row, only the first ``max_repl`` replacements will be performed. If ``max_repl = -1`` we consider that
+    we have no limit for the number of replacements.
+
+    This implementation does basic byte-by-byte comparison and is independent
+    of any locales or encodings.
+    """
+
+    # Convert to UTF-8 bytes
+    pat_bytes: bytes = pat.encode()
+    repl_bytes: bytes = repl.encode()
+
+    offsets_buffer, data_buffer = _extract_string_buffers(data)
+
+    if data.null_count == 0:
+        valid_buffer = np.empty(0, dtype=np.uint8)
+    else:
+        valid_buffer = _buffer_to_view(data.buffers()[0])
+
+    if len(pat) > 0:
+        output_t = _text_replace_case_sensitive_numba(
+            len(data),
+            valid_buffer,
+            data.offset,
+            offsets_buffer,
+            data_buffer,
+            pat_bytes,
+            repl_bytes,
+            max_repl,
+        )
+    else:
+        output_t = _text_replace_case_sensitive_empty_pattern(
+            len(data),
+            valid_buffer,
+            data.offset,
+            offsets_buffer,
+            data_buffer,
+            repl_bytes,
+            max_repl,
+        )
+
+    output_offsets, output_buffer = output_t
+
+    if data.null_count == 0:
+        output_valid = None
+    else:
+        output_valid = data.buffers()[0].slice(data.offset // 8)
+        if data.offset % 8 != 0:
+            output_valid = shift_unaligned_bitmap(
+                output_valid, data.offset % 8, len(data)
+            )
+
+    buffers = [output_valid, pa.py_buffer(output_offsets), pa.py_buffer(output_buffer)]
+    return pa.Array.from_buffers(pa.string(), len(data), buffers, data.null_count)
+
+
+@apply_per_chunk
+def _text_strip(data: pa.Array, to_strip) -> pa.Array:
+    """
+    Strip the characters of ``to_strip`` from start and end of each element in the data.
+    """
+    if len(data) == 0:
+        return data
 
     offsets, data_buffer = _extract_string_buffers(data)
 
-    if data.null_count == 0:
-        valid_buffer = None
-        _text_contains_case_sensitive_nonnull(
-            len(data), offsets, data_buffer, pat_bytes, output
-        )
-    else:
-        valid = _buffer_to_view(data.buffers()[0])
-        _text_contains_case_sensitive_nulls(
-            len(data), valid, data.offset, offsets, data_buffer, pat_bytes, output
-        )
-        valid_buffer = data.buffers()[0].slice(data.offset // 8)
-        if data.offset % 8 != 0:
-            valid_buffer = shift_unaligned_bitmap(
-                valid_buffer, data.offset % 8, len(data)
-            )
+    valid_buffer = data.buffers()[0]
+    valid_offset = data.offset
+    builder = StringArrayBuilder(max(len(data_buffer), len(data)))
 
-    return pa.Array.from_buffers(
-        pa.bool_(), len(data), [valid_buffer, pa.py_buffer(output)], data.null_count
+    _do_strip(
+        valid_buffer,
+        valid_offset,
+        offsets,
+        data_buffer,
+        len(data),
+        to_strip,
+        inout_builder=builder,
     )
+
+    result_array = finalize_string_array(builder, pa.string())
+    return result_array
+
+
+@njit
+def _utf8_chr4(arr):
+    return chr(
+        np.int32((arr[0] & 0x7) << 18)
+        | np.int32((arr[1] & 0x3F) << 12)
+        | np.int32((arr[2] & 0x3F) << 6)
+        | np.int32((arr[3] & 0x3F))
+    )
+
+
+@njit
+def _utf8_chr3(arr):
+    return chr(
+        np.int32((arr[0] & 0xF)) << 12
+        | np.int32((arr[1] & 0x3F) << 6)
+        | np.int32((arr[2] & 0x3F))
+    )
+
+
+@njit
+def _utf8_chr2(arr):
+    return chr(np.int32((arr[0] & 0x1F)) << 6 | np.int32((arr[1] & 0x3F)))
+
+
+@njit
+def _extract_striped_string(last_offset, offset, data_buffer, to_strip):
+    if last_offset < offset:
+        start_offset = last_offset
+        while start_offset < offset:
+            if (data_buffer[start_offset] & 0x80) == 0:
+                if chr(data_buffer[start_offset]) in to_strip:
+                    start_offset += 1
+                else:
+                    break
+            # for utf-8 encoding, see: https://en.wikipedia.org/wiki/UTF-8
+            elif (
+                (data_buffer[start_offset] & 0xF8) == 0xF0
+                and start_offset + 3 < offset
+                and _utf8_chr4(data_buffer[start_offset : start_offset + 4]) in to_strip
+            ):
+                start_offset += 4
+            elif (
+                (data_buffer[start_offset] & 0xF0) == 0xE0
+                and start_offset + 2 < offset
+                and _utf8_chr3(data_buffer[start_offset : start_offset + 3]) in to_strip
+            ):
+                start_offset += 3
+            elif (
+                (data_buffer[start_offset] & 0xE0) == 0xC0
+                and start_offset + 1 < offset
+                and _utf8_chr2(data_buffer[start_offset : start_offset + 2]) in to_strip
+            ):
+                start_offset += 2
+            else:
+                break
+        end_offset = offset
+        while end_offset > start_offset:
+            if (data_buffer[end_offset - 1] & 0x80) == 0:
+                if chr(data_buffer[end_offset - 1]) in to_strip:
+                    end_offset -= 1
+                else:
+                    break
+            elif (
+                end_offset > start_offset + 3
+                and (data_buffer[end_offset - 4] & 0xF8) == 0xF0
+                and _utf8_chr4(data_buffer[end_offset - 4 : end_offset]) in to_strip
+            ):
+                end_offset -= 4
+            elif (
+                end_offset > start_offset + 2
+                and (data_buffer[end_offset - 3] & 0xF0) == 0xE0
+                and _utf8_chr3(data_buffer[end_offset - 3 : end_offset]) in to_strip
+            ):
+                end_offset -= 3
+            elif (
+                end_offset > start_offset + 1
+                and (data_buffer[end_offset - 2] & 0xE0) == 0xC0
+                and _utf8_chr2(data_buffer[end_offset - 2 : end_offset]) in to_strip
+            ):
+                end_offset -= 2
+            else:
+                break
+
+        stripped_str = data_buffer[start_offset:end_offset]
+    else:
+        stripped_str = data_buffer[0:0]
+    return stripped_str
+
+
+@njit
+def _do_strip(
+    valid_buffer, valid_offset, offsets, data_buffer, len_data, to_strip, inout_builder
+):
+    previous_offset = offsets[0]
+    for idx in range(len_data):
+        current_offset = offsets[1 + idx]
+        valid = (
+            bool(
+                valid_buffer[(idx + valid_offset) // 8]
+                & (1 << ((idx + valid_offset) % 8))
+            )
+            if valid_buffer is not None
+            else True
+        )
+        if valid:
+            current_str = _extract_striped_string(
+                previous_offset, current_offset, data_buffer, to_strip
+            )
+            inout_builder.append_value(current_str, len(current_str))
+        else:
+            inout_builder.append_null()
+        previous_offset = current_offset
 
 
 @njit
