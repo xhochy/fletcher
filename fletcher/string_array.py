@@ -457,7 +457,7 @@ class TextAccessor(TextAccessorBase):
         # for whatever reason 0x200B (zero width space) is not considered a space by pandas.split()
         if to_strip is None:
             to_strip = (
-                " \t\r\n\x1f\x1e\x1d\x1c\x0c\x0b"
+                " \t\r\n\x85\x1f\x1e\x1d\x1c\x0c\x0b\xa0"
                 "\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2000\u2009\u200A\u2028\u2029\u202F\u205F"
             )
         return self._series_like(_text_strip(self.data, to_strip))

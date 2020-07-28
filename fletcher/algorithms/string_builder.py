@@ -42,7 +42,7 @@ malloc_callable = LibcMalloc()  # type: Any
 malloc = malloc_callable if os.getenv("NUMBA_DISABLE_JIT", "0") != "1" else malloc_nojit
 
 
-@numba.jitclass(
+@numba.experimental.jitclass(
     [
         ("ptr", numba.types.voidptr),
         ("capacity", numba.int64),
@@ -191,7 +191,7 @@ class ByteVector:
         self.buf = numba.carray(self.ptr, self.capacity, numba_byte)
 
 
-@numba.jitclass(
+@numba.experimental.jitclass(
     [
         ("ptr", numba.types.voidptr),
         ("capacity", numba.int64),
@@ -267,7 +267,7 @@ def byte_for_bits(num_bits):
     return (num_bits + 7) // 8
 
 
-@numba.jitclass(
+@numba.experimental.jitclass(
     [
         ("length", numba.uint64),
         ("null_count", numba.uint64),

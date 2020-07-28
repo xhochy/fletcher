@@ -328,6 +328,8 @@ def test_text_strip_offset(fletcher_variant, fletcher_slice_offset, data):
         [" a"],
         ["a "],
         [" a "],
+        # https://github.com/xhochy/fletcher/issues/174
+        ["\xa0"],
         ["\u2000a\u2000"],
         ["\u2000\u200C\u2000"],
         ["\n\u200C\r"],
