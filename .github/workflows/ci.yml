@@ -43,6 +43,7 @@ jobs:
         - uses: goanpeca/setup-miniconda@v1
           with:
             auto-update-conda: true
+            miniconda-version: "latest"
             mamba-version: "*"
             python-version: ${{ matrix.PYTHON_VERSION }}
             activate-environment: fletcher
