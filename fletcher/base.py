@@ -535,7 +535,7 @@ class FletcherBaseArray(ExtensionArray):
 
     def _np_ufunc_op(self, op: Callable, other):
         """Apply a NumPy ufunc on the instance and any other object."""
-        if isinstance(other, pd.Series):
+        if isinstance(other, (pd.Series, pd.DataFrame)):
             return NotImplemented
         if isinstance(other, FletcherBaseArray):
             other = other.data
@@ -543,7 +543,7 @@ class FletcherBaseArray(ExtensionArray):
 
     def _np_compare_op(self, op: Callable, np_op: Callable, other):
         """Apply a NumPy-based comparison on the instance and any other object."""
-        if isinstance(other, pd.Series):
+        if isinstance(other, (pd.Series, pd.DataFrame)):
             return NotImplemented
         # TODO: Only numeric comparisons are fast currently
         if not self.dtype._is_numeric:

@@ -6,6 +6,7 @@ dependencies:
   - pandas>=1
   - pyarrow>=0.17
   - numba>=0.49
+  - numpydoc
   - pytest
   - pytest-cov
   - pytest-xdist

@@ -4,7 +4,7 @@ project = "fletcher"
 copyright = "2018-2020, Fletcher contributors"
 author = "Fletcher contributors"
 
-extensions = ["sphinx.ext.napoleon", "sphinxcontrib.apidoc"]
+extensions = ["numpydoc", "sphinxcontrib.apidoc"]
 
 apidoc_module_dir = "../fletcher"
 apidoc_output_dir = "api"

@@ -172,6 +172,7 @@ def test_contains_no_regex_ascii(data, pat, expected, fletcher_variant):
         tm.assert_series_equal(result, expected)
 
 
+@settings(deadline=None)
 @given(data_tuple=string_patterns_st())
 def test_contains_no_regex_case_sensitive(data_tuple, fletcher_variant):
     data, pat, test_offset = data_tuple
@@ -429,7 +430,7 @@ def test_slice(data, slice_, fletcher_variant):
 
 
 @settings(deadline=None)
-@given(char=st.characters())
+@given(char=st.characters(blacklist_categories=("Cs",)))
 def test_utf8_size(char):
     char_bytes = char.encode("utf-8")
     expected = len(char_bytes)
