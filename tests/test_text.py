@@ -430,11 +430,8 @@ def test_slice(data, slice_, fletcher_variant):
 
 
 @settings(deadline=None)
-@given(char=st.characters())
+@given(char=st.characters(blacklist_categories=("Cs",)))
 def test_utf8_size(char):
-    if char in ["\ud800", "\ud801", "\ud802"]:
-        # Skip surrogates
-        return
     char_bytes = char.encode("utf-8")
     expected = len(char_bytes)
     computed = fr.algorithms.string.get_utf8_size(char_bytes[0])
