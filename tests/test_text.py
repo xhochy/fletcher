@@ -172,6 +172,7 @@ def test_contains_no_regex_ascii(data, pat, expected, fletcher_variant):
         tm.assert_series_equal(result, expected)
 
 
+@settings(deadline=None)
 @given(data_tuple=string_patterns_st())
 def test_contains_no_regex_case_sensitive(data_tuple, fletcher_variant):
     data, pat, test_offset = data_tuple
