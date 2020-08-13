@@ -205,7 +205,9 @@ class FletcherBaseDtype(ExtensionDtype):
 
     @property
     def _is_list(self):
-        return pa.types.is_list(self.arrow_dtype) or pa.types.is_large_list(self.arrow_dtype)
+        return pa.types.is_list(self.arrow_dtype) or pa.types.is_large_list(
+            self.arrow_dtype
+        )
 
     def __from_arrow__(self, data):
         """Construct a FletcherArray from an arrow array."""
