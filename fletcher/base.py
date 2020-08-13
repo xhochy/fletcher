@@ -203,6 +203,12 @@ class FletcherBaseDtype(ExtensionDtype):
     def _is_numeric(self):
         return _is_numeric(self.arrow_dtype)
 
+    @property
+    def _is_list(self):
+        return pa.types.is_list(self.arrow_dtype) or pa.types.is_large_list(
+            self.arrow_dtype
+        )
+
     def __from_arrow__(self, data):
         """Construct a FletcherArray from an arrow array."""
         return self.construct_array_type()(data)
@@ -786,7 +792,7 @@ class FletcherBaseArray(ExtensionArray):
 
         # NumPy's conversion of list->unicode is differently from Python's
         # default. We want to have the default Python output, so force it here.
-        if pa.types.is_list(self.dtype.arrow_dtype) and dtype.kind == "U":
+        if (self.dtype._is_list) and dtype.kind == "U":
             result = np.array([str(x) for x in self.data.to_pylist()])
             if pandas_type is not None:
                 return pd.array(result, dtype=pandas_type)
@@ -897,7 +903,7 @@ class FletcherContinuousArray(FletcherBaseArray):
         if PANDAS_GE_0_26_0:
             key = check_array_indexer(self, key)
 
-        if pa.types.is_list(self.data.type):
+        if self.dtype._is_list:
             # TODO: We can probably implement this for the scalar case?
             # TODO: Implement a list accessor and then the three mentioned methods
             raise ValueError(
@@ -1298,7 +1304,7 @@ class FletcherChunkedArray(FletcherBaseArray):
         if PANDAS_GE_0_26_0:
             key = check_array_indexer(self, key)
 
-        if pa.types.is_list(self.data.type):
+        if self.dtype._is_list:
             # TODO: We can probably implement this for the scalar case?
             # TODO: Implement a list accessor and then the three mentioned methods
             raise ValueError(
