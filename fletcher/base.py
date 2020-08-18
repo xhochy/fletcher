@@ -62,6 +62,10 @@ _python_type_map = {
     pa.string().id: str,
     # Use any list type here, only LIST is important
     pa.list_(pa.string()).id: list,
+    # Use any large list type here, only LIST is important
+    pa.large_list(pa.string()).id: list,
+    # Use any dictionary type here, only dict is important
+    pa.dictionary(pa.int32(), pa.int32()).id: dict,
     pa.duration("ns").id: datetime.timedelta,
 }
 
@@ -183,6 +187,8 @@ class FletcherBaseDtype(ExtensionDtype):
         numpy.dtype.kind
         """
         if pa.types.is_date(self.arrow_dtype):
+            return "O"
+        elif self._is_list:
             return "O"
         else:
             return np.dtype(self.arrow_dtype.to_pandas_dtype()).kind
