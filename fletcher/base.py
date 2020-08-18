@@ -188,6 +188,8 @@ class FletcherBaseDtype(ExtensionDtype):
         """
         if pa.types.is_date(self.arrow_dtype):
             return "O"
+        elif self._is_list:
+            return "O"
         else:
             return np.dtype(self.arrow_dtype.to_pandas_dtype()).kind
 
