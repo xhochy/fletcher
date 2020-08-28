@@ -1019,6 +1019,7 @@ class FletcherContinuousArray(FletcherBaseArray):
                     "Only integers, slices and integer or boolean arrays are valid indices."
                 )
         elif is_integer(item):
+            item = int(item)
             if item < 0:
                 item += len(self)
             if item >= len(self):
@@ -1437,6 +1438,7 @@ class FletcherChunkedArray(FletcherBaseArray):
                     "Only integers, slices and integer or boolean arrays are valid indices."
                 )
         elif is_integer(item):
+            item = int(item)
             if item < 0:
                 item += len(self)
             if item >= len(self):
