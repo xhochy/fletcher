@@ -1669,12 +1669,13 @@ class FletcherChunkedArray(FletcherBaseArray):
         result = take(data, indices, fill_value=fill_value, allow_fill=allow_fill)
         return self._from_sequence(result, dtype=self.data.type)
 
-
     def flatten(self):
         """
         Flatten the array.
         """
-        return type(self)(pa.chunked_array(ch.flatten() for ch in self.data.iterchunks()))
+        return type(self)(
+            pa.chunked_array(ch.flatten() for ch in self.data.iterchunks())
+        )
 
 
 def pandas_from_arrow(
