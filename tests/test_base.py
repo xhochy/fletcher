@@ -38,6 +38,18 @@ def test_fletcherarray_constructor():
         fr.FletcherChunkedArray(None)
 
 
+def test_flatten():
+    list_array = pa.array([[1, 2], [3, 4]])
+    npt.assert_array_equal(
+        fr.FletcherContinuousArray(list_array).flatten(), [1, 2, 3, 4]
+    )
+
+    chunked_list_array = pa.chunked_array([list_array, list_array])
+    npt.assert_array_equal(
+        fr.FletcherChunkedArray(chunked_list_array).flatten(), [1, 2, 3, 4, 1, 2, 3, 4]
+    )
+
+
 def test_pandas_from_arrow():
     arr = pa.array(["a", "b", "c"], pa.string())
 

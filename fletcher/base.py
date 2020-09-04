@@ -1228,6 +1228,12 @@ class FletcherContinuousArray(FletcherBaseArray):
         """
         return self._take_array(self.data, indices, allow_fill, fill_value)
 
+    def flatten(self):
+        """
+        Flatten the array.
+        """
+        return type(self)(self.data.flatten())
+
 
 class FletcherChunkedArray(FletcherBaseArray):
     """Pandas ExtensionArray implementation backed by Apache Arrow."""
@@ -1664,6 +1670,14 @@ class FletcherChunkedArray(FletcherBaseArray):
         # the data, before passing to take.
         result = take(data, indices, fill_value=fill_value, allow_fill=allow_fill)
         return self._from_sequence(result, dtype=self.data.type)
+
+    def flatten(self):
+        """
+        Flatten the array.
+        """
+        return type(self)(
+            pa.chunked_array(ch.flatten() for ch in self.data.iterchunks())
+        )
 
 
 def pandas_from_arrow(
