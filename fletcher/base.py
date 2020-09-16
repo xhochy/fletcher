@@ -20,7 +20,6 @@ from pandas.core.arrays import ExtensionArray
 from pandas.core.dtypes.dtypes import ExtensionDtype, register_extension_dtype
 
 from fletcher._algorithms import (
-    extract_isnull_bytemap,
     kurt_op,
     max_op,
     median_op,
@@ -432,14 +431,6 @@ class FletcherBaseArray(ExtensionArray):
         """
         return self.shape[0]
 
-    def isna(self) -> np.ndarray:
-        """
-        Boolean NumPy array indicating if each value is missing.
-
-        This should return a 1-D array the same length as 'self'.
-        """
-        return extract_isnull_bytemap(self.data)
-
     @property
     def base(self) -> Union[pa.Array, pa.ChunkedArray]:
         """Return base object of the underlying data."""
@@ -530,6 +521,13 @@ class FletcherBaseArray(ExtensionArray):
             else:
                 raise NotImplementedError(
                     f"Only method == '__call__' is supported in ufuncs, not '{method}'"
+                )
+        if len(inputs) == 1:
+            if getattr(ufunc, "__name__") == "isnan":
+                return self.isna()
+            else:
+                raise NotImplementedError(
+                    f"ufunc with single input not supported: {ufunc}"
                 )
         if len(inputs) != 2:
             raise NotImplementedError("Only ufuncs with a second input are supported")
@@ -842,6 +840,14 @@ class FletcherBaseArray(ExtensionArray):
             raise NotImplementedError("yo")
 
         return pd.Series(counts, index=index)
+
+    def isna(self) -> np.ndarray:
+        """
+        Boolean NumPy array indicating if each value is missing.
+
+        This should return a 1-D array the same length as 'self'.
+        """
+        return np.array(self.data.is_null())
 
 
 class FletcherContinuousArray(FletcherBaseArray):
