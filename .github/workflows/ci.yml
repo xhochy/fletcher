@@ -23,6 +23,12 @@ jobs:
         - name: Run CI
           shell: bash -l {0}
           run: ./ci/circle_build_linux.sh ${{ matrix.PYTHON_VERSION }} ${{ matrix.UPSTREAM_DEV }}
+        - name: Publish package
+          if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags')
+          uses: pypa/gh-action-pypi-publish@v1.3.1
+          with:
+            user: __token__
+            password: ${{ secrets.pypi_password }}
         - uses: codecov/codecov-action@v1
           with:
             token: ${{ secrets.CODECOV_TOKEN }}
