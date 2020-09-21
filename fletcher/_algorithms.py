@@ -1,10 +1,10 @@
 from functools import partial
 from typing import Any, Callable, Optional, Union
 
+from numba import prange
 import numpy as np
 import pyarrow as pa
 from pandas.core import nanops
-from numba import prange
 
 from fletcher._compat import njit
 from fletcher.algorithms.utils.chunking import dispatch_chunked_binary_map
