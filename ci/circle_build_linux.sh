@@ -53,9 +53,12 @@ if [ "${PYTHON_VERSION}" = "3.6" ]; then
   NUMBA_DISABLE_JIT=1 py.test --junitxml=test-reports/junit.xml --cov=./ --cov-report=xml
 fi
 
-# Check documentation build only in one job
+# Check documentation build only in one job, also do releases
 if [ "${PYTHON_VERSION}" = "3.7" ]; then
   pushd docs
   make html
   popd
+
+  python setup.py sdist
+  python setup.py bdist_wheel
 fi
