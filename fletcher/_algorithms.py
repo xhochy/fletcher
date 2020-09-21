@@ -1,9 +1,9 @@
 from functools import partial
 from typing import Any, Callable, Optional, Union
 
-from numba import prange
 import numpy as np
 import pyarrow as pa
+from numba import prange
 from pandas.core import nanops
 
 from fletcher._compat import njit
