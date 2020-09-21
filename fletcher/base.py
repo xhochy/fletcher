@@ -748,10 +748,12 @@ class FletcherBaseArray(StringSupportingExtensionArray):
             indices_array = pa.array(indices, mask=mask)
         elif is_array_like(indices) and len(indices) == 0:
             indices_array = pa.array([], type=pa.int64())
-        elif (self.dtype.is_list
-                and self.data.flatten().null_count == 0
-                and self.data.null_count == 0
-                and self.data.flatten().dtype._is_numeric):
+        elif (
+            self.dtype.is_list
+            and self.data.flatten().null_count == 0
+            and self.data.null_count == 0
+            and self.data.flatten().dtype._is_numeric
+        ):
             return take_on_pyarrow_list(self.data, indices)
         else:
             raise NotImplementedError(f"take is not implemented for {type(indices)}")

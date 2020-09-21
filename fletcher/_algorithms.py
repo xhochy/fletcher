@@ -338,6 +338,7 @@ def _merge_valid_bitmaps(a: pa.Array, b: pa.Array) -> np.ndarray:
 
         return result
 
+
 @njit(fastmath=True)
 def _get_new_indptr(self_indptr, indices, new_indptr):
     for i in range(len(indices)):
@@ -387,4 +388,3 @@ def take_on_pyarrow_list(array, indices):
         return pa.ListArray.from_arrays(new_indptr, new_indices)
     else:
         return pa.LargeListArray.from_arrays(new_indptr, new_indices)
-

@@ -19,7 +19,7 @@ from fletcher._algorithms import (
     np_ufunc_op,
     prod_op,
     sum_op,
-    take_on_pyarrow_list
+    take_on_pyarrow_list,
 )
 from fletcher.algorithms.utils.chunking import (
     _calculate_chunk_offsets,
@@ -388,6 +388,7 @@ def test_bit_vector_auto(string_builder_variant, data):
             vec.append_false()
     for idx in range(len(data)):
         assert vec.get(idx) == bool(data[idx])
+
 
 @pytest.mark.parametrize(
     ("array", "indices"),

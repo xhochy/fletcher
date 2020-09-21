@@ -72,6 +72,7 @@ def test_pandas_from_arrow():
     pdt.assert_frame_equal(expected_df, fr.pandas_from_arrow(rb, continuous=True))
     pdt.assert_frame_equal(expected_df, fr.pandas_from_arrow(table, continuous=True))
 
+
 def test_take_list_arrays():
     indices = [0, 1, 4, 3, 5]
     indptr = [0, 2, 3, 5]
@@ -85,7 +86,9 @@ def test_take_list_arrays():
         == [[None, 3], [4, 5], [None, 3]]
     )
 
-    test = fr.FletcherContinuousArray(pa.chunked_array([list_array, list_array])).take([0, 5, 1])
+    test = fr.FletcherContinuousArray(pa.chunked_array([list_array, list_array])).take(
+        [0, 5, 1]
+    )
     test_large = fr.FletcherContinuousArray(
         pa.chunked_array([large_list_array, large_list_array])
     ).take([0, 5, 1])
