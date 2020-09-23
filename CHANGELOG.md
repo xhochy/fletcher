@@ -7,6 +7,17 @@ Starting with 0.5, we will follow the following versioning scheme:
 * We bump MINOR on breaking changes.
 * We increase PATCH otherwise.
 
+0.6.0
+-----
+
+* Use `binary_contains_exact` if available from `pyarrow` instead of our own numba-based implementation.
+* Provide two more consistent accessors:
+ * `.fr_strx`: Call efficient string functions on `fletcher` arrays, error if not available.
+ * `.fr_str`: Call string functions on `fletcher` and `object`-typed arrays, convert to `object` if no `fletcher` function is available.
+* Add a numba-based implementation for `strip`, `slice`, and `replace`.
+* Support `LargeListArray` as a backing structure for lists.
+* Implement `isnan` ufunc.
+
 0.5.1
 -----
 
