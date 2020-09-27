@@ -2,6 +2,7 @@ import datetime
 import operator
 from collections import OrderedDict
 from collections.abc import Iterable
+from copy import copy as copycopy
 from distutils.version import LooseVersion
 from functools import partialmethod
 from typing import Any, Callable, List, Optional, Sequence, Tuple, Type, Union
@@ -765,7 +766,10 @@ class FletcherBaseArray(ExtensionArray):
             NumPy ndarray with 'dtype' for its dtype.
         """
         if self.dtype == dtype:
-            return self
+            if copy:
+                return copycopy(self)
+            else:
+                return self
 
         arrow_type = None
         arrow_class = None

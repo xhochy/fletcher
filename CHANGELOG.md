@@ -7,6 +7,11 @@ Starting with 0.5, we will follow the following versioning scheme:
 * We bump MINOR on breaking changes.
 * We increase PATCH otherwise.
 
+0.6.1
+-----
+
+* Create a shallow copy on `.astype(equal dtype, copy=True)`.
+
 0.6.0
 -----
 
