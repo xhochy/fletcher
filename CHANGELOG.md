@@ -7,13 +7,14 @@ Starting with 0.5, we will follow the following versioning scheme:
 * We bump MINOR on breaking changes.
 * We increase PATCH otherwise.
 
-0.6.1
------
+0.6.1 (XXXX-XX-XX)
+------------------
 
 * Create a shallow copy on `.astype(equal dtype, copy=True)`.
+* Import `pad_1d` only in older `pandas` versions, otherwise use `get_fill_func`
 
-0.6.0
------
+0.6.0 (2020-09-23)
+------------------
 
 * Use `binary_contains_exact` if available from `pyarrow` instead of our own numba-based implementation.
 * Provide two more consistent accessors:
@@ -23,19 +24,19 @@ Starting with 0.5, we will follow the following versioning scheme:
 * Support `LargeListArray` as a backing structure for lists.
 * Implement `isnan` ufunc.
 
-0.5.1
------
+0.5.1 (2020-09-21)
+------------------
 
 * Release the GIL where possible.
 * Register with dask's `make_array_nonempty` to be able to handle the extension types in `dask`.
 
-0.5.0
------
+0.5.0 (2020-06-23)
+------------------
 
 * Implement `FletcherBaseArray.__or__` and `FletcherBaseArray.__any__` to support `pandas.Series.replace`.
 
-0.4.0
------
+0.4.0 (2020-06-16)
+------------------
 
 * Forward the `__array__` protocol directly to Arrow
 * Add naive implementation for `zfill`

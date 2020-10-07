@@ -1154,7 +1154,7 @@ class FletcherContinuousArray(FletcherBaseArray):
         """
         from pandas.api.types import is_array_like
         from pandas.util._validators import validate_fillna_kwargs
-        from pandas.core.missing import pad_1d, backfill_1d
+        import pandas.core.missing as pd_missing
 
         value, method = validate_fillna_kwargs(value, method)
 
@@ -1170,7 +1170,13 @@ class FletcherContinuousArray(FletcherBaseArray):
 
         if mask.any():
             if method is not None:
-                func = pad_1d if method == "pad" else backfill_1d
+                # pandas 1.2+ doesn't expose pad_1d anymore
+                if not hasattr(pd_missing, "pad_1d"):
+                    func = pd_missing.get_fill_func(method)
+                else:
+                    func = (
+                        pd_missing.pad_1d if method == "pad" else pd_missing.backfill_1d
+                    )
                 new_values = func(self.astype(object), limit=limit, mask=mask)
                 new_values = self._from_sequence(new_values, self._dtype.arrow_dtype)
             else:
@@ -1585,7 +1591,7 @@ class FletcherChunkedArray(FletcherBaseArray):
         """
         from pandas.api.types import is_array_like
         from pandas.util._validators import validate_fillna_kwargs
-        from pandas.core.missing import pad_1d, backfill_1d
+        import pandas.core.missing as pd_missing
 
         value, method = validate_fillna_kwargs(value, method)
 
@@ -1601,7 +1607,13 @@ class FletcherChunkedArray(FletcherBaseArray):
 
         if mask.any():
             if method is not None:
-                func = pad_1d if method == "pad" else backfill_1d
+                # pandas 1.2+ doesn't expose pad_1d anymore
+                if not hasattr(pd_missing, "pad_1d"):
+                    func = pd_missing.get_fill_func(method)
+                else:
+                    func = (
+                        pd_missing.pad_1d if method == "pad" else pd_missing.backfill_1d
+                    )
                 new_values = func(self.astype(object), limit=limit, mask=mask)
                 new_values = self._from_sequence(new_values, self._dtype.arrow_dtype)
             else:
