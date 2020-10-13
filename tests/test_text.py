@@ -405,6 +405,21 @@ def test_fr_str_accessor_fail(fletcher_variant):
         ser_pd.fr_str.startswith("a")
 
 
+@pytest.mark.parametrize("regex", ["([0-9]+)", "([0-9]+)\\+([a-z]+)*"])
+@pytest.mark.parametrize(
+    "data", [["123+"], ["123+a"], ["123+a", "123+"], ["123+", "123+a"]]
+)
+def test_text_extractall(fletcher_variant, data, regex):
+
+    ser_fr = _fr_series_from_data(data, fletcher_variant)
+    result_fr = ser_fr.fr_str.extractall(regex)
+
+    ser_pd = pd.Series(data)
+    result_pd = ser_pd.str.extractall(regex)
+
+    tm.assert_frame_equal(result_pd, result_fr.astype(object))
+
+
 @settings(deadline=None)
 @given(
     data=st.lists(st.one_of(st.text(), st.none())),
