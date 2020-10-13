@@ -12,6 +12,7 @@ Starting with 0.5, we will follow the following versioning scheme:
 
 * Create a shallow copy on `.astype(equal dtype, copy=True)`.
 * Import `pad_1d` only in older `pandas` versions, otherwise use `get_fill_func`
+* Handle `fr_str.extractall` and similar functions correctly, returning a `pd.Dataframe` containing accoring `fletcher` array types.
 
 0.6.0 (2020-09-23)
 ------------------
