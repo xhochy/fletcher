@@ -602,6 +602,12 @@ class TestBaseReshapingTests(BaseReshapingTests):
     def test_ravel(self, data):
         BaseReshapingTests.test_ravel(self, data)
 
+    @xfail_list_setitem_not_implemented
+    @pytest.mark.xfail(reason="Views don't update their parent #96")
+    def test_transpose(self, data):
+        if hasattr(BaseReshapingTests, "test_transpose"):
+            BaseReshapingTests.test_transpose(self, data)
+
 
 class TestBaseSetitemTests(BaseSetitemTests):
     @xfail_list_setitem_not_implemented
