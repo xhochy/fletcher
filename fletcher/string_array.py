@@ -269,8 +269,18 @@ class TextAccessorBase:
         """Call the str accessor function with transforming the Arrow series to pandas series
          and back."""
         pd_series = self.data.to_pandas()
-        array = pa.array(getattr(pd_series.str, func)(*args, **kwargs).values)
-        return self._series_like(array)
+        pd_result = getattr(pd_series.str, func)(*args, **kwargs)
+        if isinstance(pd_result, pd.DataFrame):
+            for c in pd_result.columns:
+                pd_result[c] = type(self.obj.values)(
+                    pd_result[c].replace({np.nan: None}).values
+                )
+            return pd_result
+        elif isinstance(pd_result, pd.Series):
+            array = pa.array(pd_result.values)
+            return self._series_like(array)
+        else:
+            raise AttributeError(f"{func} returned unexpected type {type(pd_result)}")
 
     def _wrap_str_accessor(self, func):
         """Return a str accessor function that includes the transformation from Arrow series
