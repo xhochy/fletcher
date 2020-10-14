@@ -13,6 +13,20 @@ from hypothesis import example, given, settings
 import fletcher as fr
 from fletcher.testing import examples
 
+try:
+    # Only available in pandas 1.2+
+    # When this class is defined, we can also use `.str` on fletcher columns.
+    from pandas.core.strings.object_array import ObjectStringArrayMixin  # noqa F401
+
+    _str_accessors = ["str", "fr_str"]
+except ImportError:
+    _str_accessors = ["fr_str"]
+
+
+@pytest.fixture(params=_str_accessors)
+def str_accessor(request):
+    return request.param
+
 
 @st.composite
 def string_patterns_st(draw, max_len=50) -> Tuple[Sequence[Optional[str]], str, int]:
@@ -94,7 +108,7 @@ def _fr_series_from_data(data, fletcher_variant, dtype=pa.string()):
 
 @settings(deadline=None)
 @given(data=st.lists(st.one_of(st.text(), st.none())))
-def test_text_cat(data, fletcher_variant, fletcher_variant_2):
+def test_text_cat(data, str_accessor, fletcher_variant, fletcher_variant_2):
     if any("\x00" in x for x in data if x):
         # pytest.skip("pandas cannot handle \\x00 characters in tests")
         # Skip is not working properly with hypothesis
@@ -104,7 +118,7 @@ def test_text_cat(data, fletcher_variant, fletcher_variant_2):
     ser_fr_other = _fr_series_from_data(data, fletcher_variant_2)
 
     result_pd = ser_pd.str.cat(ser_pd)
-    result_fr = ser_fr.fr_strx.cat(ser_fr_other)
+    result_fr = getattr(ser_fr, str_accessor).cat(ser_fr_other)
     result_fr = result_fr.astype(object)
     # Pandas returns np.nan for NA values in cat, keep this in line
     result_fr[result_fr.isna()] = np.nan
@@ -116,7 +130,9 @@ def _check_series_equal(result_fr, result_pd):
     tm.assert_series_equal(result_fr, result_pd)
 
 
-def _check_str_to_t(t, func, data, fletcher_variant, test_offset=0, *args, **kwargs):
+def _check_str_to_t(
+    t, func, data, str_accessor, fletcher_variant, test_offset=0, *args, **kwargs
+):
     """Check a .str. function that returns a series with type t."""
     tail_len = len(data) - test_offset
 
@@ -124,32 +140,34 @@ def _check_str_to_t(t, func, data, fletcher_variant, test_offset=0, *args, **kwa
     result_pd = getattr(ser_pd.str, func)(*args, **kwargs)
 
     ser_fr = _fr_series_from_data(data, fletcher_variant).tail(tail_len)
-    result_fr = getattr(ser_fr.fr_strx, func)(*args, **kwargs)
+    result_fr = getattr(getattr(ser_fr, str_accessor), func)(*args, **kwargs)
 
     _check_series_equal(result_fr, result_pd)
 
 
-def _check_str_to_str(func, data, fletcher_variant, *args, **kwargs):
-    _check_str_to_t(str, func, data, fletcher_variant, *args, **kwargs)
+def _check_str_to_str(func, data, str_accessor, fletcher_variant, *args, **kwargs):
+    _check_str_to_t(str, func, data, str_accessor, fletcher_variant, *args, **kwargs)
 
 
-def _check_str_to_bool(func, data, fletcher_variant, *args, **kwargs):
-    _check_str_to_t(bool, func, data, fletcher_variant, *args, **kwargs)
-
-
-@string_patterns
-def test_text_endswith(data, pat, fletcher_variant):
-    _check_str_to_bool("endswith", data, fletcher_variant, pat=pat)
+def _check_str_to_bool(func, data, str_accessor, fletcher_variant, *args, **kwargs):
+    _check_str_to_t(bool, func, data, str_accessor, fletcher_variant, *args, **kwargs)
 
 
 @string_patterns
-def test_text_startswith(data, pat, fletcher_variant):
-    _check_str_to_bool("startswith", data, fletcher_variant, pat=pat)
+def test_text_endswith(data, pat, str_accessor, fletcher_variant):
+    _check_str_to_bool("endswith", data, str_accessor, fletcher_variant, pat=pat)
 
 
 @string_patterns
-def test_contains_no_regex(data, pat, fletcher_variant):
-    _check_str_to_bool("contains", data, fletcher_variant, pat=pat, regex=False)
+def test_text_startswith(data, pat, str_accessor, fletcher_variant):
+    _check_str_to_bool("startswith", data, str_accessor, fletcher_variant, pat=pat)
+
+
+@string_patterns
+def test_contains_no_regex(data, pat, str_accessor, fletcher_variant):
+    _check_str_to_bool(
+        "contains", data, str_accessor, fletcher_variant, pat=pat, regex=False
+    )
 
 
 @pytest.mark.parametrize(
@@ -160,7 +178,12 @@ def test_contains_no_regex(data, pat, fletcher_variant):
         (["aa", "Ab", "ba", "bb", None], "a", [True, False, True, False, None]),
     ],
 )
-def test_contains_no_regex_ascii(data, pat, expected, fletcher_variant):
+def test_contains_no_regex_ascii(data, pat, expected, str_accessor, fletcher_variant):
+    if str_accessor == "str":
+        pytest.skip(
+            "return types not stable yet, might sometimes return null instead of bool"
+        )
+        return
     fr_series = _fr_series_from_data(data, fletcher_variant)
     fr_expected = _fr_series_from_data(expected, fletcher_variant, pa.bool_())
 
@@ -168,17 +191,18 @@ def test_contains_no_regex_ascii(data, pat, expected, fletcher_variant):
     for i in range(len(data)):
         ser = fr_series.tail(len(data) - i)
         expected = fr_expected.tail(len(data) - i)
-        result = ser.fr_strx.contains(pat, regex=False)
+        result = getattr(ser, str_accessor).contains(pat, regex=False)
         tm.assert_series_equal(result, expected)
 
 
 @settings(deadline=None)
 @given(data_tuple=string_patterns_st())
-def test_contains_no_regex_case_sensitive(data_tuple, fletcher_variant):
+def test_contains_no_regex_case_sensitive(data_tuple, str_accessor, fletcher_variant):
     data, pat, test_offset = data_tuple
     _check_str_to_bool(
         "contains",
         data,
+        str_accessor,
         fletcher_variant,
         test_offset=test_offset,
         pat=pat,
@@ -188,9 +212,15 @@ def test_contains_no_regex_case_sensitive(data_tuple, fletcher_variant):
 
 
 @string_patterns
-def test_contains_no_regex_ignore_case(data, pat, fletcher_variant):
+def test_contains_no_regex_ignore_case(data, pat, str_accessor, fletcher_variant):
     _check_str_to_bool(
-        "contains", data, fletcher_variant, pat=pat, regex=False, case=False
+        "contains",
+        data,
+        str_accessor,
+        fletcher_variant,
+        pat=pat,
+        regex=False,
+        case=False,
     )
 
 
@@ -211,14 +241,22 @@ regex_patterns = pytest.mark.parametrize(
 
 
 @regex_patterns
-def test_contains_regex(data, pat, fletcher_variant):
-    _check_str_to_bool("contains", data, fletcher_variant, pat=pat, regex=True)
+def test_contains_regex(data, pat, str_accessor, fletcher_variant):
+    _check_str_to_bool(
+        "contains", data, str_accessor, fletcher_variant, pat=pat, regex=True
+    )
 
 
 @regex_patterns
-def test_contains_regex_ignore_case(data, pat, fletcher_variant):
+def test_contains_regex_ignore_case(data, pat, str_accessor, fletcher_variant):
     _check_str_to_bool(
-        "contains", data, fletcher_variant, pat=pat, regex=True, case=False
+        "contains",
+        data,
+        str_accessor,
+        fletcher_variant,
+        pat=pat,
+        regex=True,
+        case=False,
     )
 
 
@@ -235,11 +273,14 @@ def test_contains_regex_ignore_case(data, pat, fletcher_variant):
     fletcher_variant="continuous",
 )
 @example(data_tuple=(["aaa"], "a", 0), repl="len4", n=1, fletcher_variant="continuous")
-def test_replace_no_regex_case_sensitive(data_tuple, repl, n, fletcher_variant):
+def test_replace_no_regex_case_sensitive(
+    data_tuple, repl, n, str_accessor, fletcher_variant
+):
     data, pat, test_offset = data_tuple
     _check_str_to_str(
         "replace",
         data,
+        str_accessor,
         fletcher_variant,
         test_offset=test_offset,
         pat=pat,
@@ -253,7 +294,7 @@ def test_replace_no_regex_case_sensitive(data_tuple, repl, n, fletcher_variant):
 @settings(deadline=None)
 @given(data_tuple=string_patterns_st())
 @example(data_tuple=(["a"], "", 0), fletcher_variant="chunked")
-def test_count_no_regex(data_tuple, fletcher_variant):
+def test_count_no_regex(data_tuple, str_accessor, fletcher_variant):
     """Check a .str. function that returns a series with type t."""
     data, pat, test_offset = data_tuple
 
@@ -263,7 +304,10 @@ def test_count_no_regex(data_tuple, fletcher_variant):
     result_pd = getattr(ser_pd.str, "count")(pat=pat)
 
     ser_fr = _fr_series_from_data(data, fletcher_variant).tail(tail_len)
-    result_fr = getattr(ser_fr.fr_strx, "count")(pat=pat, case=True, regex=False)
+    kwargs = {}
+    if str_accessor.startswith("fr_"):
+        kwargs["regex"] = False
+    result_fr = getattr(ser_fr, str_accessor).count(pat=pat, **kwargs)
 
     _check_series_equal(result_fr, result_pd)
 
@@ -277,7 +321,7 @@ def _optional_len(x: Optional[str]) -> int:
 
 @settings(deadline=None)
 @given(data=st.lists(st.one_of(st.text(), st.none())))
-def test_text_zfill(data, fletcher_variant):
+def test_text_zfill(data, str_accessor, fletcher_variant):
     if any("\x00" in x for x in data if x):
         # pytest.skip("pandas cannot handle \\x00 characters in tests")
         # Skip is not working properly with hypothesis
@@ -294,7 +338,7 @@ def test_text_zfill(data, fletcher_variant):
     ser_fr = pd.Series(fr_array)
 
     result_pd = ser_pd.str.zfill(max_str_len + 1)
-    result_fr = ser_fr.fr_strx.zfill(max_str_len + 1)
+    result_fr = getattr(ser_fr, str_accessor).zfill(max_str_len + 1)
     result_fr = result_fr.astype(object)
     # Pandas returns np.nan for NA values in cat, keep this in line
     result_fr[result_fr.isna()] = np.nan
@@ -313,8 +357,8 @@ def test_text_zfill(data, fletcher_variant):
     ],
     example_kword="data",
 )
-def test_text_strip_offset(fletcher_variant, fletcher_slice_offset, data):
-    _do_test_text_strip(fletcher_variant, fletcher_slice_offset, data)
+def test_text_strip_offset(str_accessor, fletcher_variant, fletcher_slice_offset, data):
+    _do_test_text_strip(str_accessor, fletcher_variant, fletcher_slice_offset, data)
 
 
 @settings(deadline=None)
@@ -351,11 +395,11 @@ def test_text_strip_offset(fletcher_variant, fletcher_slice_offset, data):
     + [[chr(c)] for c in range(0x10FFFE, 0x110000)],
     example_kword="data",
 )
-def test_text_strip(fletcher_variant, data):
-    _do_test_text_strip(fletcher_variant, 1, data)
+def test_text_strip(str_accessor, fletcher_variant, data):
+    _do_test_text_strip(str_accessor, fletcher_variant, 1, data)
 
 
-def _do_test_text_strip(fletcher_variant, fletcher_slice_offset, data):
+def _do_test_text_strip(str_accessor, fletcher_variant, fletcher_slice_offset, data):
     if any("\x00" in x for x in data if x):
         # pytest.skip("pandas cannot handle \\x00 characters in tests")
         # Skip is not working properly with hypothesis
@@ -371,7 +415,7 @@ def _do_test_text_strip(fletcher_variant, fletcher_slice_offset, data):
     ser_fr = pd.Series(fr_array[fletcher_slice_offset:])
 
     result_pd = ser_pd.str.strip()
-    result_fr = ser_fr.fr_strx.strip()
+    result_fr = getattr(ser_fr, str_accessor).strip()
     result_fr = result_fr.astype(object)
     # Pandas returns np.nan for NA values in cat, keep this in line
     result_fr[result_fr.isna()] = np.nan
@@ -409,10 +453,15 @@ def test_fr_str_accessor_fail(fletcher_variant):
 @pytest.mark.parametrize(
     "data", [["123+"], ["123+a"], ["123+a", "123+"], ["123+", "123+a"]]
 )
-def test_text_extractall(fletcher_variant, data, regex):
+def test_text_extractall(str_accessor, fletcher_variant, data, regex):
+
+    if str_accessor == "str":
+        pytest.skip("extractall is not yet dispatched to the ExtensionArray")
+        return
 
     ser_fr = _fr_series_from_data(data, fletcher_variant)
-    result_fr = ser_fr.fr_str.extractall(regex)
+    result_fr = getattr(ser_fr, str_accessor).extractall(regex)
+    assert isinstance(result_fr[0].dtype, fr.FletcherBaseDtype)
 
     ser_pd = pd.Series(data)
     result_pd = ser_pd.str.extractall(regex)
@@ -422,10 +471,10 @@ def test_text_extractall(fletcher_variant, data, regex):
 
 @pytest.mark.parametrize("data", [["123"], ["123+"], ["123+a+", "123+"]])
 @pytest.mark.parametrize("expand", [True, False])
-def test_text_split(fletcher_variant, data, expand):
+def test_text_split(str_accessor, fletcher_variant, data, expand):
 
     ser_fr = _fr_series_from_data(data, fletcher_variant)
-    result_fr = ser_fr.fr_str.split("+", expand=expand)
+    result_fr = getattr(ser_fr, str_accessor).split("+", expand=expand)
 
     ser_pd = pd.Series(data)
     result_pd = ser_pd.str.split("+", expand=expand)
@@ -441,7 +490,7 @@ def test_text_split(fletcher_variant, data, expand):
     data=st.lists(st.one_of(st.text(), st.none())),
     slice_=st.tuples(st.integers(-20, 20), st.integers(-20, 20), st.integers(-20, 20)),
 )
-def test_slice(data, slice_, fletcher_variant):
+def test_slice(data, slice_, str_accessor, fletcher_variant):
     if slice_[2] == 0:
         pytest.raises(ValueError)
         return
@@ -449,7 +498,7 @@ def test_slice(data, slice_, fletcher_variant):
         return
 
     ser_fr = _fr_series_from_data(data, fletcher_variant)
-    result_fr = ser_fr.fr_str.slice(*slice_)
+    result_fr = getattr(ser_fr, str_accessor).slice(*slice_)
     result_fr = result_fr.astype(object)
     # Pandas returns np.nan for NA values in cat, keep this in line
     result_fr[result_fr.isna()] = np.nan

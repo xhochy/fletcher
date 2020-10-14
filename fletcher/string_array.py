@@ -412,10 +412,9 @@ class TextAccessor(TextAccessorBase):
                 pass
         return self._call_str_accessor("contains", pat=pat, case=case, regex=regex)
 
-    def count(self, pat: str, case: bool = True, regex: bool = True) -> pd.Series:
+    def count(self, pat: str, regex: bool = True) -> pd.Series:
         if not regex:
-            if case:
-                return self._series_like(_text_count_case_sensitive(self.data, pat))
+            return self._series_like(_text_count_case_sensitive(self.data, pat))
         return self._call_str_accessor("count", pat=pat)
 
     def replace(

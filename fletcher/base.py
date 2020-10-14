@@ -190,6 +190,8 @@ class FletcherBaseDtype(ExtensionDtype):
             return "O"
         elif self._is_list:
             return "O"
+        elif pa.types.is_string(self.arrow_dtype):
+            return "string"
         else:
             return np.dtype(self.arrow_dtype.to_pandas_dtype()).kind
 
@@ -382,7 +384,21 @@ class FletcherChunkedDtype(FletcherBaseDtype):
         return FletcherChunkedArray
 
 
-class FletcherBaseArray(ExtensionArray):
+try:
+    # Only available in pandas 1.2+
+    from pandas.core.strings.object_array import ObjectStringArrayMixin
+
+    class _IntermediateExtensionArray(ExtensionArray, ObjectStringArrayMixin):
+        pass
+
+
+except ImportError:
+
+    class _IntermediateExtensionArray(ExtensionArray):  # type: ignore
+        pass
+
+
+class FletcherBaseArray(_IntermediateExtensionArray):
     """Pandas ExtensionArray implementation base backed by an Apache Arrow structure."""
 
     _can_hold_na = True
@@ -399,6 +415,9 @@ class FletcherBaseArray(ExtensionArray):
     def __arrow_array__(self, type=None):
         """Convert myself to a pyarrow Array or ChunkedArray."""
         return self.data
+
+    def _str_map(self, *args, **kwargs):
+        return type(self)(super()._str_map(*args, **kwargs))
 
     @property
     def size(self) -> int:
