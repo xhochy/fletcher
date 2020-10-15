@@ -86,10 +86,10 @@ class TimeSuiteText:
         self.df["str"].str.endswith("10")
 
     def time_endswith_ext(self):
-        self.df_ext["str"].fr_str.endswith("10")
+        self.df_ext["str"].str.endswith("10")
 
     def time_endswith_ext_fr(self):
-        self.df_ext["str"].str.endswith("10")
+        self.df_ext["str"].fr_str.endswith("10")
 
     def time_cat(self):
         self.df["str"].str.cat(self.df["str"])
