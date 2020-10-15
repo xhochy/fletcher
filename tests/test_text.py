@@ -23,7 +23,7 @@ except ImportError:
     _str_accessors = ["fr_str"]
 
 
-@pytest.fixture(params=_str_accessors)
+@pytest.fixture(params=_str_accessors, scope="module")
 def str_accessor(request):
     return request.param
 

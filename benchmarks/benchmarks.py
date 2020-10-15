@@ -31,19 +31,19 @@ class TimeSuiteText:
         self.df["str"].str.count(self.pattern)
 
     def time_count_no_regex_ext(self):
-        self.df_ext["str"].text.count(self.pattern, regex=False)
+        self.df_ext["str"].fr_str.count(self.pattern, regex=False)
 
     def time_contains_no_regex(self):
         self.df["str"].str.contains(self.pattern, regex=False)
 
     def time_contains_no_regex_ext(self):
-        self.df_ext["str"].text.contains(self.pattern, regex=False)
+        self.df_ext["str"].fr_str.contains(self.pattern, regex=False)
 
     def time_replace_no_regex(self):
         self.df["str"].str.replace(self.pattern, "bc")
 
     def time_replace_no_regex_ext(self):
-        self.df_ext["str"].text.count(self.pattern, "bc", regex=False)
+        self.df_ext["str"].fr_str.replace(self.pattern, "bc", regex=False)
 
 
 class TimeSuite:
@@ -64,49 +64,49 @@ class TimeSuite:
         self.df["str"].str.startswith("10")
 
     def time_startswith_ext(self):
-        self.df_ext["str"].text.startswith("10")
+        self.df_ext["str"].fr_str.startswith("10")
 
     def time_endswith(self):
         self.df["str"].str.endswith("10")
 
     def time_endswith_ext(self):
-        self.df_ext["str"].text.endswith("10")
+        self.df_ext["str"].fr_str.endswith("10")
 
     def time_cat(self):
         self.df["str"].str.cat(self.df["str"])
 
     def time_cat_ext(self):
-        self.df_ext["str"].text.cat(self.df_ext["str"])
+        self.df_ext["str"].fr_str.cat(self.df_ext["str"])
 
     def time_zfill(self):
         self.df["str"].str.zfill(10)
 
     def time_zfill_ext(self):
-        self.df_ext["str"].text.zfill(10)
+        self.df_ext["str"].fr_str.zfill(10)
 
     def time_contains_no_regex(self):
         self.df["str"].str.contains("1012102", regex=False)
 
     def time_contains_no_regex_ext(self):
-        self.df_ext["str"].text.contains("1012102", regex=False)
+        self.df_ext["str"].fr_str.contains("1012102", regex=False)
 
     def time_contains_no_regex_ignore_case(self):
         self.df["str"].str.contains("0", regex=False, case=False)
 
     def time_contains_no_regex_ignore_case_ext(self):
-        self.df_ext["str"].text.contains("0", regex=False, case=False)
+        self.df_ext["str"].fr_str.contains("0", regex=False, case=False)
 
     def time_contains_regex(self):
         self.df["str"].str.contains("[0-3]", regex=True)
 
     def time_contains_regex_ext(self):
-        self.df_ext["str"].text.contains("[0-3]", regex=True)
+        self.df_ext["str"].fr_str.contains("[0-3]", regex=True)
 
     def time_contains_regex_ignore_case(self):
         self.df["str"].str.contains("[0-3]", regex=True, case=False)
 
     def time_contains_regex_ignore_case_ext(self):
-        self.df_ext["str"].text.contains("[0-3]", regex=True, case=False)
+        self.df_ext["str"].fr_str.contains("[0-3]", regex=True, case=False)
 
     def time_concat(self):
         pd.concat([self.df["str"]] * 2)
@@ -118,13 +118,13 @@ class TimeSuite:
         self.df["str"].str.count("001")
 
     def time_count_no_regex_ext(self):
-        self.df_ext["str"].text.count("001", regex=False)
+        self.df_ext["str"].fr_str.count("001", regex=False)
 
     def time_replace_no_regex(self):
         self.df["str"].str.replace("001", "23")
 
     def time_replace_no_regex_ext(self):
-        self.df_ext["str"].text.count("001", "23", regex=False)
+        self.df_ext["str"].fr_str.count("001", "23", regex=False)
 
 
 class Indexing(object):

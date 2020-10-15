@@ -191,7 +191,7 @@ class FletcherBaseDtype(ExtensionDtype):
         elif self._is_list:
             return "O"
         elif pa.types.is_string(self.arrow_dtype):
-            return "string"
+            return "U"
         else:
             return np.dtype(self.arrow_dtype.to_pandas_dtype()).kind
 
