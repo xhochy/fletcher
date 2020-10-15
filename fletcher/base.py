@@ -34,6 +34,7 @@ from fletcher._algorithms import (
 )
 from fletcher.algorithms.bool import all_op, all_true, any_op, or_na, or_vectorised
 from fletcher.algorithms.utils.chunking import _calculate_chunk_offsets
+from fletcher.string_mixin import StringSupportingExtensionArray
 
 PANDAS_GE_0_26_0 = LooseVersion(pd.__version__) >= "0.26.0"
 if PANDAS_GE_0_26_0:
@@ -384,21 +385,7 @@ class FletcherChunkedDtype(FletcherBaseDtype):
         return FletcherChunkedArray
 
 
-try:
-    # Only available in pandas 1.2+
-    from pandas.core.strings.object_array import ObjectStringArrayMixin
-
-    class _IntermediateExtensionArray(ExtensionArray, ObjectStringArrayMixin):
-        pass
-
-
-except ImportError:
-
-    class _IntermediateExtensionArray(ExtensionArray):  # type: ignore
-        pass
-
-
-class FletcherBaseArray(_IntermediateExtensionArray):
+class FletcherBaseArray(StringSupportingExtensionArray):
     """Pandas ExtensionArray implementation base backed by an Apache Arrow structure."""
 
     _can_hold_na = True
@@ -415,9 +402,6 @@ class FletcherBaseArray(_IntermediateExtensionArray):
     def __arrow_array__(self, type=None):
         """Convert myself to a pyarrow Array or ChunkedArray."""
         return self.data
-
-    def _str_map(self, *args, **kwargs):
-        return type(self)(super()._str_map(*args, **kwargs))
 
     @property
     def size(self) -> int:

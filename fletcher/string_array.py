@@ -402,7 +402,7 @@ class TextAccessor(TextAccessorBase):
 
             if case:
                 contains_exact = getattr(
-                    pc, "binary_contains_exact", _text_contains_case_sensitive
+                    pc, "match_substring", _text_contains_case_sensitive
                 )
                 # Can just check for a match on the byte-sequence
                 return self._series_like(contains_exact(self.data, pat))

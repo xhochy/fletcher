@@ -15,7 +15,11 @@ def generate_test_array(n):
     ]
 
 
-class TimeSuiteText:
+class TimeSuitePatterns:
+    """
+    Special benchmark suite for string algorithms looking for patterns.
+    """
+
     def setup(self):
         array = [
             ("a" * 50 + "b" if i % 2 == 0 else "c") * 5 + str(i) for i in range(2 ** 16)
@@ -31,22 +35,31 @@ class TimeSuiteText:
         self.df["str"].str.count(self.pattern)
 
     def time_count_no_regex_ext(self):
+        self.df_ext["str"].str.count(self.pattern)
+
+    def time_count_no_regex_ext_fr(self):
         self.df_ext["str"].fr_str.count(self.pattern, regex=False)
 
     def time_contains_no_regex(self):
         self.df["str"].str.contains(self.pattern, regex=False)
 
     def time_contains_no_regex_ext(self):
+        self.df_ext["str"].str.contains(self.pattern, regex=False)
+
+    def time_contains_no_regex_ext_fr(self):
         self.df_ext["str"].fr_str.contains(self.pattern, regex=False)
 
     def time_replace_no_regex(self):
         self.df["str"].str.replace(self.pattern, "bc")
 
     def time_replace_no_regex_ext(self):
+        self.df_ext["str"].str.replace(self.pattern, "bc", regex=False)
+
+    def time_replace_no_regex_ext_fr(self):
         self.df_ext["str"].fr_str.replace(self.pattern, "bc", regex=False)
 
 
-class TimeSuite:
+class TimeSuiteText:
     def setup(self):
         array = generate_test_array(2 ** 17)
         self.df = pd.DataFrame({"str": array})
@@ -64,6 +77,9 @@ class TimeSuite:
         self.df["str"].str.startswith("10")
 
     def time_startswith_ext(self):
+        self.df_ext["str"].str.startswith("10")
+
+    def time_startswith_ext_fr(self):
         self.df_ext["str"].fr_str.startswith("10")
 
     def time_endswith(self):
@@ -71,6 +87,9 @@ class TimeSuite:
 
     def time_endswith_ext(self):
         self.df_ext["str"].fr_str.endswith("10")
+
+    def time_endswith_ext_fr(self):
+        self.df_ext["str"].str.endswith("10")
 
     def time_cat(self):
         self.df["str"].str.cat(self.df["str"])
@@ -88,6 +107,9 @@ class TimeSuite:
         self.df["str"].str.contains("1012102", regex=False)
 
     def time_contains_no_regex_ext(self):
+        self.df_ext["str"].str.contains("1012102", regex=False)
+
+    def time_contains_no_regex_ext_fr(self):
         self.df_ext["str"].fr_str.contains("1012102", regex=False)
 
     def time_contains_no_regex_ignore_case(self):
@@ -124,7 +146,7 @@ class TimeSuite:
         self.df["str"].str.replace("001", "23")
 
     def time_replace_no_regex_ext(self):
-        self.df_ext["str"].fr_str.count("001", "23", regex=False)
+        self.df_ext["str"].fr_str.replace("001", "23", regex=False)
 
 
 class Indexing(object):
