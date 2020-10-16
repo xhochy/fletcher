@@ -11,7 +11,7 @@ dependencies:
   - pytest-cov
   - pytest-xdist
   - hypothesis
-  - setuptools_scm
+  - setuptools-scm
   - pip
   - codecov
   - six

@@ -97,13 +97,13 @@ string_patterns = pytest.mark.parametrize(
 )
 
 
-def _fr_series_from_data(data, fletcher_variant, dtype=pa.string()):
+def _fr_series_from_data(data, fletcher_variant, dtype=pa.string(), index=None):
     arrow_data = pa.array(data, type=dtype)
     if fletcher_variant == "chunked":
         fr_array = fr.FletcherChunkedArray(arrow_data)
     else:
         fr_array = fr.FletcherContinuousArray(arrow_data)
-    return pd.Series(fr_array)
+    return pd.Series(fr_array, index=index)
 
 
 @settings(deadline=None)
@@ -459,11 +459,12 @@ def test_text_extractall(str_accessor, fletcher_variant, data, regex):
         pytest.skip("extractall is not yet dispatched to the ExtensionArray")
         return
 
-    ser_fr = _fr_series_from_data(data, fletcher_variant)
+    index = pd.Index(range(1, len(data) + 1))
+    ser_fr = _fr_series_from_data(data, fletcher_variant, index=index)
     result_fr = getattr(ser_fr, str_accessor).extractall(regex)
     assert isinstance(result_fr[0].dtype, fr.FletcherBaseDtype)
 
-    ser_pd = pd.Series(data)
+    ser_pd = pd.Series(data, index=index)
     result_pd = ser_pd.str.extractall(regex)
 
     tm.assert_frame_equal(result_pd, result_fr.astype(object))
@@ -473,10 +474,17 @@ def test_text_extractall(str_accessor, fletcher_variant, data, regex):
 @pytest.mark.parametrize("expand", [True, False])
 def test_text_split(str_accessor, fletcher_variant, data, expand):
 
-    ser_fr = _fr_series_from_data(data, fletcher_variant)
+    len_data = len(data)
+    idx_a = list(range(1, len_data + 1))
+    idx_b = list(range(2, len_data + 2))
+    index = pd.MultiIndex.from_tuples(
+        list(zip(idx_a, idx_b)), names=["first", "second"]
+    )
+
+    ser_fr = _fr_series_from_data(data, fletcher_variant, index=index)
     result_fr = getattr(ser_fr, str_accessor).split("+", expand=expand)
 
-    ser_pd = pd.Series(data)
+    ser_pd = pd.Series(data, index=index)
     result_pd = ser_pd.str.split("+", expand=expand)
 
     if expand:
