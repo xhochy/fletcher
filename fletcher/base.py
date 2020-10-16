@@ -34,6 +34,7 @@ from fletcher._algorithms import (
 )
 from fletcher.algorithms.bool import all_op, all_true, any_op, or_na, or_vectorised
 from fletcher.algorithms.utils.chunking import _calculate_chunk_offsets
+from fletcher.string_mixin import StringSupportingExtensionArray
 
 PANDAS_GE_0_26_0 = LooseVersion(pd.__version__) >= "0.26.0"
 if PANDAS_GE_0_26_0:
@@ -190,6 +191,8 @@ class FletcherBaseDtype(ExtensionDtype):
             return "O"
         elif self._is_list:
             return "O"
+        elif pa.types.is_string(self.arrow_dtype):
+            return "U"
         else:
             return np.dtype(self.arrow_dtype.to_pandas_dtype()).kind
 
@@ -382,7 +385,7 @@ class FletcherChunkedDtype(FletcherBaseDtype):
         return FletcherChunkedArray
 
 
-class FletcherBaseArray(ExtensionArray):
+class FletcherBaseArray(StringSupportingExtensionArray):
     """Pandas ExtensionArray implementation base backed by an Apache Arrow structure."""
 
     _can_hold_na = True

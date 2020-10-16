@@ -402,7 +402,7 @@ class TextAccessor(TextAccessorBase):
 
             if case:
                 contains_exact = getattr(
-                    pc, "binary_contains_exact", _text_contains_case_sensitive
+                    pc, "match_substring", _text_contains_case_sensitive
                 )
                 # Can just check for a match on the byte-sequence
                 return self._series_like(contains_exact(self.data, pat))
@@ -412,10 +412,9 @@ class TextAccessor(TextAccessorBase):
                 pass
         return self._call_str_accessor("contains", pat=pat, case=case, regex=regex)
 
-    def count(self, pat: str, case: bool = True, regex: bool = True) -> pd.Series:
+    def count(self, pat: str, regex: bool = True) -> pd.Series:
         if not regex:
-            if case:
-                return self._series_like(_text_count_case_sensitive(self.data, pat))
+            return self._series_like(_text_count_case_sensitive(self.data, pat))
         return self._call_str_accessor("count", pat=pat)
 
     def replace(
