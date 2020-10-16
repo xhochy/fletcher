@@ -7,6 +7,12 @@ Starting with 0.5, we will follow the following versioning scheme:
 * We bump MINOR on breaking changes.
 * We increase PATCH otherwise.
 
+
+0.6.2 (2020-10-XX)
+------------------
+
+* Return correct index in functions like `fr_str.extractall`.
+
 0.6.1 (2020-10-14)
 ------------------
 
