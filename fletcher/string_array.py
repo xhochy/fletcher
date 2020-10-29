@@ -278,7 +278,7 @@ class TextAccessorBase:
                 )
             return pd_result
         elif isinstance(pd_result, pd.Series):
-            array = pa.array(pd_result.values)
+            array = pa.array(pd_result.values, from_pandas=True)
             return self._series_like(array)
         else:
             raise AttributeError(f"{func} returned unexpected type {type(pd_result)}")
