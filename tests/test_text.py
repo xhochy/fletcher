@@ -882,4 +882,24 @@ def test_isdecimal(data, str_accessor, fletcher_variant):
     _check_str_to_bool("isdecimal", data, str_accessor, fletcher_variant)
 
 
-# TODO: get_dummies
+def test_get_dummies(str_accessor, fletcher_variant):
+    ser = _fr_series_from_data(["a|b", None, "a|c"], fletcher_variant)
+
+    result = getattr(ser, str_accessor).get_dummies()
+    if str_accessor == "str":
+        expected = pd.DataFrame({"a": [1, 0, 1], "b": [1, 0, 0], "c": [0, 0, 1]})
+    else:
+        expected = pd.DataFrame(
+            {
+                "a": _fr_series_from_data(
+                    [1, 0, 1], fletcher_variant, dtype=pa.int64()
+                ),
+                "b": _fr_series_from_data(
+                    [1, 0, 0], fletcher_variant, dtype=pa.int64()
+                ),
+                "c": _fr_series_from_data(
+                    [0, 0, 1], fletcher_variant, dtype=pa.int64()
+                ),
+            }
+        )
+    tm.assert_frame_equal(result, expected)
