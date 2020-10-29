@@ -755,7 +755,44 @@ def test_upper(data, str_accessor, fletcher_variant):
     _check_str_to_str("upper", data, str_accessor, fletcher_variant)
 
 
-# TODO: wrap
+def test_wrap(str_accessor, fletcher_variant):
+    ser = _fr_series_from_data(
+        ["line to be wrapped", "an-other line to\tbe wrapped"], fletcher_variant
+    )
+
+    result = getattr(ser, str_accessor).wrap(width=12)
+    expected = _fr_series_from_data(
+        ["line to be\nwrapped", "an-other\nline to\nbe wrapped"], fletcher_variant
+    )
+    tm.assert_series_equal(result, expected)
+
+    result = getattr(ser, str_accessor).wrap(width=12, drop_whitespace=False)
+    expected = _fr_series_from_data(
+        ["line to be \nwrapped", "an-other \nline to\n        be \nwrapped"],
+        fletcher_variant,
+    )
+    tm.assert_series_equal(result, expected)
+
+    result = getattr(ser, str_accessor).wrap(width=5, break_long_words=True)
+    expected = _fr_series_from_data(
+        ["line\nto be\nwrapp\ned", "an-\nother\nline\nto\nbe wr\napped"],
+        fletcher_variant,
+    )
+    tm.assert_series_equal(result, expected)
+
+    result = getattr(ser, str_accessor).wrap(width=5, break_long_words=False)
+    expected = _fr_series_from_data(
+        ["line\nto be\nwrapped", "an-\nother\nline\nto\nbe\nwrapped"], fletcher_variant
+    )
+    tm.assert_series_equal(result, expected)
+
+    result = getattr(ser, str_accessor).wrap(
+        width=5, break_long_words=False, break_on_hyphens=False
+    )
+    expected = _fr_series_from_data(
+        ["line\nto be\nwrapped", "an-other\nline\nto\nbe\nwrapped"], fletcher_variant
+    )
+    tm.assert_series_equal(result, expected)
 
 
 def _optional_len(x: Optional[str]) -> int:
