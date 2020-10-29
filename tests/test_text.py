@@ -378,9 +378,9 @@ def test_count_no_regex(data_tuple, str_accessor, fletcher_variant):
     _check_series_equal(result_fr, result_pd)
 
 
-# TODO: Add a test case for count with a regex
-
-# TODO: What do we do with encode/decode?
+@regex_patterns
+def test_count_regex(data, pat, str_accessor, fletcher_variant):
+    _check_str_to_int("count", data, str_accessor, fletcher_variant, pat=pat)
 
 
 @string_patterns
