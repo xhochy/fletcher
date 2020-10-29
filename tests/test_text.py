@@ -445,9 +445,6 @@ def test_index(data, pat, str_accessor, fletcher_variant):
     _check_str_to_int("index", data, str_accessor, fletcher_variant, sub=pat)
 
 
-# TODO: test_join
-
-
 @settings(deadline=None)
 @given(data=st.lists(st.one_of(st.text(), st.none())))
 def test_len(data, str_accessor, fletcher_variant):
@@ -622,7 +619,21 @@ def test_slice(data, slice_, str_accessor, fletcher_variant):
     tm.assert_series_equal(result_fr, result_pd)
 
 
-# TODO: slice_replace
+def test_slice_replace(str_accessor, fletcher_variant):
+    ser = _fr_series_from_data(["a", "ab", "abc", "abdc", "abcde"], fletcher_variant)
+
+    # Using test cases from the pandas documentation
+    result = getattr(ser, str_accessor).slice_replace(1, repl="X")
+    expected = _fr_series_from_data(["aX", "aX", "aX", "aX", "aX"], fletcher_variant)
+    tm.assert_series_equal(result, expected)
+
+    result = getattr(ser, str_accessor).slice_replace(stop=2, repl="X")
+    expected = _fr_series_from_data(["X", "X", "Xc", "Xdc", "Xcde"], fletcher_variant)
+    tm.assert_series_equal(result, expected)
+
+    result = getattr(ser, str_accessor).slice_replace(start=1, stop=3, repl="X")
+    expected = _fr_series_from_data(["aX", "aX", "aX", "aXc", "aXde"], fletcher_variant)
+    tm.assert_series_equal(result, expected)
 
 
 @pytest.mark.parametrize("data", [["123"], ["123+"], ["123+a+", "123+"]])
