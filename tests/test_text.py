@@ -734,7 +734,19 @@ def test_title(data, str_accessor, fletcher_variant):
     _check_str_to_str("title", data, str_accessor, fletcher_variant)
 
 
-# TODO: translate
+@settings(deadline=None)
+@given(data=st.lists(st.one_of(st.text(), st.none())))
+@example(data=["a"])
+@example(data=["aa"])
+@example(data=["1, 👅, 3"])
+def test_translate(data, str_accessor, fletcher_variant):
+    _check_str_to_str(
+        "translate",
+        data,
+        str_accessor,
+        fletcher_variant,
+        table={"a": "🤙", "👅": "a", "1": "1"},
+    )
 
 
 @settings(deadline=None)
