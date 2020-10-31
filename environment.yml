@@ -20,3 +20,4 @@ dependencies:
   - sphinxcontrib-apidoc
   - pre_commit
   - dask
+  - asv
