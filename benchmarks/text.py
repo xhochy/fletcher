@@ -561,20 +561,25 @@ class TimeSuiteText:
     def time_isdecimal_ext_fr(self):
         self.df_ext["str"].fr_str.isdecimal()
 
-    # FIXME: timeouts
-    # def time_get_dummies(self):
-    #    self.df["str"].str.get_dummies(sep="0")
 
-    # FIXME: timeouts
-    # def time_get_dummies_ext(self):
-    #     self.df_ext["str"].str.get_dummies(sep="0")
+class Dummies:
+    def setup(self):
+        self.s = pd.Series(pd._testing.makeStringIndex(10 ** 5)).str.join("|")
+        self.s_ext = pd.Series(
+            fr.FletcherChunkedArray(pa.array(self.s.to_numpy(), pa.string()))
+        )
 
-    # FIXME: timeouts
-    # def time_get_dummies_ext_fr(self):
-    #    self.df_ext["str"].fr_str.get_dummies(sep="0")
+    def time_get_dummies(self):
+        self.s.str.get_dummies("|")
+
+    def time_get_dummies_ext(self):
+        self.s_ext.str.get_dummies("|")
+
+    def time_get_dummies_ext_fr(self):
+        self.s_ext.fr_str.get_dummies("|")
 
 
-class Indexing(object):
+class Indexing:
     # index and value have diverse values, disable type checks for them
     indexer: Any
     value: Any
