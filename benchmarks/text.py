@@ -177,9 +177,23 @@ class TimeSuiteText:
     def time_endswith_ext_fr(self):
         self.df_ext["str"].fr_str.endswith("10")
 
-    # TODO: extract
+    def time_extract(self):
+        self.df["str"].str.extract("([0-3]+)")
 
-    # TODO: extractall
+    def time_extract_ext(self):
+        self.df_ext["str"].str.extract("([0-3]+)")
+
+    def time_extract_ext_fr(self):
+        self.df_ext["str"].fr_str.extract("([0-3]+)")
+
+    def time_extractall(self):
+        self.df["str"].str.extractall("([0-3]+)")
+
+    def time_extractall_ext(self):
+        self.df_ext["str"].str.extractall("([0-3]+)")
+
+    def time_extractall_ext_fr(self):
+        self.df_ext["str"].fr_str.extractall("([0-3]+)")
 
     def time_find(self):
         self.df["str"].str.find("10")
@@ -190,7 +204,14 @@ class TimeSuiteText:
     def time_find_ext_fr(self):
         self.df_ext["str"].fr_str.find("10")
 
-    # TODO: findall
+    def time_findall(self):
+        self.df["str"].str.findall("([0-3]+)")
+
+    def time_findall_ext(self):
+        self.df_ext["str"].str.findall("([0-3]+)")
+
+    def time_findall_ext_fr(self):
+        self.df_ext["str"].fr_str.findall("([0-3]+)")
 
     def time_get(self):
         self.df["str"].str.get(2)
@@ -239,7 +260,14 @@ class TimeSuiteText:
     def time_lstrip_ext_fr(self):
         self.df_ext["str"].fr_str.lstrip("0")
 
-    # TODO: match
+    def time_match(self):
+        self.df["str"].str.match("([0-3]+)")
+
+    def time_match_ext(self):
+        self.df_ext["str"].str.match("([0-3]+)")
+
+    def time_match_ext_fr(self):
+        self.df_ext["str"].fr_str.match("([0-3]+)")
 
     def time_normalize(self):
         self.df["str"].str.normalize(form="NFC")
