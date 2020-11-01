@@ -48,14 +48,9 @@ py.test --junitxml=test-reports/junit.xml --cov=./ --cov-report=xml
 
 # Do a second run with JIT disabled to produce coverage and check that the
 # code works also as expected in Python.
-if [ "${PYTHON_VERSION}" = "3.6" ]; then
+if [ "${PYTHON_VERSION}" = "3.6" ] || [ "${USE_DEV_WHEELS}" = "nightlies" ]; then
   # These don't work with Python 2.7 as it supports less operators than 3.6
   NUMBA_DISABLE_JIT=1 py.test --junitxml=test-reports/junit.xml --cov=./ --cov-report=xml
-
-  # Also run benchmarks to generate coverage reports
-  asv machine --yes
-  coverage run -m asv dev
-  coverage xml
 fi
 
 # Check documentation build only in one job, also do releases
