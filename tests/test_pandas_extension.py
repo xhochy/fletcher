@@ -467,6 +467,7 @@ class TestBaseMethodsTests(BaseMethodsTests):
 
     @pytest.mark.parametrize("ascending", [True, False])
     @xfail_bool_too_few_uniques
+    @xfail_missing_list_dict_encode
     def test_sort_values(self, data_for_sorting, ascending, sort_by_key):
         if PANDAS_GE_1_1_0:
             BaseMethodsTests.test_sort_values(
