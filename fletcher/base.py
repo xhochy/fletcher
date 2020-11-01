@@ -864,7 +864,7 @@ class FletcherContinuousArray(FletcherBaseArray):
         # Copy is not used at the moment. It's only affect will be when we
         # allow array to be a FletcherContinuousArray
         if is_array_like(array) or isinstance(array, list):
-            self.data = pa.array(array, type=dtype)
+            self.data = pa.array(array, type=dtype, from_pandas=True)
         elif isinstance(array, pa.Array):
             # TODO: Assert dtype
             self.data = array
@@ -1263,7 +1263,9 @@ class FletcherChunkedArray(FletcherBaseArray):
         # Copy is not used at the moment. It's only affect will be when we
         # allow array to be a FletcherChunkedArray
         if is_array_like(array) or isinstance(array, list):
-            self.data = pa.chunked_array([pa.array(array, type=dtype)])
+            self.data = pa.chunked_array(
+                [pa.array(array, type=dtype, from_pandas=True)]
+            )
         elif isinstance(array, pa.Array):
             # ARROW-7008: pyarrow.chunked_array([array]) fails on array with all-None buffers
             if len(array) == 0 and all(b is None for b in array.buffers()):
