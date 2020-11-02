@@ -856,10 +856,10 @@ class FletcherBaseArray(StringSupportingExtensionArray):
         This should return a 1-D array the same length as 'self'.
         """
         if hasattr(self.data, "is_null"):
+            return np.array(self.data.is_null())
+        else:
             # Remove once drop support for pyarrow<1
             return extract_isnull_bytemap(self.data)
-        else:
-            return np.array(self.data.is_null())
 
 
 class FletcherContinuousArray(FletcherBaseArray):
