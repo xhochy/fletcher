@@ -21,6 +21,7 @@ from pandas.core.arrays import ExtensionArray
 from pandas.core.dtypes.dtypes import ExtensionDtype, register_extension_dtype
 
 from fletcher._algorithms import (
+    extract_isnull_bytemap,
     kurt_op,
     max_op,
     median_op,
@@ -854,7 +855,11 @@ class FletcherBaseArray(StringSupportingExtensionArray):
 
         This should return a 1-D array the same length as 'self'.
         """
-        return np.array(self.data.is_null())
+        if hasattr(self.data, "is_null"):
+            # Remove once drop support for pyarrow<1
+            return extract_isnull_bytemap(self.data)
+        else:
+            return np.array(self.data.is_null())
 
 
 class FletcherContinuousArray(FletcherBaseArray):
