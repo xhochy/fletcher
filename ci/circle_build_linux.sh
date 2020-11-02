@@ -6,7 +6,8 @@ set -eo pipefail
 export LC_ALL=C.UTF-8
 export LANG=C.UTF-8
 export PYTHON_VERSION=$1
-export USE_DEV_WHEELS=$2
+export PYARROW_VERSION=$2
+export USE_DEV_WHEELS=$3
 export CONDA_PKGS_DIRS=$HOME/.conda_packages
 export MINICONDA=$HOME/miniconda
 export MINICONDA_URL="https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh"
@@ -26,7 +27,11 @@ else
     export CUSTOM_CONDA_CHANNELS='"conda-forge"'
 fi
 
-yq -Y ". + {channels: [${CONDA_CHANNELS}], dependencies: [.dependencies[], \"python=${PYTHON_VERSION}\"] }" environment.yml > /tmp/environment.yml
+if [ "${PYARROW_VERSION}" = "latest" ]; then
+    yq -Y ". + {channels: [${CONDA_CHANNELS}], dependencies: [.dependencies[], \"python=${PYTHON_VERSION}\"] }" environment.yml > /tmp/environment.yml
+else
+    yq -Y ". + {channels: [${CONDA_CHANNELS}], dependencies: [.dependencies[], \"python=${PYTHON_VERSION}\", \"pyarrow=${PYARROW_VERSION}\"] }" environment.yml > /tmp/environment.yml
+fi
 cat /tmp/environment.yml
 mamba env create -f /tmp/environment.yml
 source activate fletcher
