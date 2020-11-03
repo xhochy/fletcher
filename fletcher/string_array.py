@@ -505,3 +505,27 @@ class TextAccessor(TextAccessorBase):
     def slice(self, start=0, end=None, step=1):
         """Extract every `step` character from strings from `start` to `end`."""
         return self._series_like(_slice_handle_chunk(self.data, start, end, step))
+
+    def isalnum(self):
+        return self.obj.str.isalnum()
+
+    def isalpha(self):
+        return self.obj.str.isalpha()
+
+    def isdigit(self):
+        return self.obj.str.isdigit()
+
+    def isspace(self):
+        return self.obj.str.isspace()
+
+    def islower(self):
+        return self.obj.str.islower()
+
+    def isupper(self):
+        return self.obj.str.isupper()
+
+    def istitle(self):
+        return self.obj.str.istitle()
+
+    def isnumeric(self):
+        return self.obj.str.isnumeric()
