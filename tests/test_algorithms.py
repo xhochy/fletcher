@@ -19,6 +19,7 @@ from fletcher._algorithms import (
     np_ufunc_op,
     prod_op,
     sum_op,
+    take_on_pyarrow_list,
 )
 from fletcher.algorithms.utils.chunking import (
     _calculate_chunk_offsets,
@@ -387,3 +388,40 @@ def test_bit_vector_auto(string_builder_variant, data):
             vec.append_false()
     for idx in range(len(data)):
         assert vec.get(idx) == bool(data[idx])
+
+
+@pytest.mark.parametrize(
+    ("array", "indices"),
+    [
+        (
+            pa.array([[k] for k in range(10 ** 4)]),
+            np.random.randint(0, 10 ** 4, 10 ** 2),
+        ),
+        (
+            pa.array([[float(k)] for k in range(10 ** 4)]),
+            np.random.randint(0, 10 ** 4, 10 ** 2),
+        ),
+        (
+            pa.array(np.random.randint(0, 100, 10) for _ in range(10 ** 4)),
+            np.random.randint(0, 10 ** 4, 10 ** 5),
+        ),
+        (
+            pa.LargeListArray.from_arrays(
+                [k for k in range(10 ** 4 + 1)], [k for k in range(10 ** 4)]
+            ),
+            np.random.randint(0, 10 ** 4, 10 ** 2),
+        ),
+        (
+            pa.LargeListArray.from_arrays(
+                [k for k in range(10 ** 4 + 1)], [float(k) for k in range(10 ** 4)]
+            ),
+            np.random.randint(0, 10 ** 4, 10 ** 2),
+        ),
+        (pa.array([[]]), [0]),
+    ],
+)
+def test_take_on_pyarrow_list(array, indices):
+    np.testing.assert_array_equal(
+        array.take(pa.array(indices)).to_pylist(),
+        take_on_pyarrow_list(array, indices).to_pylist(),
+    )

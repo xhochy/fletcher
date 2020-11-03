@@ -8,11 +8,12 @@ Starting with 0.5, we will follow the following versioning scheme:
 * We increase PATCH otherwise.
 
 
-0.6.3 (2020-11-XX)
+0.7.0 (2020-11-XX)
 ------------------
 
 * Add tests for all `str` functions.
 * Fix tests for `pyarrow=0.17.1` and add CI jobs for `0.17.1` and `1.0.1`.
+* Implement a faster take for list arrays.
 
 0.6.2 (2020-10-20)
 ------------------

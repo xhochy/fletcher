@@ -71,3 +71,41 @@ def test_pandas_from_arrow():
     table = pa.Table.from_arrays([arr], ["column"])
     pdt.assert_frame_equal(expected_df, fr.pandas_from_arrow(rb, continuous=True))
     pdt.assert_frame_equal(expected_df, fr.pandas_from_arrow(table, continuous=True))
+
+
+def test_take_list_arrays():
+    indices = [0, 1, 4, 3, 5]
+    indptr = [0, 2, 3, 5]
+    list_array = pa.ListArray.from_arrays(indptr, indices)
+    large_list_array = pa.LargeListArray.from_arrays(indptr, indices)
+
+    test_with_null = fr.FletcherContinuousArray(pa.array([[1, 2], [None, 3], [4, 5]]))
+
+    assert np.all(
+        pa.array(test_with_null.take([1, 2, 1])).to_pylist()
+        == [[None, 3], [4, 5], [None, 3]]
+    )
+
+    test = fr.FletcherContinuousArray(pa.chunked_array([list_array, list_array])).take(
+        [0, 5, 1]
+    )
+    test_large = fr.FletcherContinuousArray(
+        pa.chunked_array([large_list_array, large_list_array])
+    ).take([0, 5, 1])
+    expected = [[0, 1], [3, 5], [4]]
+    assert np.all(
+        list(
+            map(
+                lambda x: np.all(np.array(test[x]) == np.array(expected)[x]),
+                range(0, len(test)),
+            )
+        )
+    )
+    assert np.all(
+        list(
+            map(
+                lambda x: np.all(np.array(test_large[x]) == np.array(expected)[x]),
+                range(0, len(test_large)),
+            )
+        )
+    )
