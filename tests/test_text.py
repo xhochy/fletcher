@@ -23,6 +23,30 @@ except ImportError:
     _str_accessors = ["fr_str"]
 
 
+def supported_by_utf8proc(s):
+    """Check a string whether all characters are supported by utf8proc."""
+    # See https://github.com/JuliaStrings/utf8proc/pull/196
+    return len(set("ªᶛº¹²³").intersection(s)) == 0
+
+
+def supported_by_python(s):
+    """Check a string whether all characters are supported by Python."""
+    if set("\U00030000\U00018af3").intersection(s):
+        return False
+    if any(ord(c) > 196607 for c in s):
+        # Probably needs unicode 13, check with Python 3.9 in unicodedata.unidata_version
+        return False
+    return True
+
+
+def filter_supported(strings):
+    return [
+        s
+        for s in strings
+        if s is None or (supported_by_python(s) and supported_by_utf8proc(s))
+    ]
+
+
 @pytest.fixture(params=_str_accessors, scope="module")
 def str_accessor(request):
     return request.param
@@ -831,54 +855,63 @@ def test_zfill(data, str_accessor, fletcher_variant):
 @settings(deadline=None)
 @given(data=st.lists(st.one_of(st.text(), st.none())))
 def test_isalnum(data, str_accessor, fletcher_variant):
+    data = filter_supported(data)
     _check_str_to_bool("isalnum", data, str_accessor, fletcher_variant)
 
 
 @settings(deadline=None)
 @given(data=st.lists(st.one_of(st.text(), st.none())))
 def test_isalpha(data, str_accessor, fletcher_variant):
+    data = filter_supported(data)
     _check_str_to_bool("isalpha", data, str_accessor, fletcher_variant)
 
 
 @settings(deadline=None)
 @given(data=st.lists(st.one_of(st.text(), st.none())))
 def test_isdigit(data, str_accessor, fletcher_variant):
+    data = filter_supported(data)
     _check_str_to_bool("isdigit", data, str_accessor, fletcher_variant)
 
 
 @settings(deadline=None)
 @given(data=st.lists(st.one_of(st.text(), st.none())))
 def test_isspace(data, str_accessor, fletcher_variant):
+    data = filter_supported(data)
     _check_str_to_bool("isspace", data, str_accessor, fletcher_variant)
 
 
 @settings(deadline=None)
 @given(data=st.lists(st.one_of(st.text(), st.none())))
 def test_islower(data, str_accessor, fletcher_variant):
+    data = filter_supported(data)
     _check_str_to_bool("islower", data, str_accessor, fletcher_variant)
 
 
 @settings(deadline=None)
 @given(data=st.lists(st.one_of(st.text(), st.none())))
 def test_isupper(data, str_accessor, fletcher_variant):
+    data = filter_supported(data)
     _check_str_to_bool("isupper", data, str_accessor, fletcher_variant)
 
 
 @settings(deadline=None)
 @given(data=st.lists(st.one_of(st.text(), st.none())))
 def test_istitle(data, str_accessor, fletcher_variant):
+    data = filter_supported(data)
     _check_str_to_bool("istitle", data, str_accessor, fletcher_variant)
 
 
 @settings(deadline=None)
 @given(data=st.lists(st.one_of(st.text(), st.none())))
 def test_isnumeric(data, str_accessor, fletcher_variant):
+    data = filter_supported(data)
     _check_str_to_bool("isnumeric", data, str_accessor, fletcher_variant)
 
 
 @settings(deadline=None)
 @given(data=st.lists(st.one_of(st.text(), st.none())))
 def test_isdecimal(data, str_accessor, fletcher_variant):
+    data = filter_supported(data)
     _check_str_to_bool("isdecimal", data, str_accessor, fletcher_variant)
 
 
