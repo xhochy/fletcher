@@ -532,9 +532,6 @@ elif hasattr(pc, "utf8_is_alnum"):
     TextAccessor.isdigit = lambda self: self._series_like(  # type: ignore
         pc.utf8_is_digit(self.data)
     )
-    TextAccessor.isspace = lambda self: self._series_like(  # type: ignore
-        pc.utf8_is_space(self.data)
-    )
     TextAccessor.islower = lambda self: self._series_like(  # type: ignore
         pc.utf8_is_lower(self.data)
     )
@@ -550,3 +547,8 @@ elif hasattr(pc, "utf8_is_alnum"):
     TextAccessor.isdecimal = lambda self: self._series_like(  # type: ignore
         pc.utf8_is_decimal(self.data)
     )
+    # This one was added later
+    if hasattr(pc, "utf8_is_space"):
+        TextAccessor.isspace = lambda self: self._series_like(  # type: ignore
+            pc.utf8_is_space(self.data)
+        )
