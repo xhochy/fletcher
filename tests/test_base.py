@@ -96,7 +96,9 @@ def test_take_list_arrays():
     assert np.all(
         list(
             map(
-                lambda x: np.all(np.array(test[x]) == np.array(expected)[x]),
+                lambda x: np.all(
+                    np.array(test[x]) == np.array(expected, dtype="object")[x]
+                ),
                 range(0, len(test)),
             )
         )
@@ -104,7 +106,9 @@ def test_take_list_arrays():
     assert np.all(
         list(
             map(
-                lambda x: np.all(np.array(test_large[x]) == np.array(expected)[x]),
+                lambda x: np.all(
+                    np.array(test_large[x]) == np.array(expected, dtype="object")[x]
+                ),
                 range(0, len(test_large)),
             )
         )

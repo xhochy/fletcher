@@ -363,28 +363,25 @@ def take_on_pyarrow_list(array, indices):
     if len(array.flatten()) == 0:
         return array.take(pa.array(indices))
 
-    dtype = np.int64 if pa.types.is_large_list(array.type) else np.int32
-
-    self_indptr = np.frombuffer(array.buffers()[1], dtype=dtype)[
-        array.offset : array.offset + len(array) + 1
-    ]
-
-    self_indices = np.frombuffer(
-        array.buffers()[3], dtype=array.type.value_type.to_pandas_dtype()
-    )[self_indptr[0] : self_indptr[-1]]
-
-    self_indptr = self_indptr - self_indptr[0]
+    self_indptr, self_indices = map(np.asarray, (array.offsets, array.values))
+    self_indices = self_indices[self_indptr[0] : self_indptr[-1]]  # this is only a view
+    self_indptr = self_indptr - self_indptr[0]  # this will make a copy !
     self_indptr.setflags(write=0)
     array.validate()
 
     length = indices.shape[0]
 
-    new_indptr = np.zeros(length + 1, dtype=self_indptr.dtype)
+    # let's start with larger np.int64 dtype to avoid overflow
+    # and yes, it will require a bit more memory ...
+    new_indptr = np.zeros(length + 1, dtype=np.int64)
     new_indptr = _get_new_indptr(self_indptr, indices, new_indptr)
-    new_indices = np.zeros(new_indptr[length], dtype=self_indices.dtype)
-
-    _fill_up_indices(new_indptr, new_indices, self_indices, self_indptr, indices)
+    # now we can see if we can downcast
     if new_indptr[-1] < np.iinfo(np.int32).max:
-        return pa.ListArray.from_arrays(new_indptr, new_indices)
+        new_indptr = new_indptr.astype(np.int32)
+        pa_type = pa.ListArray
     else:
-        return pa.LargeListArray.from_arrays(new_indptr, new_indices)
+        pa_type = pa.LargeListArray
+
+    new_indices = np.zeros(new_indptr[-1], dtype=self_indices.dtype)
+    _fill_up_indices(new_indptr, new_indices, self_indices, self_indptr, indices)
+    return pa_type.from_arrays(new_indptr, new_indices)
