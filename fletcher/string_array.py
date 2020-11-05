@@ -30,6 +30,11 @@ from fletcher.base import (
     FletcherContinuousArray,
 )
 
+# Do we support calling the `.str.` accessor on fletcher arrays?
+SUPPORTS_STR_ON_FLETCHER = any(
+    "StringArrayMethods" in str(x) for x in FletcherBaseArray.mro()
+)
+
 
 def buffers_as_arrays(sa):
     buffers = sa.buffers()
@@ -505,3 +510,45 @@ class TextAccessor(TextAccessorBase):
     def slice(self, start=0, end=None, step=1):
         """Extract every `step` character from strings from `start` to `end`."""
         return self._series_like(_slice_handle_chunk(self.data, start, end, step))
+
+
+if SUPPORTS_STR_ON_FLETCHER:
+    TextAccessor.isalnum = lambda self: self.obj.str.isalnum()  # type: ignore
+    TextAccessor.isalpha = lambda self: self.obj.str.isalpha()  # type: ignore
+    TextAccessor.isdigit = lambda self: self.obj.str.isdigit()  # type: ignore
+    TextAccessor.isspace = lambda self: self.obj.str.isspace()  # type: ignore
+    TextAccessor.islower = lambda self: self.obj.str.islower()  # type: ignore
+    TextAccessor.isupper = lambda self: self.obj.str.isupper()  # type: ignore
+    TextAccessor.istitle = lambda self: self.obj.str.istitle()  # type: ignore
+    TextAccessor.isnumeric = lambda self: self.obj.str.isnumeric()  # type: ignore
+    TextAccessor.isdecimal = lambda self: self.obj.str.isdecimal()  # type: ignore
+elif hasattr(pc, "utf8_is_alnum"):
+    TextAccessor.isalnum = lambda self: self._series_like(  # type: ignore
+        pc.utf8_is_alnum(self.data)
+    )
+    TextAccessor.isalpha = lambda self: self._series_like(  # type: ignore
+        pc.utf8_is_alpha(self.data)
+    )
+    TextAccessor.isdigit = lambda self: self._series_like(  # type: ignore
+        pc.utf8_is_digit(self.data)
+    )
+    TextAccessor.islower = lambda self: self._series_like(  # type: ignore
+        pc.utf8_is_lower(self.data)
+    )
+    TextAccessor.isupper = lambda self: self._series_like(  # type: ignore
+        pc.utf8_is_upper(self.data)
+    )
+    TextAccessor.istitle = lambda self: self._series_like(  # type: ignore
+        pc.utf8_is_title(self.data)
+    )
+    TextAccessor.isnumeric = lambda self: self._series_like(  # type: ignore
+        pc.utf8_is_numeric(self.data)
+    )
+    TextAccessor.isdecimal = lambda self: self._series_like(  # type: ignore
+        pc.utf8_is_decimal(self.data)
+    )
+    # This one was added later
+    if hasattr(pc, "utf8_is_space"):
+        TextAccessor.isspace = lambda self: self._series_like(  # type: ignore
+            pc.utf8_is_space(self.data)
+        )

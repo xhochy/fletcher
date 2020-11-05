@@ -34,3 +34,57 @@ class StringSupportingExtensionArray(_IntermediateExtensionArray):
     def _str_endswith(self, pat, na=None):
         # TODO: This is currently not implemented in Arrow but only directly in the fr_strx accessor.
         return super()._str_endswith(pat, na)
+
+    def _str_isalnum(self):
+        if hasattr(pc, "utf8_is_alnum"):
+            return type(self)(pc.utf8_is_alnum(self.data))
+        else:
+            super()._str_isalnum()
+
+    def _str_isalpha(self):
+        if hasattr(pc, "utf8_is_alpha"):
+            return type(self)(pc.utf8_is_alpha(self.data))
+        else:
+            super()._str_isalpha()
+
+    def _str_isdecimal(self):
+        if hasattr(pc, "utf8_is_decimal"):
+            return type(self)(pc.utf8_is_decimal(self.data))
+        else:
+            super()._str_isdecimal()
+
+    def _str_isdigit(self):
+        if hasattr(pc, "utf8_is_digit"):
+            return type(self)(pc.utf8_is_digit(self.data))
+        else:
+            super()._str_isdigit()
+
+    def _str_islower(self):
+        if hasattr(pc, "utf8_is_lower"):
+            return type(self)(pc.utf8_is_lower(self.data))
+        else:
+            super()._str_islower()
+
+    def _str_isnumeric(self):
+        if hasattr(pc, "utf8_is_numeric"):
+            return type(self)(pc.utf8_is_numeric(self.data))
+        else:
+            super()._str_isnumeric()
+
+    def _str_isspace(self):
+        if hasattr(pc, "utf8_is_space"):
+            return type(self)(pc.utf8_is_space(self.data))
+        else:
+            super()._str_isspace()
+
+    def _str_istitle(self):
+        if hasattr(pc, "utf8_is_title"):
+            return type(self)(pc.utf8_is_title(self.data))
+        else:
+            super()._str_istitle()
+
+    def _str_isupper(self):
+        if hasattr(pc, "utf8_is_upper"):
+            return type(self)(pc.utf8_is_upper(self.data))
+        else:
+            return super()._str_isupper()

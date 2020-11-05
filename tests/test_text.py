@@ -1,5 +1,6 @@
 import math
 import string
+import sys
 from typing import Optional, Sequence, Tuple
 
 import hypothesis.strategies as st
@@ -21,6 +22,49 @@ try:
     _str_accessors = ["str", "fr_str"]
 except ImportError:
     _str_accessors = ["fr_str"]
+
+
+# Remove Lm once https://github.com/JuliaStrings/utf8proc/pull/196 has been released.
+# FIXME: Keep for now at max_codepoint 255 as we would otherwise need a lot of exclusions. Widen once we have a utf8proc release or we have dropped Python 3.6.
+st_text = st.text(
+    alphabet=st.characters(blacklist_categories=("Cs", "Lm"), max_codepoint=255)
+)
+
+
+def supported_by_utf8proc(s):
+    """Check a string whether all characters are supported by utf8proc."""
+    # See https://github.com/JuliaStrings/utf8proc/pull/196
+    return len(set("'\U0002ceb0\U00018af4ᴬᴭªᶛº¹²³").intersection(s)) == 0
+
+
+def supported_by_python(s):
+    """Check a string whether all characters are supported by Python."""
+    if sys.version_info < (3, 7):
+        # Needs unicode 10
+        if any(ord(c) > 110592 for c in s):
+            return False
+        if any(ord(c) >= 69632 and ord(c) <= 73727 for c in s):
+            return False
+        if set("🄰ꭜ").intersection(s):
+            return False
+    if sys.version_info < (3, 8):
+        if any(ord(c) > 183983 for c in s):
+            # Needs Unicode 12+
+            return False
+    # Probably needs unicode 13, check with Python 3.9 in unicodedata.unidata_version
+    if set("\U00018af5\U00018af4\U00018af3").intersection(s):
+        return False
+    if any(ord(c) > 196607 for c in s):
+        return False
+    return True
+
+
+def filter_supported(strings):
+    return [
+        s
+        for s in strings
+        if s is None or (supported_by_python(s) and supported_by_utf8proc(s))
+    ]
 
 
 @pytest.fixture(params=_str_accessors, scope="module")
@@ -221,19 +265,19 @@ def test_utf8_size(char):
 
 
 @settings(deadline=None)
-@given(data=st.lists(st.one_of(st.text(), st.none())))
+@given(data=st.lists(st.one_of(st_text, st.none())))
 def test_capitalize(data, str_accessor, fletcher_variant):
     _check_str_to_str("capitalize", data, str_accessor, fletcher_variant)
 
 
 @settings(deadline=None)
-@given(data=st.lists(st.one_of(st.text(), st.none())))
+@given(data=st.lists(st.one_of(st_text, st.none())))
 def test_casefold(data, str_accessor, fletcher_variant):
     _check_str_to_str("casefold", data, str_accessor, fletcher_variant)
 
 
 @settings(deadline=None)
-@given(data=st.lists(st.one_of(st.text(), st.none())))
+@given(data=st.lists(st.one_of(st_text, st.none())))
 def test_cat(data, str_accessor, fletcher_variant, fletcher_variant_2):
     if any("\x00" in x for x in data if x):
         # pytest.skip("pandas cannot handle \\x00 characters in tests")
@@ -253,7 +297,7 @@ def test_cat(data, str_accessor, fletcher_variant, fletcher_variant_2):
 
 @settings(deadline=None)
 @given(
-    data=st.lists(st.one_of(st.text(), st.none())),
+    data=st.lists(st.one_of(st_text, st.none())),
     width=st.integers(min_value=0, max_value=50),
 )
 def test_center(data, width, str_accessor, fletcher_variant):
@@ -433,7 +477,7 @@ def test_findall(data, pat, str_accessor, fletcher_variant):
 
 @settings(deadline=None)
 @given(
-    data=st.lists(st.one_of(st.text(), st.none())),
+    data=st.lists(st.one_of(st_text, st.none())),
     n=st.integers(min_value=0, max_value=10),
 )
 def test_get(data, n, str_accessor, fletcher_variant):
@@ -446,14 +490,14 @@ def test_index(data, pat, str_accessor, fletcher_variant):
 
 
 @settings(deadline=None)
-@given(data=st.lists(st.one_of(st.text(), st.none())))
+@given(data=st.lists(st.one_of(st_text, st.none())))
 def test_len(data, str_accessor, fletcher_variant):
     _check_str_to_int("len", data, str_accessor, fletcher_variant)
 
 
 @settings(deadline=None)
 @given(
-    data=st.lists(st.one_of(st.text(), st.none())),
+    data=st.lists(st.one_of(st_text, st.none())),
     n=st.integers(min_value=0, max_value=50),
 )
 def test_ljust(data, n, str_accessor, fletcher_variant):
@@ -461,13 +505,13 @@ def test_ljust(data, n, str_accessor, fletcher_variant):
 
 
 @settings(deadline=None)
-@given(data=st.lists(st.one_of(st.text(), st.none())))
+@given(data=st.lists(st.one_of(st_text, st.none())))
 def test_lower(data, str_accessor, fletcher_variant):
     _check_str_to_str("lower", data, str_accessor, fletcher_variant)
 
 
 @settings(deadline=None)
-@given(data=st.lists(st.one_of(st.text(), st.none())))
+@given(data=st.lists(st.one_of(st_text, st.none())))
 @strip_examples
 def test_lstrip(str_accessor, fletcher_variant, data):
     _do_test_text_strip(str_accessor, fletcher_variant, 1, data, strip_method="lstrip")
@@ -485,7 +529,7 @@ def test_match(data, pat, case, str_accessor, fletcher_variant):
 
 
 @settings(deadline=None)
-@given(data=st.lists(st.one_of(st.text(), st.none())))
+@given(data=st.lists(st.one_of(st_text, st.none())))
 @pytest.mark.parametrize("form", ["NFC", "NFKC", "NFD", "NFKD"])
 def test_normalize(data, form, str_accessor, fletcher_variant):
     _check_str_to_str("normalize", data, str_accessor, fletcher_variant, form=form)
@@ -493,7 +537,7 @@ def test_normalize(data, form, str_accessor, fletcher_variant):
 
 @settings(deadline=None)
 @given(
-    data=st.lists(st.one_of(st.text(), st.none())),
+    data=st.lists(st.one_of(st_text, st.none())),
     n=st.integers(min_value=0, max_value=50),
 )
 @pytest.mark.parametrize("side", ["left", "right", "both"])
@@ -517,7 +561,7 @@ def test_partition(str_accessor, fletcher_variant, data, expand):
 
 @settings(deadline=None)
 @given(
-    data=st.lists(st.one_of(st.text(), st.none())),
+    data=st.lists(st.one_of(st_text, st.none())),
     n=st.integers(min_value=0, max_value=10),
 )
 def test_repeat(data, n, str_accessor, fletcher_variant):
@@ -567,7 +611,7 @@ def test_rindex(data, pat, str_accessor, fletcher_variant):
 
 @settings(deadline=None)
 @given(
-    data=st.lists(st.one_of(st.text(), st.none())),
+    data=st.lists(st.one_of(st_text, st.none())),
     n=st.integers(min_value=0, max_value=50),
 )
 def test_rjust(data, n, str_accessor, fletcher_variant):
@@ -589,7 +633,7 @@ def test_rpartition(str_accessor, fletcher_variant, data, expand):
 
 
 @settings(deadline=None)
-@given(data=st.lists(st.one_of(st.text(), st.none())))
+@given(data=st.lists(st.one_of(st_text, st.none())))
 @strip_examples
 def test_rstrip(str_accessor, fletcher_variant, data):
     _do_test_text_strip(str_accessor, fletcher_variant, 1, data, strip_method="rstrip")
@@ -597,7 +641,7 @@ def test_rstrip(str_accessor, fletcher_variant, data):
 
 @settings(deadline=None)
 @given(
-    data=st.lists(st.one_of(st.text(), st.none())),
+    data=st.lists(st.one_of(st_text, st.none())),
     slice_=st.tuples(st.integers(-20, 20), st.integers(-20, 20), st.integers(-20, 20)),
 )
 def test_slice(data, slice_, str_accessor, fletcher_variant):
@@ -674,7 +718,7 @@ def test_startswith(data, pat, str_accessor, fletcher_variant):
 
 
 @settings(deadline=None, max_examples=3)
-@given(data=st.lists(st.one_of(st.text(), st.none())))
+@given(data=st.lists(st.one_of(st_text, st.none())))
 @examples(
     example_list=[
         [
@@ -690,7 +734,7 @@ def test_strip_offset(str_accessor, fletcher_variant, fletcher_slice_offset, dat
 
 
 @settings(deadline=None)
-@given(data=st.lists(st.one_of(st.text(), st.none())))
+@given(data=st.lists(st.one_of(st_text, st.none())))
 @strip_examples
 def test_strip(str_accessor, fletcher_variant, data):
     _do_test_text_strip(str_accessor, fletcher_variant, 1, data)
@@ -723,19 +767,19 @@ def _do_test_text_strip(
 
 
 @settings(deadline=None)
-@given(data=st.lists(st.one_of(st.text(), st.none())))
+@given(data=st.lists(st.one_of(st_text, st.none())))
 def test_swapcase(data, str_accessor, fletcher_variant):
     _check_str_to_str("swapcase", data, str_accessor, fletcher_variant)
 
 
 @settings(deadline=None)
-@given(data=st.lists(st.one_of(st.text(), st.none())))
+@given(data=st.lists(st.one_of(st_text, st.none())))
 def test_title(data, str_accessor, fletcher_variant):
     _check_str_to_str("title", data, str_accessor, fletcher_variant)
 
 
 @settings(deadline=None)
-@given(data=st.lists(st.one_of(st.text(), st.none())))
+@given(data=st.lists(st.one_of(st_text, st.none())))
 @example(data=["a"])
 @example(data=["aa"])
 @example(data=["1, 👅, 3"])
@@ -750,7 +794,7 @@ def test_translate(data, str_accessor, fletcher_variant):
 
 
 @settings(deadline=None)
-@given(data=st.lists(st.one_of(st.text(), st.none())))
+@given(data=st.lists(st.one_of(st_text, st.none())))
 def test_upper(data, str_accessor, fletcher_variant):
     _check_str_to_str("upper", data, str_accessor, fletcher_variant)
 
@@ -803,7 +847,7 @@ def _optional_len(x: Optional[str]) -> int:
 
 
 @settings(deadline=None)
-@given(data=st.lists(st.one_of(st.text(), st.none())))
+@given(data=st.lists(st.one_of(st_text, st.none())))
 def test_zfill(data, str_accessor, fletcher_variant):
     if any("\x00" in x for x in data if x):
         # pytest.skip("pandas cannot handle \\x00 characters in tests")
@@ -829,56 +873,75 @@ def test_zfill(data, str_accessor, fletcher_variant):
 
 
 @settings(deadline=None)
-@given(data=st.lists(st.one_of(st.text(), st.none())))
+@given(data=st.lists(st.one_of(st_text, st.none())))
 def test_isalnum(data, str_accessor, fletcher_variant):
+    data = filter_supported(data)
     _check_str_to_bool("isalnum", data, str_accessor, fletcher_variant)
 
 
 @settings(deadline=None)
-@given(data=st.lists(st.one_of(st.text(), st.none())))
+@given(data=st.lists(st.one_of(st_text, st.none())))
 def test_isalpha(data, str_accessor, fletcher_variant):
+    data = filter_supported(data)
     _check_str_to_bool("isalpha", data, str_accessor, fletcher_variant)
 
 
 @settings(deadline=None)
-@given(data=st.lists(st.one_of(st.text(), st.none())))
+@given(data=st.lists(st.one_of(st_text, st.none())))
 def test_isdigit(data, str_accessor, fletcher_variant):
+    data = filter_supported(data)
     _check_str_to_bool("isdigit", data, str_accessor, fletcher_variant)
 
 
 @settings(deadline=None)
-@given(data=st.lists(st.one_of(st.text(), st.none())))
+@given(data=st.lists(st.one_of(st_text, st.none())))
 def test_isspace(data, str_accessor, fletcher_variant):
+    data = filter_supported(data)
     _check_str_to_bool("isspace", data, str_accessor, fletcher_variant)
 
 
 @settings(deadline=None)
-@given(data=st.lists(st.one_of(st.text(), st.none())))
+# FIXME: Keep for now at max_codepoint 255 as we would otherwise need a lot of exclusions. Widen once we have a utf8proc release or we have dropped Python 3.6.
+@given(
+    data=st.lists(
+        st.one_of(st.text(alphabet=st.characters(max_codepoint=255)), st.none())
+    )
+)
 def test_islower(data, str_accessor, fletcher_variant):
+    data = filter_supported(data)
     _check_str_to_bool("islower", data, str_accessor, fletcher_variant)
 
 
 @settings(deadline=None)
-@given(data=st.lists(st.one_of(st.text(), st.none())))
+# FIXME: Keep for now at max_codepoint 255 as we would otherwise need a lot of exclusions. Widen once we have a utf8proc release or we have dropped Python 3.6.
+@given(
+    data=st.lists(
+        st.one_of(st.text(alphabet=st.characters(max_codepoint=255)), st.none())
+    )
+)
 def test_isupper(data, str_accessor, fletcher_variant):
+    data = filter_supported(data)
     _check_str_to_bool("isupper", data, str_accessor, fletcher_variant)
 
 
 @settings(deadline=None)
-@given(data=st.lists(st.one_of(st.text(), st.none())))
+@given(data=st.lists(st.one_of(st_text, st.none())))
 def test_istitle(data, str_accessor, fletcher_variant):
+    data = filter_supported(data)
     _check_str_to_bool("istitle", data, str_accessor, fletcher_variant)
 
 
 @settings(deadline=None)
-@given(data=st.lists(st.one_of(st.text(), st.none())))
+@given(data=st.lists(st.one_of(st_text, st.none())))
 def test_isnumeric(data, str_accessor, fletcher_variant):
+    data = filter_supported(data)
     _check_str_to_bool("isnumeric", data, str_accessor, fletcher_variant)
 
 
 @settings(deadline=None)
-@given(data=st.lists(st.one_of(st.text(), st.none())))
+@given(data=st.lists(st.one_of(st_text, st.none())))
 def test_isdecimal(data, str_accessor, fletcher_variant):
+    data = filter_supported(data)
     _check_str_to_bool("isdecimal", data, str_accessor, fletcher_variant)
 
 
