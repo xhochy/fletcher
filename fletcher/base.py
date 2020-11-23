@@ -1497,13 +1497,21 @@ class FletcherChunkedArray(FletcherBaseArray):
         else:
             # Dictionaryencode and do the same as above
             encoded = self.data.dictionary_encode()
-            indices = pa.chunked_array([c.indices for c in encoded.chunks]).to_pandas()
+            indices = pa.chunked_array(
+                [c.indices for c in encoded.chunks], type=encoded.type.index_type
+            ).to_pandas()
             if indices.dtype.kind == "f":
                 indices[np.isnan(indices)] = na_sentinel
                 indices = indices.astype(int)
             if not is_int64_dtype(indices):
                 indices = indices.astype(np.int64)
-            return indices.values, type(self)(encoded.chunk(0).dictionary)
+            if encoded.num_chunks == 0:
+                return (
+                    indices.values,
+                    type(self)(pa.array([], type=encoded.type.value_type)),
+                )
+            else:
+                return indices.values, type(self)(encoded.chunk(0).dictionary)
 
     @classmethod
     def _from_sequence(cls, scalars, dtype=None, copy=None):
