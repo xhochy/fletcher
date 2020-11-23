@@ -19,6 +19,7 @@ from pandas.api.types import (
 )
 from pandas.core.arrays import ExtensionArray
 from pandas.core.dtypes.dtypes import ExtensionDtype, register_extension_dtype
+from pandas.util._decorators import doc
 
 from fletcher._algorithms import (
     extract_isnull_bytemap,
@@ -1079,6 +1080,7 @@ class FletcherContinuousArray(FletcherBaseArray):
                 size += buf.size
         return size
 
+    @doc(ExtensionArray.factorize)
     def factorize(self, na_sentinel=-1):
         # type: (int) -> Tuple[np.ndarray, ExtensionArray]
         """Encode the extension array as an enumerated type.
@@ -1117,7 +1119,7 @@ class FletcherContinuousArray(FletcherBaseArray):
             indices = encoded.indices.to_pandas()
             if indices.dtype.kind == "f":
                 indices[np.isnan(indices)] = na_sentinel
-                indices = indices.astype(int)
+                indices = indices.astype(np.int64)
             if not is_int64_dtype(indices):
                 indices = indices.astype(np.int64)
             return indices.values, type(self)(encoded.dictionary)
@@ -1547,7 +1549,7 @@ class FletcherChunkedArray(FletcherBaseArray):
         """
         if pa.types.is_dictionary(self.data.type):
             raise NotImplementedError()
-        elif self.data.num_chunks == 1:
+        else:
             # Dictionaryencode and do the same as above
             encoded = self.data.chunk(0).dictionary_encode()
             indices = encoded.indices.to_pandas()
@@ -1557,9 +1559,6 @@ class FletcherChunkedArray(FletcherBaseArray):
             if not is_int64_dtype(indices):
                 indices = indices.astype(np.int64)
             return indices.values, type(self)(encoded.dictionary)
-        else:
-            np_array = self.data.to_pandas().values
-            return pd.factorize(np_array, na_sentinel=na_sentinel)
 
     @classmethod
     def _from_sequence(cls, scalars, dtype=None, copy=None):
