@@ -19,6 +19,7 @@ from pandas.api.types import (
 )
 from pandas.core.arrays import ExtensionArray
 from pandas.core.dtypes.dtypes import ExtensionDtype, register_extension_dtype
+from pandas.util._decorators import doc
 
 from fletcher._algorithms import (
     extract_isnull_bytemap,
@@ -1079,35 +1080,8 @@ class FletcherContinuousArray(FletcherBaseArray):
                 size += buf.size
         return size
 
+    @doc(ExtensionArray.factorize)
     def factorize(self, na_sentinel=-1):
-        # type: (int) -> Tuple[np.ndarray, ExtensionArray]
-        """Encode the extension array as an enumerated type.
-
-        Parameters
-        ----------
-        na_sentinel : int, default -1
-            Value to use in the `labels` array to indicate missing values.
-
-        Returns
-        -------
-        labels : ndarray
-            An integer NumPy array that's an indexer into the original
-            ExtensionArray.
-        uniques : ExtensionArray
-            An ExtensionArray containing the unique values of `self`.
-            .. note::
-               uniques will *not* contain an entry for the NA value of
-               the ExtensionArray if there are any missing values present
-               in `self`.
-
-        See Also
-        --------
-        pandas.factorize : Top-level factorize method that dispatches here.
-
-        Notes
-        -----
-        :meth:`pandas.factorize` offers a `sort` keyword as well.
-        """
         if pa.types.is_dictionary(self.data.type):
             indices = self.data.indices.to_pandas()
             return indices.values, type(self)(self.data.dictionary)
@@ -1117,7 +1091,7 @@ class FletcherContinuousArray(FletcherBaseArray):
             indices = encoded.indices.to_pandas()
             if indices.dtype.kind == "f":
                 indices[np.isnan(indices)] = na_sentinel
-                indices = indices.astype(int)
+                indices = indices.astype(np.int64)
             if not is_int64_dtype(indices):
                 indices = indices.astype(np.int64)
             return indices.values, type(self)(encoded.dictionary)
@@ -1516,50 +1490,28 @@ class FletcherChunkedArray(FletcherBaseArray):
                     size += buf.size
         return size
 
+    @doc(ExtensionArray.factorize)
     def factorize(self, na_sentinel=-1):
-        # type: (int) -> Tuple[np.ndarray, ExtensionArray]
-        """Encode the extension array as an enumerated type.
-
-        Parameters
-        ----------
-        na_sentinel : int, default -1
-            Value to use in the `labels` array to indicate missing values.
-
-        Returns
-        -------
-        labels : ndarray
-            An integer NumPy array that's an indexer into the original
-            ExtensionArray.
-        uniques : ExtensionArray
-            An ExtensionArray containing the unique values of `self`.
-            .. note::
-               uniques will *not* contain an entry for the NA value of
-               the ExtensionArray if there are any missing values present
-               in `self`.
-
-        See Also
-        --------
-        pandas.factorize : Top-level factorize method that dispatches here.
-
-        Notes
-        -----
-        :meth:`pandas.factorize` offers a `sort` keyword as well.
-        """
         if pa.types.is_dictionary(self.data.type):
             raise NotImplementedError()
-        elif self.data.num_chunks == 1:
+        else:
             # Dictionaryencode and do the same as above
-            encoded = self.data.chunk(0).dictionary_encode()
-            indices = encoded.indices.to_pandas()
+            encoded = self.data.dictionary_encode()
+            indices = pa.chunked_array(
+                [c.indices for c in encoded.chunks], type=encoded.type.index_type
+            ).to_pandas()
             if indices.dtype.kind == "f":
                 indices[np.isnan(indices)] = na_sentinel
                 indices = indices.astype(int)
             if not is_int64_dtype(indices):
                 indices = indices.astype(np.int64)
-            return indices.values, type(self)(encoded.dictionary)
-        else:
-            np_array = self.data.to_pandas().values
-            return pd.factorize(np_array, na_sentinel=na_sentinel)
+            if encoded.num_chunks == 0:
+                return (
+                    indices.values,
+                    type(self)(pa.array([], type=encoded.type.value_type)),
+                )
+            else:
+                return indices.values, type(self)(encoded.chunk(0).dictionary)
 
     @classmethod
     def _from_sequence(cls, scalars, dtype=None, copy=None):

@@ -196,7 +196,7 @@ def test_astype_object():
     tm.assert_series_equal(s.astype(object), expected)
 
 
-def test_factorize():
+def test_factorize(test_array_chunked):
     arr = fr.FletcherChunkedArray(TEST_ARRAY)
     labels, uniques = arr.factorize()
     expected_labels, expected_uniques = pd.factorize(arr.astype(object))
@@ -206,6 +206,10 @@ def test_factorize():
     uniques = uniques.astype(object)
     npt.assert_array_equal(labels, expected_labels)
     npt.assert_array_equal(uniques, expected_uniques)
+
+    # Check that it works with chunked (n_chunks > 1) arrays
+    arr = fr.FletcherChunkedArray(test_array_chunked)
+    arr.factorize()
 
 
 def test_unique():

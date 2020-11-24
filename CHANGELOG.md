@@ -15,6 +15,7 @@ Starting with 0.5, we will follow the following versioning scheme:
 * Fix tests for `pyarrow=0.17.1` and add CI jobs for `0.17.1` and `1.0.1`.
 * Implement a faster take for list arrays.
 * Use `utf8_is_*` functions from Apache Arrow if available.
+* Simplify `factorize` implementation to work for chunked arrays with more or less than a single chunk.
 
 0.6.2 (2020-10-20)
 ------------------
