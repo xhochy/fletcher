@@ -1,5 +1,5 @@
 from functools import singledispatch
-from typing import Any, List, Tuple
+from typing import Any, Callable, List, Tuple, Union
 
 import numpy as np
 import pyarrow as pa
@@ -906,3 +906,214 @@ def _slice_generic(
         builder.append_value(include_bytes, len(include_bytes))
 
     return builder
+
+
+@njit
+def _apply_no_nulls(
+    func: Callable,
+    length: int,
+    offsets_buffer_a,
+    data_buffer_a,
+    offsets_buffer_b,
+    data_buffer_b,
+    out,
+):
+    for i in range(length):
+        out[i] = func(
+            data_buffer_a[offsets_buffer_a[i] :],
+            offsets_buffer_a[i + 1] - offsets_buffer_a[i],
+            data_buffer_b[offsets_buffer_b[i] :],
+            offsets_buffer_b[i + 1] - offsets_buffer_b[i],
+        )
+
+
+@njit
+def _apply_with_nulls(
+    func: Callable,
+    length: int,
+    valid,
+    offsets_buffer_a,
+    data_buffer_a,
+    offsets_buffer_b,
+    data_buffer_b,
+    out,
+):
+    for i in range(length):
+        # Check if one of the entries is null
+        byte_offset = i // 8
+        bit_offset = i % 8
+        mask = np.uint8(1 << bit_offset)
+        is_valid = valid[byte_offset] & mask
+
+        if is_valid:
+            out[i] = func(
+                data_buffer_a[offsets_buffer_a[i] :],
+                offsets_buffer_a[i + 1] - offsets_buffer_a[i],
+                data_buffer_b[offsets_buffer_b[i] :],
+                offsets_buffer_b[i + 1] - offsets_buffer_b[i],
+            )
+
+
+@njit
+def _apply_no_nulls_parallel(
+    func: Callable,
+    length: int,
+    offsets_buffer_a,
+    data_buffer_a,
+    offsets_buffer_b,
+    data_buffer_b,
+    out,
+):
+    for i in prange(length):
+        out[i] = func(
+            data_buffer_a[offsets_buffer_a[i] :],
+            offsets_buffer_a[i + 1] - offsets_buffer_a[i],
+            data_buffer_b[offsets_buffer_b[i] :],
+            offsets_buffer_b[i + 1] - offsets_buffer_b[i],
+        )
+
+
+@njit
+def _apply_with_nulls_parallel(
+    func: Callable,
+    length: int,
+    valid,
+    offsets_buffer_a,
+    data_buffer_a,
+    offsets_buffer_b,
+    data_buffer_b,
+    out,
+):
+    for i in prange(length):
+        # Check if one of the entries is null
+        byte_offset = i // 8
+        bit_offset = i % 8
+        mask = np.uint8(1 << bit_offset)
+        is_valid = valid[byte_offset] & mask
+
+        if is_valid:
+            out[i] = func(
+                data_buffer_a[offsets_buffer_a[i] :],
+                offsets_buffer_a[i + 1] - offsets_buffer_a[i],
+                data_buffer_b[offsets_buffer_b[i] :],
+                offsets_buffer_b[i + 1] - offsets_buffer_b[i],
+            )
+
+
+def _apply_binary_str_array(
+    a: pa.Array, b: pa.Array, *, func: Callable, output_dtype, parallel: bool = False
+):
+    out = np.empty(len(a), dtype=output_dtype)
+
+    offsets_buffer_a, data_buffer_a = _extract_string_buffers(a)
+    offsets_buffer_b, data_buffer_b = _extract_string_buffers(b)
+
+    if a.null_count == 0 and b.null_count == 0:
+        if parallel:
+            call = _apply_no_nulls_parallel
+        else:
+            call = _apply_no_nulls
+        call(
+            func,
+            len(a),
+            offsets_buffer_a,
+            data_buffer_a,
+            offsets_buffer_b,
+            data_buffer_b,
+            out,
+        )
+        return pa.array(out)
+    else:
+        valid = _merge_valid_bitmaps(a, b)
+        if parallel:
+            call = _apply_with_nulls_parallel
+        else:
+            call = _apply_with_nulls
+        call(
+            func,
+            len(a),
+            valid,
+            offsets_buffer_a,
+            data_buffer_a,
+            offsets_buffer_b,
+            data_buffer_b,
+            out,
+        )
+        buffers = [pa.py_buffer(x) for x in [valid, out]]
+        return pa.Array.from_buffers(pa.int64(), len(out), buffers)
+
+
+def apply_binary_str(
+    a: Union[pa.Array, pa.ChunkedArray],
+    b: Union[pa.Array, pa.ChunkedArray],
+    *,
+    func: Callable,
+    output_dtype,
+    parallel: bool = False,
+):
+    """
+    Apply an element-wise numba-jitted function on two Arrow columns.
+
+    The supplied function must return a numpy-compatible scalar.
+    Handling of missing data and chunking of the inputs is done automatically.
+    """
+    if len(a) != len(b):
+        raise ValueError("Inputs don't have the same length.")
+
+    if isinstance(a, pa.ChunkedArray):
+        if isinstance(b, pa.ChunkedArray):
+            in_a_offsets, in_b_offsets = _combined_in_chunk_offsets(a, b)
+
+            new_chunks: List[pa.Array] = []
+            for a_offset, b_offset in zip(in_a_offsets, in_b_offsets):
+                a_slice = a.chunk(a_offset[0])[a_offset[1] : a_offset[1] + a_offset[2]]
+                b_slice = b.chunk(b_offset[0])[b_offset[1] : b_offset[1] + b_offset[2]]
+                new_chunks.append(
+                    _apply_binary_str_array(
+                        a_slice,
+                        b_slice,
+                        func=func,
+                        output_dtype=output_dtype,
+                        parallel=parallel,
+                    )
+                )
+            return pa.chunked_array(new_chunks)
+        elif isinstance(b, pa.Array):
+            new_chunks = []
+            offsets = _calculate_chunk_offsets(a)
+            for chunk, offset in zip(a.iterchunks(), offsets):
+                new_chunks.append(
+                    _apply_binary_str_array(
+                        chunk,
+                        b[offset : offset + len(chunk)],
+                        func=func,
+                        output_dtype=output_dtype,
+                        parallel=parallel,
+                    )
+                )
+            return pa.chunked_array(new_chunks)
+        else:
+            raise ValueError(f"left operand has unsupported type {type(b)}")
+    elif isinstance(a, pa.Array):
+        if isinstance(b, pa.ChunkedArray):
+            new_chunks = []
+            offsets = _calculate_chunk_offsets(b)
+            for chunk, offset in zip(b.iterchunks(), offsets):
+                new_chunks.append(
+                    _apply_binary_str_array(
+                        a[offset : offset + len(chunk)],
+                        chunk,
+                        func=func,
+                        output_dtype=output_dtype,
+                        parallel=parallel,
+                    )
+                )
+            return pa.chunked_array(new_chunks)
+        elif isinstance(b, pa.Array):
+            return _apply_binary_str_array(
+                a, b, func=func, output_dtype=output_dtype, parallel=parallel
+            )
+        else:
+            raise ValueError(f"left operand has unsupported type {type(b)}")
+    else:
+        raise ValueError(f"left operand has unsupported type {type(a)}")

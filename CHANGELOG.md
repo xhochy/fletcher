@@ -17,6 +17,7 @@ Starting with 0.5, we will follow the following versioning scheme:
 * Use `utf8_is_*` functions from Apache Arrow if available.
 * Simplify `factorize` implementation to work for chunked arrays with more or less than a single chunk.
 * Switch to `pandas.NA` as the user-facing null value
+* Add convenience function `fletcher.algorithms.string.apply_binary_str` to apply a binary function on two string columns.
 
 0.6.2 (2020-10-20)
 ------------------
