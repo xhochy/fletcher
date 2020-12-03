@@ -1124,6 +1124,8 @@ class FletcherContinuousArray(FletcherBaseArray):
         """
         if isinstance(scalars, FletcherContinuousArray):
             return scalars
+        if not ARROW_GE_0_18_0:
+            scalars = [None if x is pd.NA else x for x in scalars]
         if dtype and isinstance(dtype, FletcherContinuousDtype):
             dtype = dtype.arrow_dtype
         return cls(pa.array(scalars, type=dtype, from_pandas=True))
@@ -1541,6 +1543,8 @@ class FletcherChunkedArray(FletcherBaseArray):
         """
         if isinstance(scalars, FletcherChunkedArray):
             return scalars
+        if not ARROW_GE_0_18_0:
+            scalars = [None if x is pd.NA else x for x in scalars]
         if dtype and isinstance(dtype, FletcherChunkedDtype):
             dtype = dtype.arrow_dtype
         return cls(pa.array(scalars, type=dtype, from_pandas=True))
