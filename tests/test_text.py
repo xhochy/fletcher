@@ -4,6 +4,7 @@ import sys
 from typing import Optional, Sequence, Tuple
 
 import hypothesis.strategies as st
+import numba
 import numpy as np
 import pandas as pd
 import pandas.testing as tm
@@ -12,6 +13,7 @@ import pytest
 from hypothesis import example, given, settings
 
 import fletcher as fr
+from fletcher.algorithms.string import apply_binary_str
 from fletcher.testing import examples
 
 try:
@@ -966,3 +968,88 @@ def test_get_dummies(str_accessor, fletcher_variant):
             }
         )
     tm.assert_frame_equal(result, expected)
+
+
+@numba.jit(nogil=True, nopython=True)
+def prefix_length(s1, s1len, s2, s2len):
+    min_len = min(s1len, s2len)
+    prefix = 0
+    for i in range(min_len):
+        if s1[i] == s2[i]:
+            prefix += 1
+        else:
+            break
+
+    return prefix
+
+
+@pytest.mark.parametrize("parallel", [True, False])
+def test_apply_binary_str_no_nulls_unchunked(parallel):
+    a = pa.array(["a", "bb", "c"])
+    b = pa.array(["aa", "bb", "dd"])
+    expected = pa.array([1, 2, 0])
+
+    result = apply_binary_str(
+        a, b, func=prefix_length, output_dtype=np.int64, parallel=parallel
+    )
+    assert expected.equals(result)
+
+
+@pytest.mark.parametrize("parallel", [True, False])
+def test_apply_binary_str_nulls_unchunked(parallel):
+    a = pa.array(["a", "bb", None, "c", "d"])
+    b = pa.array(["aa", "bb", "dd", None, "c"])
+    expected = pa.array([1, 2, None, None, 0])
+
+    result = apply_binary_str(
+        a, b, func=prefix_length, output_dtype=np.int64, parallel=parallel
+    )
+    assert expected.equals(result)
+
+
+@pytest.mark.parametrize("parallel", [True, False])
+def test_apply_binary_str_no_nulls_partly_chunked(parallel):
+    a = pa.array(["a", "bb", "c"])
+    b = pa.chunked_array([["aa"], ["bb", "dd"]])
+    expected = pa.chunked_array([[1], [2, 0]])
+
+    result = apply_binary_str(
+        a, b, func=prefix_length, output_dtype=np.int64, parallel=parallel
+    )
+    assert expected.equals(result)
+
+
+@pytest.mark.parametrize("parallel", [True, False])
+def test_apply_binary_str_nulls_partly_chunked(parallel):
+    a = pa.chunked_array([["a", "bb"], [None, "c", "d"]])
+    b = pa.array(["aa", "bb", "dd", None, "c"])
+    expected = pa.chunked_array([[1, 2], [None, None, 0]])
+
+    result = apply_binary_str(
+        a, b, func=prefix_length, output_dtype=np.int64, parallel=parallel
+    )
+    assert expected.equals(result)
+
+
+@pytest.mark.parametrize("parallel", [True, False])
+def test_apply_binary_str_no_nulls_chunked(parallel):
+    a = pa.chunked_array([["a", "bb"], ["c"]])
+    b = pa.chunked_array([["aa"], ["bb", "dd"]])
+    expected = pa.chunked_array([[1], [2], [0]])
+
+    result = apply_binary_str(
+        a, b, func=prefix_length, output_dtype=np.int64, parallel=parallel
+    )
+    assert expected.equals(result)
+
+
+@pytest.mark.parametrize("parallel", [True, False])
+def test_apply_binary_str_nulls_chunked(parallel):
+    a = pa.chunked_array([["a", "bb"], [None, "c", "d"]])
+    b = pa.chunked_array([["aa", "bb", "dd"], [None, "c"]])
+    expected = pa.chunked_array([[1, 2, None, None, 0]])
+
+    result = apply_binary_str(
+        a, b, func=prefix_length, output_dtype=np.int64, parallel=parallel
+    )
+    assert expected.equals(result)
