@@ -16,6 +16,7 @@ Starting with 0.5, we will follow the following versioning scheme:
 * Implement a faster take for list arrays.
 * Use `utf8_is_*` functions from Apache Arrow if available.
 * Simplify `factorize` implementation to work for chunked arrays with more or less than a single chunk.
+* Switch to `pandas.NA` as the user-facing null value
 
 0.6.2 (2020-10-20)
 ------------------

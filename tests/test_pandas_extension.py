@@ -311,6 +311,14 @@ def sort_by_key(request):
     return request.param
 
 
+@pytest.fixture(params=[None, np.nan, pd.NaT, float("nan"), pd.NA], ids=str)
+def nulls_fixture(request):
+    """
+    Fixture for each null type in pandas.
+    """
+    return request.param
+
+
 class TestBaseCasting(BaseCastingTests):
     pass
 
@@ -396,6 +404,17 @@ class TestBaseInterfaceTests(BaseInterfaceTests):
     @xfail_list_setitem_not_implemented
     def test_copy(self, data):
         BaseInterfaceTests.test_array_interface(self, data)
+
+    @xfail_list_equals_not_implemented
+    @pytest.mark.xfail_by_type_filter(
+        [pa.types.is_date], "NaT and null are handled slightly differently"
+    )
+    @pytest.mark.xfail_by_type_filter(
+        [pa.types.is_floating], "NaN and null are handled slightly differently"
+    )
+    def test_contains(self, data, data_missing, nulls_fixture):
+        if hasattr(BaseInterfaceTests, "test_contains"):
+            BaseInterfaceTests.test_contains(self, data, data_missing, nulls_fixture)
 
 
 class TestBaseMethodsTests(BaseMethodsTests):
