@@ -139,6 +139,8 @@ def _is_numeric(arrow_dtype: pa.DataType) -> bool:
 class FletcherBaseDtype(ExtensionDtype):
     """Dtype base for a pandas ExtensionArray backed by an Apache Arrow structure."""
 
+    na_value = pd.NA
+
     def __init__(self, arrow_dtype: pa.DataType):
         self.arrow_dtype = arrow_dtype
 
@@ -515,6 +517,13 @@ class FletcherBaseArray(StringSupportingExtensionArray):
                 name=name, dtype=self.dtype
             )
         )
+
+    def _as_pandas_scalar(self, arrow_scalar: pa.Scalar):
+        scalar = arrow_scalar.as_py()
+        if scalar is None:
+            return self._dtype.na_value
+        else:
+            return scalar
 
     def __array_ufunc__(self, ufunc, method: str, *inputs, **kwargs):
         """Apply a NumPy ufunc on the ExtensionArray."""
@@ -955,6 +964,8 @@ class FletcherContinuousArray(FletcherBaseArray):
             key_array = np.asanyarray(key)
 
         if pd.api.types.is_scalar(value):
+            if value is pd.NA:
+                value = None
             value = np.broadcast_to(value, len(key_array))
         else:
             value = np.asarray(value)
@@ -1055,7 +1066,7 @@ class FletcherContinuousArray(FletcherBaseArray):
         if isinstance(value, pa.Array):
             return type(self)(value)
         else:
-            return value.as_py()
+            return self._as_pandas_scalar(value)
 
     def copy(self):
         # type: () -> ExtensionArray
@@ -1461,7 +1472,7 @@ class FletcherChunkedArray(FletcherBaseArray):
         if isinstance(value, pa.ChunkedArray):
             return type(self)(value)
         else:
-            return value.as_py()
+            return self._as_pandas_scalar(value)
 
     def copy(self):
         # type: () -> ExtensionArray

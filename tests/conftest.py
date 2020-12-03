@@ -1,5 +1,6 @@
 import operator
 
+import pandas as pd
 import pytest
 
 from fletcher import (
@@ -119,7 +120,7 @@ def na_cmp():
 @pytest.fixture
 def na_value():
     """Fixture for the scalar missing value for this type. Default 'None'."""
-    return None
+    return pd.NA
 
 
 def pytest_configure(config):
