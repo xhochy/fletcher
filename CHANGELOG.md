@@ -8,7 +8,7 @@ Starting with 0.5, we will follow the following versioning scheme:
 * We increase PATCH otherwise.
 
 
-0.7.0 (2020-11-XX)
+0.7.0 (2020-12-07)
 ------------------
 
 * Add tests for all `str` functions.
