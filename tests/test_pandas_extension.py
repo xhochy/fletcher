@@ -412,9 +412,9 @@ class TestBaseInterfaceTests(BaseInterfaceTests):
     @pytest.mark.xfail_by_type_filter(
         [pa.types.is_floating], "NaN and null are handled slightly differently"
     )
-    def test_contains(self, data, data_missing, nulls_fixture):
+    def test_contains(self, data, data_missing):
         if hasattr(BaseInterfaceTests, "test_contains"):
-            BaseInterfaceTests.test_contains(self, data, data_missing, nulls_fixture)
+            BaseInterfaceTests.test_contains(self, data, data_missing)
 
 
 class TestBaseMethodsTests(BaseMethodsTests):
