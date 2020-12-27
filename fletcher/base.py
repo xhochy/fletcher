@@ -953,12 +953,15 @@ class FletcherContinuousArray(FletcherBaseArray):
                 "due to the ambiguity of the arguments, use .fr_list.setvalue, "
                 ".fr_list.setslice or fr_list.setmask instead."
             )
+
         # Convert all possible input key types to an array of integers
         if is_bool_dtype(key):
             key_array = np.argwhere(key).flatten()
         elif isinstance(key, slice):
             key_array = np.array(range(len(self))[key])
         elif is_integer(key):
+            if not pd.api.types.is_scalar(value):
+                raise ValueError("Must pass scalars with scalar indexer")
             key_array = np.array([key])
         else:
             key_array = np.asanyarray(key)
@@ -971,7 +974,7 @@ class FletcherContinuousArray(FletcherBaseArray):
             value = np.asarray(value)
 
         if len(key_array) != len(value):
-            raise ValueError("Length mismatch between index and value.")
+            raise ValueError("Length of indexer and values mismatch")
 
         arr = self.data.to_pandas().values
         # In the case where we zero-copy Arrow to Pandas conversion, the
@@ -1352,6 +1355,8 @@ class FletcherChunkedArray(FletcherBaseArray):
         elif isinstance(key, slice):
             key_array = np.array(range(len(self))[key])
         elif is_integer(key):
+            if not pd.api.types.is_scalar(value):
+                raise ValueError("Must pass scalars with scalar indexer")
             key_array = np.array([key])
         else:
             key_array = np.asanyarray(key)
@@ -1362,7 +1367,7 @@ class FletcherChunkedArray(FletcherBaseArray):
             value = np.asarray(value)
 
         if len(key_array) != len(value):
-            raise ValueError("Length mismatch between index and value.")
+            raise ValueError("Length of indexer and values mismatch")
 
         affected_chunks_index = self._get_chunk_indexer(key_array)
         affected_chunks_unique = np.unique(affected_chunks_index)

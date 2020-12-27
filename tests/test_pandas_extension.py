@@ -640,7 +640,13 @@ class TestBaseSetitemTests(BaseSetitemTests):
 
     @xfail_list_setitem_not_implemented
     def test_setitem_empty_indxer(self, data, box_in_series):
-        BaseSetitemTests.test_setitem_empty_indxer(self, data, box_in_series)
+        if hasattr(BaseSetitemTests, "test_setitem_empty_indxer"):
+            BaseSetitemTests.test_setitem_empty_indxer(self, data, box_in_series)
+
+    @xfail_list_setitem_not_implemented
+    def test_setitem_empty_indexer(self, data, box_in_series):
+        if hasattr(BaseSetitemTests, "test_setitem_empty_indexer"):
+            BaseSetitemTests.test_setitem_empty_indexer(self, data, box_in_series)
 
     @xfail_list_setitem_not_implemented
     def test_setitem_sequence_broadcasts(self, data, box_in_series):
@@ -704,6 +710,16 @@ class TestBaseSetitemTests(BaseSetitemTests):
     @xfail_list_setitem_not_implemented
     def test_setitem_slice_array(self, data):
         BaseSetitemTests.test_setitem_slice_array(self, data)
+
+    @xfail_list_setitem_not_implemented
+    def test_setitem_slice_mismatch_length_raises(self, data):
+        if hasattr(BaseSetitemTests, "test_setitem_slice_mismatch_length_raises"):
+            BaseSetitemTests.test_setitem_slice_mismatch_length_raises(self, data)
+
+    @xfail_list_setitem_not_implemented
+    def test_setitem_scalar_key_sequence_raise(self, data):
+        if hasattr(BaseSetitemTests, "test_setitem_scalar_key_sequence_raise"):
+            BaseSetitemTests.test_setitem_scalar_key_sequence_raise(self, data)
 
     @xfail_list_setitem_not_implemented
     @pytest.mark.parametrize(
