@@ -17,6 +17,7 @@ jobs:
         matrix:
           PYTHON_VERSION: ['3.6']
           PYARROW_VERSION: ['latest']
+          PANDAS_VERSION: ['latest']
           UPSTREAM_DEV: ['default']
           include:
             - UPSTREAM_DEV: 'nightlies'
@@ -27,7 +28,7 @@ jobs:
           uses: actions/checkout@v1.2.0
         - name: Run CI
           shell: bash -l {0}
-          run: ./ci/circle_build_linux.sh ${{ matrix.PYTHON_VERSION }} ${{ matrix.PYARROW_VERSION }} ${{ matrix.UPSTREAM_DEV }}
+          run: ./ci/circle_build_linux.sh ${{ matrix.PYTHON_VERSION }} ${{ matrix.PYARROW_VERSION }} ${{ matrix.PANDAS_VERSION }} ${{ matrix.UPSTREAM_DEV }}
         - uses: codecov/codecov-action@v1
           with:
             token: ${{ secrets.CODECOV_TOKEN }}
