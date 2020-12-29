@@ -954,7 +954,7 @@ def _apply_with_nulls(
             )
 
 
-@njit(parallel=True)
+@njit
 def _apply_no_nulls_parallel(
     func: Callable,
     length: int,
@@ -973,7 +973,7 @@ def _apply_no_nulls_parallel(
         )
 
 
-@njit(parallel=True)
+@njit
 def _apply_with_nulls_parallel(
     func: Callable,
     length: int,
