@@ -7,6 +7,11 @@ Starting with 0.5, we will follow the following versioning scheme:
 * We bump MINOR on breaking changes.
 * We increase PATCH otherwise.
 
+0.7.1 (2020-12-29)
+------------------
+
+* Fix return values for `str` functions with `pandas=1.2` and `pyarrow=1`.
+* Ensure that parallel variants of `apply_binary_str` actually parallize.
 
 0.7.0 (2020-12-07)
 ------------------

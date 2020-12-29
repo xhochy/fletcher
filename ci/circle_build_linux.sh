@@ -7,7 +7,8 @@ export LC_ALL=C.UTF-8
 export LANG=C.UTF-8
 export PYTHON_VERSION=$1
 export PYARROW_VERSION=$2
-export USE_DEV_WHEELS=$3
+export PANDAS_VERSION=$3
+export USE_DEV_WHEELS=$4
 export CONDA_PKGS_DIRS=$HOME/.conda_packages
 export MINICONDA=$HOME/miniconda
 export MINICONDA_URL="https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh"
@@ -16,6 +17,8 @@ export PATH="$MINICONDA/bin:$PATH"
 wget --no-verbose -O miniconda.sh $MINICONDA_URL
 bash miniconda.sh -b -p $MINICONDA
 export PATH="$MINICONDA/bin:$PATH"
+
+set -x
 
 conda config --set auto_update_conda false
 conda config --add channels conda-forge
@@ -30,10 +33,15 @@ fi
 if [ "${PYARROW_VERSION}" = "latest" ]; then
     yq -Y ". + {channels: [${CONDA_CHANNELS}], dependencies: [.dependencies[], \"python=${PYTHON_VERSION}\"] }" environment.yml > /tmp/environment.yml
 else
-    yq -Y ". + {channels: [${CONDA_CHANNELS}], dependencies: [.dependencies[], \"python=${PYTHON_VERSION}\", \"pyarrow=${PYARROW_VERSION}\"] }" environment.yml > /tmp/environment.yml
+    if [ "${PANDAS_VERSION}" = "latest" ]; then
+        yq -Y ". + {channels: [${CONDA_CHANNELS}], dependencies: [.dependencies[], \"python=${PYTHON_VERSION}\", \"pyarrow=${PYARROW_VERSION}\"] }" environment.yml > /tmp/environment.yml
+    else
+        yq -Y ". + {channels: [${CONDA_CHANNELS}], dependencies: [.dependencies[], \"python=${PYTHON_VERSION}\", \"pyarrow=${PYARROW_VERSION}\", \"pandas=${PANDAS_VERSION}\"] }" environment.yml > /tmp/environment.yml
+    fi
 fi
 cat /tmp/environment.yml
 mamba env create -f /tmp/environment.yml
+set +x
 source activate fletcher
 
 if [ "${PYTHON_VERSION}" = "3.7" ]; then
