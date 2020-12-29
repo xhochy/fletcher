@@ -640,7 +640,13 @@ class TestBaseSetitemTests(BaseSetitemTests):
 
     @xfail_list_setitem_not_implemented
     def test_setitem_empty_indxer(self, data, box_in_series):
-        BaseSetitemTests.test_setitem_empty_indxer(self, data, box_in_series)
+        if hasattr(BaseSetitemTests, "test_setitem_empty_indxer"):
+            BaseSetitemTests.test_setitem_empty_indxer(self, data, box_in_series)
+
+    @xfail_list_setitem_not_implemented
+    def test_setitem_empty_indexer(self, data, box_in_series):
+        if hasattr(BaseSetitemTests, "test_setitem_empty_indexer"):
+            BaseSetitemTests.test_setitem_empty_indexer(self, data, box_in_series)
 
     @xfail_list_setitem_not_implemented
     def test_setitem_sequence_broadcasts(self, data, box_in_series):
