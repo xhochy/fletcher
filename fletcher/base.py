@@ -547,6 +547,24 @@ class FletcherBaseArray(StringSupportingExtensionArray):
                 )
         if len(inputs) != 2:
             raise NotImplementedError("Only ufuncs with a second input are supported")
+        if "out" in kwargs:
+            out = kwargs.pop("out")
+            if len(out) == 1:
+                out_array = out[0]
+                if isinstance(out_array, np.ndarray) and self.data.null_count == 0:
+                    self_as_np = np.asarray(self)
+                    mapped_inputs = [self_as_np if i is self else i for i in inputs]
+                    return self_as_np.__array_ufunc__(
+                        ufunc, method, *mapped_inputs, **kwargs
+                    )
+                else:
+                    raise NotImplementedError(
+                        "Currently ufuncs with outputs are only supported for arrays without missings"
+                    )
+            else:
+                raise NotImplementedError(
+                    "Currently ufuncs only support a single output"
+                )
         if len(kwargs) > 0:
             raise NotImplementedError("ufuncs with kwargs aren't supported")
         if isinstance(inputs[0], FletcherBaseArray):
