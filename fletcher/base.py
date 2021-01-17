@@ -210,6 +210,10 @@ class FletcherBaseDtype(ExtensionDtype):
         return str(self)
 
     @property
+    def itemsize(self) -> int:
+        return self.arrow_dtype.bit_width
+
+    @property
     def _is_boolean(self):
         return pa.types.is_boolean(self.arrow_dtype)
 
