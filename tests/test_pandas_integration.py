@@ -278,3 +278,15 @@ def test_setitem_chunked_int_index(indices, test_array_chunked):
     ser[integer_index] = ["int", "index"]
     assert ser[indices[0]] == "int"
     assert ser[indices[1]] == "index"
+
+
+def test_numpy_ufunc_with_keyword(fletcher_array):
+    # https://github.com/xhochy/fletcher/issues/213
+
+    x = fletcher_array([0])
+    y = np.array([False])
+
+    # Test without in-place storage
+    y | (x == 1)
+    # Test with in-place storage
+    y |= x == 1

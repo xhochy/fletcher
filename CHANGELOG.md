@@ -7,6 +7,11 @@ Starting with 0.5, we will follow the following versioning scheme:
 * We bump MINOR on breaking changes.
 * We increase PATCH otherwise.
 
+0.7.2 (2021-01-17)
+------------------
+
+* Allow NumPy ufuncs to work with `np.ndarray` outputs where operations are clearly defined (i.e. the fletcher array has no nulls).
+
 0.7.1 (2020-12-29)
 ------------------
 
