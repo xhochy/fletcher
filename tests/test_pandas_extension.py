@@ -863,7 +863,10 @@ class TestBaseArithmeticOpsTests(BaseArithmeticOpsTests):
     def _check_op(self, s, op, other, op_name, exc=NotImplementedError):
         if exc is None:
             result = op(s, other)
-            expected = self._combine(s, other, op)
+            if hasattr(self, "_combine"):
+                expected = self._combine(s, other, op)
+            else:
+                expected = s.combine(other, op)
             expected_dtype = pdt.get_dtype(expected)
             s_dtype = pdt.get_dtype(s)
 
