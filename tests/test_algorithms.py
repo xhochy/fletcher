@@ -315,19 +315,19 @@ def test_stringbuilder_auto(string_builder_variant, data):
 
 
 @settings(deadline=None)
-@given(data=st.lists(st.integers(-2 ** 15, 2 ** 15 - 1)))
+@given(data=st.lists(st.integers(-(2 ** 15), 2 ** 15 - 1)))
 def test_vector16_auto(string_builder_variant, data):
     _test_vector(string_builder_variant, data, np.int16)
 
 
 @settings(deadline=None)
-@given(data=st.lists(st.integers(-2 ** 31, 2 ** 31 - 1)))
+@given(data=st.lists(st.integers(-(2 ** 31), 2 ** 31 - 1)))
 def test_vector32_auto(string_builder_variant, data):
     _test_vector(string_builder_variant, data, np.int32)
 
 
 @settings(deadline=None)
-@given(data=st.lists(st.integers(-2 ** 63, 2 ** 63 - 1)))
+@given(data=st.lists(st.integers(-(2 ** 63), 2 ** 63 - 1)))
 def test_vector64_auto(string_builder_variant, data):
     _test_vector(string_builder_variant, data, np.int64)
 
