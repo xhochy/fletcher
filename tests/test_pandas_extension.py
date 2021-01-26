@@ -318,6 +318,15 @@ def nulls_fixture(request):
     return request.param
 
 
+def get_dtype(obj):
+    if hasattr(pdt, "get_dtype"):
+        return pdt.get_dtype(obj)
+    else:
+        if isinstance(obj, pd.DataFrame):
+            return obj.dtypes.iat[0]
+        return obj.dtype
+
+
 class TestBaseCasting(BaseCastingTests):
     pass
 
@@ -710,6 +719,7 @@ class TestBaseSetitemTests(BaseSetitemTests):
     def test_setitem_slice_array(self, data):
         BaseSetitemTests.test_setitem_slice_array(self, data)
 
+    @pytest.mark.xfail(reason="GH#20441: setitem on extension types.")
     @xfail_list_setitem_not_implemented
     def test_setitem_tuple_index(self, data):
         if hasattr(BaseSetitemTests, "test_setitem_tuple_index"):
@@ -866,9 +876,14 @@ class TestBaseArithmeticOpsTests(BaseArithmeticOpsTests):
             if hasattr(self, "_combine"):
                 expected = self._combine(s, other, op)
             else:
-                expected = s.combine(other, op)
-            expected_dtype = pdt.get_dtype(expected)
-            s_dtype = pdt.get_dtype(s)
+                if isinstance(s, pd.DataFrame):
+                    if len(s.columns) != 1:
+                        raise NotImplementedError()
+                    expected = s.iloc[:, 0].combine(other, op).to_frame()
+                else:
+                    expected = s.combine(other, op)
+            expected_dtype = get_dtype(expected)
+            s_dtype = get_dtype(s)
 
             # Combine always returns an int64 for integral arrays but for
             # operations on smaller integer types, we expect also smaller int types
