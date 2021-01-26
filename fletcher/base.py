@@ -1177,9 +1177,9 @@ class FletcherContinuousArray(FletcherBaseArray):
         -------
         filled : ExtensionArray with NA/NaN filled
         """
+        import pandas.core.missing as pd_missing
         from pandas.api.types import is_array_like
         from pandas.util._validators import validate_fillna_kwargs
-        import pandas.core.missing as pd_missing
 
         value, method = validate_fillna_kwargs(value, method)
 
@@ -1596,9 +1596,9 @@ class FletcherChunkedArray(FletcherBaseArray):
         -------
         filled : ExtensionArray with NA/NaN filled
         """
+        import pandas.core.missing as pd_missing
         from pandas.api.types import is_array_like
         from pandas.util._validators import validate_fillna_kwargs
-        import pandas.core.missing as pd_missing
 
         value, method = validate_fillna_kwargs(value, method)
 

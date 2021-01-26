@@ -272,7 +272,7 @@ class TextAccessorBase:
 
     def _call_str_accessor(self, func, *args, **kwargs) -> pd.Series:
         """Call the str accessor function with transforming the Arrow series to pandas series
-         and back."""
+        and back."""
         pd_series = self.data.to_pandas()
         pd_series.index = self.obj.index
         pd_result = getattr(pd_series.str, func)(*args, **kwargs)

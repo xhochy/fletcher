@@ -7,6 +7,7 @@ from typing import Optional, Type
 
 import numpy as np
 import pandas as pd
+import pandas.util.testing as pdt
 import pyarrow as pa
 import pytest
 from pandas.tests.extension.base import (
@@ -33,13 +34,11 @@ from fletcher import FletcherBaseDtype
 
 if LooseVersion(pd.__version__) >= "0.25.0":
     # imports of pytest fixtures needed for derived unittest classes
-    from pandas.tests.extension.conftest import (  # noqa: F401
-        as_array,  # noqa: F401
-        use_numpy,  # noqa: F401
-        groupby_apply_op,  # noqa: F401
-        as_frame,  # noqa: F401
-        as_series,  # noqa: F401
-    )
+    from pandas.tests.extension.conftest import as_array  # noqa: F401; noqa: F401
+    from pandas.tests.extension.conftest import as_frame  # noqa: F401
+    from pandas.tests.extension.conftest import as_series  # noqa: F401
+    from pandas.tests.extension.conftest import groupby_apply_op  # noqa: F401
+    from pandas.tests.extension.conftest import use_numpy  # noqa: F401
 
 
 PANDAS_GE_1_1_0 = LooseVersion(pd.__version__) >= "1.1.0"
@@ -317,6 +316,15 @@ def nulls_fixture(request):
     Fixture for each null type in pandas.
     """
     return request.param
+
+
+def get_dtype(obj):
+    if hasattr(pdt, "get_dtype"):
+        return pdt.get_dtype(obj)
+    else:
+        if isinstance(obj, pd.DataFrame):
+            return obj.dtypes.iat[0]
+        return obj.dtype
 
 
 class TestBaseCasting(BaseCastingTests):
@@ -711,6 +719,12 @@ class TestBaseSetitemTests(BaseSetitemTests):
     def test_setitem_slice_array(self, data):
         BaseSetitemTests.test_setitem_slice_array(self, data)
 
+    @pytest.mark.xfail(reason="GH#20441: setitem on extension types.")
+    @xfail_list_setitem_not_implemented
+    def test_setitem_tuple_index(self, data):
+        if hasattr(BaseSetitemTests, "test_setitem_tuple_index"):
+            BaseSetitemTests.test_setitem_tuple_index(self, data)
+
     @xfail_list_setitem_not_implemented
     @pytest.mark.parametrize(
         "mask",
@@ -859,13 +873,23 @@ class TestBaseArithmeticOpsTests(BaseArithmeticOpsTests):
     def _check_op(self, s, op, other, op_name, exc=NotImplementedError):
         if exc is None:
             result = op(s, other)
-            expected = s.combine(other, op)
+            if hasattr(self, "_combine"):
+                expected = self._combine(s, other, op)
+            else:
+                if isinstance(s, pd.DataFrame):
+                    if len(s.columns) != 1:
+                        raise NotImplementedError()
+                    expected = s.iloc[:, 0].combine(other, op).to_frame()
+                else:
+                    expected = s.combine(other, op)
+            expected_dtype = get_dtype(expected)
+            s_dtype = get_dtype(s)
 
             # Combine always returns an int64 for integral arrays but for
             # operations on smaller integer types, we expect also smaller int types
             # in the result of the non-combine operations.
-            if hasattr(expected.dtype, "arrow_dtype"):
-                arrow_dtype = expected.dtype.arrow_dtype
+            if hasattr(expected_dtype, "arrow_dtype"):
+                arrow_dtype = expected_dtype.arrow_dtype
                 if pa.types.is_integer(arrow_dtype):
                     # In the case of an operand with a higher bytesize, we also expect the
                     # output to be int64.
@@ -876,12 +900,12 @@ class TestBaseArithmeticOpsTests(BaseArithmeticOpsTests):
                     )
                     if (
                         pa.types.is_integer(arrow_dtype)
-                        and pa.types.is_integer(s.dtype.arrow_dtype)
+                        and pa.types.is_integer(s_dtype.arrow_dtype)
                         and not other_is_np_int64
                     ):
-                        expected = expected.astype(s.dtype)
+                        expected = expected.astype(s_dtype)
 
-            self.assert_series_equal(result, expected)
+            self.assert_equal(result, expected)
         else:
             with pytest.raises(exc):
                 op(s, other)
@@ -909,6 +933,13 @@ class TestBaseArithmeticOpsTests(BaseArithmeticOpsTests):
     @skip_non_artithmetic_type
     def test_add_series_with_extension_array(self, data):
         BaseArithmeticOpsTests.test_add_series_with_extension_array(self, data)
+
+    @skip_non_artithmetic_type
+    def test_arith_frame_with_scalar(self, data, all_arithmetic_operators):
+        if hasattr(BaseArithmeticOpsTests, "test_arith_frame_with_scalar"):
+            BaseArithmeticOpsTests.test_arith_frame_with_scalar(
+                self, data, all_arithmetic_operators
+            )
 
     def test_error(self, data, all_arithmetic_operators):
         arrow_dtype = data.dtype.arrow_dtype
