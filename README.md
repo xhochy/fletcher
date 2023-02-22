@@ -9,6 +9,13 @@ implementations backed by Apache Arrow. They support a wider range of types
 than Pandas natively supports and also bring a different set of constraints and
 behaviours that are beneficial in many situations.
 
+# 🗃️ Archived successfully 🤘
+
+This project has been archived as development has ceased around 2021.
+With the support of [Apache Arrow-backed extension arrays in `pandas`](https://github.com/pandas-dev/pandas/pull/35259), the major goal of this project has been fulfilled.
+As Marc Garcia outlines in his blog post ["pandas 2.0 and the Arrow revolution (part I)"](https://datapythonista.me/blog/pandas-20-and-the-arrow-revolution-part-i) Apache Arrow support in `pandas` is now generally available and here to stay.
+`fletcher` has hopefully discovered some bugs along the way and gave inspiration to the implementation that is now in `pandas`.
+
 ## Usage
 
 To use `fletcher` in Pandas DataFrames, all you need to do is to wrap your data
